@@ -20,8 +20,10 @@ public sealed record XmlTvProgramme
         Stop = stop;
         Title = title;
         Subtitle = subtitle;
-        Description = description;
-        Categories = NormalizeCategories(categories);
+
+        var categoryCandidates = new List<string>(categories);
+        Description = NormalizeDescription(description, categoryCandidates);
+        Categories = NormalizeCategories(categoryCandidates);
     }
 
     public string ChannelId { get; }
@@ -38,7 +40,46 @@ public sealed record XmlTvProgramme
 
     public IReadOnlyList<string> Categories { get; }
 
-    private static IReadOnlyList<string> NormalizeCategories(IReadOnlyList<string> categories)
+    private static string? NormalizeDescription(string? description, ICollection<string> categoryCandidates)
+    {
+        if (string.IsNullOrWhiteSpace(description))
+        {
+            return null;
+        }
+
+        var value = description.Trim();
+        if (value.Length < 3 || value[0] != '[')
+        {
+            return value;
+        }
+
+        var closingBracketIndex = value.IndexOf(']');
+        if (closingBracketIndex <= 1)
+        {
+            return value;
+        }
+
+        var prefixTokens = value[1..closingBracketIndex]
+            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+        if (!prefixTokens.Any(IsTechnicalAlias))
+        {
+            return value;
+        }
+
+        foreach (var token in prefixTokens)
+        {
+            if (!IsTechnicalAlias(token))
+            {
+                categoryCandidates.Add(token);
+            }
+        }
+
+        var remainder = value[(closingBracketIndex + 1)..].TrimStart();
+        return remainder.Length == 0 ? null : remainder;
+    }
+
+    private static IReadOnlyList<string> NormalizeCategories(IEnumerable<string> categories)
     {
         var normalized = new List<string>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
