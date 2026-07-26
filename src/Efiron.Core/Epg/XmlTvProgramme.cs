@@ -41,7 +41,7 @@ public sealed record XmlTvProgramme
     private static IReadOnlyList<string> NormalizeCategories(IReadOnlyList<string> categories)
     {
         var normalized = new List<string>();
-        var seen = new HashSet<string>(StringComparer.CurrentCultureIgnoreCase);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var rawCategory in categories)
         {
