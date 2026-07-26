@@ -27,6 +27,22 @@
   <data name="PlayerPlay.Content" xml:space="preserve"><value>Воспроизвести</value></data>
   <data name="PlayerPause.Content" xml:space="preserve"><value>Пауза / продолжить</value></data>
   <data name="PlayerStop.Content" xml:space="preserve"><value>Остановить</value></data>
+  <data name="PlayerPlayPauseButton.AutomationProperties.Name" xml:space="preserve"><value>Воспроизвести</value></data>
+  <data name="PlayerPlayPauseButton.ToolTipService.ToolTip" xml:space="preserve"><value>Воспроизвести или поставить на паузу (Пробел)</value></data>
+  <data name="PlayerStopControlButton.AutomationProperties.Name" xml:space="preserve"><value>Остановить</value></data>
+  <data name="PlayerStopControlButton.ToolTipService.ToolTip" xml:space="preserve"><value>Остановить воспроизведение</value></data>
+  <data name="PlayerMuteButton.AutomationProperties.Name" xml:space="preserve"><value>Отключить звук</value></data>
+  <data name="PlayerMuteButton.ToolTipService.ToolTip" xml:space="preserve"><value>Отключить или включить звук (M)</value></data>
+  <data name="PlayerVolumeSlider.AutomationProperties.Name" xml:space="preserve"><value>Громкость</value></data>
+  <data name="PlayerVolumeSlider.ToolTipService.ToolTip" xml:space="preserve"><value>Громкость звука</value></data>
+  <data name="PlayerFullscreenButton.AutomationProperties.Name" xml:space="preserve"><value>Полноэкранный режим</value></data>
+  <data name="PlayerFullscreenButton.ToolTipService.ToolTip" xml:space="preserve"><value>Полноэкранный режим (F11)</value></data>
+  <data name="PlayerPlayLabel" xml:space="preserve"><value>Воспроизвести (Пробел)</value></data>
+  <data name="PlayerPauseLabel" xml:space="preserve"><value>Пауза (Пробел)</value></data>
+  <data name="PlayerMuteLabel" xml:space="preserve"><value>Отключить звук (M)</value></data>
+  <data name="PlayerUnmuteLabel" xml:space="preserve"><value>Включить звук (M)</value></data>
+  <data name="PlayerEnterFullscreenLabel" xml:space="preserve"><value>Полноэкранный режим (F11)</value></data>
+  <data name="PlayerExitFullscreenLabel" xml:space="preserve"><value>Выйти из полноэкранного режима (Esc или F11)</value></data>
   <data name="PlaylistAllGroups" xml:space="preserve"><value>Все группы</value></data>
   <data name="PlaylistNoGroup" xml:space="preserve"><value>Без группы</value></data>
   <data name="PlaylistSummaryFormat" xml:space="preserve"><value>Показано каналов: {0} из {1}</value></data>
@@ -82,6 +98,8 @@
   <data name="StatusEpgLoadedFormat" xml:space="preserve"><value>Телепрограмма загружена: {0} передач</value></data>
   <data name="StatusOpeningStream" xml:space="preserve"><value>Открытие потока</value></data>
   <data name="StatusOpeningChannelFormat" xml:space="preserve"><value>Открытие канала «{0}»</value></data>
+  <data name="StatusPlaying" xml:space="preserve"><value>Воспроизведение</value></data>
+  <data name="StatusPaused" xml:space="preserve"><value>Пауза</value></data>
   <data name="StatusPlaybackToggled" xml:space="preserve"><value>Состояние воспроизведения изменено</value></data>
   <data name="StatusStopped" xml:space="preserve"><value>Остановлено</value></data>
   <data name="StatusPlaybackError" xml:space="preserve"><value>Ошибка воспроизведения. Проверьте адрес и доступ у провайдера.</value></data>
