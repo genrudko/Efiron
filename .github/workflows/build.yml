@@ -1,0 +1,89 @@
+name: build
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    name: Core build and tests
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.302
+
+      - name: Restore core and tests
+        run: dotnet restore tests/Efiron.Core.Tests/Efiron.Core.Tests.csproj
+
+      - name: Build core
+        run: dotnet build src/Efiron.Core/Efiron.Core.csproj -c Release --no-restore
+
+      - name: Test
+        run: dotnet test tests/Efiron.Core.Tests/Efiron.Core.Tests.csproj -c Release --no-restore --logger "trx;LogFileName=core-tests.trx"
+
+  windows-app:
+    name: Windows application build
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.302
+
+      - name: Restore Windows application
+        run: dotnet restore src/Efiron.App/Efiron.App.csproj -r win-x64
+
+      - name: Build Windows application
+        id: windows_build
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          dotnet build src/Efiron.App/Efiron.App.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            --no-restore `
+            --verbosity minimal *> windows-build.log
+          exit $LASTEXITCODE
+
+      - name: Upload Windows build diagnostics
+        if: steps.windows_build.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build-diagnostics
+          path: windows-build.log
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload Windows prototype
+        if: steps.windows_build.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: efiron-win-x64
+          path: src/Efiron.App/bin/Release/net10.0-windows10.0.22000.0/win-x64/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Enforce Windows build result
+        if: steps.windows_build.outcome == 'failure'
+        shell: pwsh
+        run: |
+          Write-Error "Windows application build failed. See windows-build-diagnostics."
+          exit 1
