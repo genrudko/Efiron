@@ -12,7 +12,11 @@ public sealed class XmlTvProgrammeTests
             "[Фильмы, alias=Filmy]",
             "Спорт");
 
-        Assert.Equal(["Новости", "Фильмы", "Спорт"], programme.Categories);
+        Assert.Collection(
+            programme.Categories,
+            category => Assert.Equal("Новости", category),
+            category => Assert.Equal("Фильмы", category),
+            category => Assert.Equal("Спорт", category));
     }
 
     [Fact]
@@ -20,7 +24,8 @@ public sealed class XmlTvProgrammeTests
     {
         var programme = CreateProgramme("Фильмы, сериалы");
 
-        Assert.Equal(["Фильмы, сериалы"], programme.Categories);
+        var category = Assert.Single(programme.Categories);
+        Assert.Equal("Фильмы, сериалы", category);
     }
 
     [Fact]
@@ -33,7 +38,8 @@ public sealed class XmlTvProgrammeTests
             " alias=Movies ",
             "");
 
-        Assert.Equal(["Новости"], programme.Categories);
+        var category = Assert.Single(programme.Categories);
+        Assert.Equal("Новости", category);
     }
 
     private static XmlTvProgramme CreateProgramme(params string[] categories) =>
