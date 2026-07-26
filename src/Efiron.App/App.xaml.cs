@@ -1,4 +1,6 @@
+using Efiron.App.Localization;
 using Microsoft.UI.Xaml;
+using Microsoft.Windows.Globalization;
 
 namespace Efiron.App;
 
@@ -8,6 +10,12 @@ public partial class App : Application
 
     public App()
     {
+        var configuredLanguage = AppLanguageStore.Load();
+        if (configuredLanguage is not null)
+        {
+            ApplicationLanguages.PrimaryLanguageOverride = configuredLanguage;
+        }
+
         InitializeComponent();
     }
 

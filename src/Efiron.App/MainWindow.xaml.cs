@@ -1,3 +1,4 @@
+using Efiron.App.Localization;
 using Efiron.Core.Playback;
 using LibVLCSharp.Platforms.Windows;
 using LibVLCSharp.Shared;
@@ -15,6 +16,7 @@ public sealed partial class MainWindow : Window
     private MediaPlayer? _mediaPlayer;
     private Media? _currentMedia;
     private bool _isClosing;
+    private bool _isSelectingInitialLanguage;
 
     public MainWindow()
     {
@@ -136,27 +138,27 @@ public sealed partial class MainWindow : Window
 
     private void SelectConfiguredLanguage()
     {
-        var language = ApplicationLanguages.PrimaryLanguageOverride;
+        var language = AppLanguageStore.Load();
         if (string.IsNullOrWhiteSpace(language))
         {
             language = ApplicationLanguages.Languages.FirstOrDefault() ?? "en-US";
         }
 
+        _isSelectingInitialLanguage = true;
         LanguageComboBox.SelectedIndex = language.StartsWith("ru", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
+        _isSelectingInitialLanguage = false;
     }
 
     private void LanguageComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (LanguageComboBox.SelectedItem is not ComboBoxItem item || item.Tag is not string language)
+        if (_isSelectingInitialLanguage ||
+            LanguageComboBox.SelectedItem is not ComboBoxItem item ||
+            item.Tag is not string language)
         {
             return;
         }
 
-        if (string.Equals(ApplicationLanguages.PrimaryLanguageOverride, language, StringComparison.OrdinalIgnoreCase))
-        {
-            return;
-        }
-
+        AppLanguageStore.Save(language);
         ApplicationLanguages.PrimaryLanguageOverride = language;
         RestartInfoBar.IsOpen = true;
     }

@@ -1,4 +1,5 @@
 using Efiron.Core.Playback;
+using Xunit;
 
 namespace Efiron.Core.Tests.Playback;
 
