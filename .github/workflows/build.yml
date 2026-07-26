@@ -139,6 +139,56 @@ jobs:
 
           Write-Host "Retained locale directories: $($remainingLocales -join ', ')"
 
+      - name: Smoke test application startup
+        if: steps.windows_build.outcome == 'success'
+        id: startup_smoke
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $output = "src/Efiron.App/bin/Release/net10.0-windows10.0.22000.0/win-x64"
+          $executable = Join-Path $output "Efiron.exe"
+          $process = $null
+
+          try {
+            $process = Start-Process `
+              -FilePath $executable `
+              -WorkingDirectory $output `
+              -PassThru
+
+            Start-Sleep -Seconds 8
+            $process.Refresh()
+
+            if ($process.HasExited) {
+              throw "Efiron exited during startup smoke test with code $($process.ExitCode)."
+            }
+
+            "Efiron remained running for the startup smoke interval." |
+              Set-Content -LiteralPath startup-smoke.log -Encoding utf8
+          }
+          catch {
+            $_ | Out-String |
+              Set-Content -LiteralPath startup-smoke.log -Encoding utf8
+            throw
+          }
+          finally {
+            if ($null -ne $process) {
+              $process.Refresh()
+              if (-not $process.HasExited) {
+                Stop-Process -Id $process.Id -Force
+              }
+            }
+          }
+
+      - name: Upload startup smoke diagnostics
+        if: steps.startup_smoke.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-startup-diagnostics
+          path: startup-smoke.log
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Upload Windows build diagnostics
         if: steps.windows_build.outcome == 'failure'
         uses: actions/upload-artifact@v4
@@ -149,7 +199,7 @@ jobs:
           retention-days: 7
 
       - name: Upload Windows prototype
-        if: steps.windows_build.outcome == 'success'
+        if: steps.windows_build.outcome == 'success' && steps.startup_smoke.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: efiron-win-x64
@@ -162,4 +212,11 @@ jobs:
         shell: pwsh
         run: |
           Write-Error "Windows application build failed. See windows-build-diagnostics."
+          exit 1
+
+      - name: Enforce startup smoke result
+        if: steps.startup_smoke.outcome == 'failure'
+        shell: pwsh
+        run: |
+          Write-Error "Windows application exited during startup. See windows-startup-diagnostics."
           exit 1
