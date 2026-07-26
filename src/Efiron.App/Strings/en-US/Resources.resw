@@ -43,6 +43,13 @@
   <data name="PlayerUnmuteLabel" xml:space="preserve"><value>Unmute (M)</value></data>
   <data name="PlayerEnterFullscreenLabel" xml:space="preserve"><value>Enter fullscreen (F11)</value></data>
   <data name="PlayerExitFullscreenLabel" xml:space="preserve"><value>Exit fullscreen (Esc or F11)</value></data>
+  <data name="LiveNowLabel" xml:space="preserve"><value>Now</value></data>
+  <data name="LiveNextLabel" xml:space="preserve"><value>Next</value></data>
+  <data name="LiveGuideSelectChannel" xml:space="preserve"><value>Select a channel to see the current programme.</value></data>
+  <data name="LiveGuideNotLoaded" xml:space="preserve"><value>Load the XMLTV guide.</value></data>
+  <data name="LiveGuideNoMatch" xml:space="preserve"><value>No TV guide match was found for the selected channel.</value></data>
+  <data name="LiveGuideNoCurrent" xml:space="preserve"><value>No programme is scheduled right now.</value></data>
+  <data name="LiveGuideNoNext" xml:space="preserve"><value>No next programme is listed.</value></data>
   <data name="PlaylistAllGroups" xml:space="preserve"><value>All groups</value></data>
   <data name="PlaylistNoGroup" xml:space="preserve"><value>No group</value></data>
   <data name="PlaylistSummaryFormat" xml:space="preserve"><value>Channels shown: {0} of {1}</value></data>
