@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="SearchPlaceholder" xml:space="preserve"><value>Search channels in the grid</value></data>
+  <data name="CategoryHeader" xml:space="preserve"><value>Category</value></data>
+  <data name="AllCategories" xml:space="preserve"><value>All categories</value></data>
+  <data name="NoCategory" xml:space="preserve"><value>No category</value></data>
+  <data name="SummaryFormat" xml:space="preserve"><value>Channels shown: {0} of {1}</value></data>
+  <data name="NoChannels" xml:space="preserve"><value>No channels match the current search and category.</value></data>
+  <data name="WideEnter" xml:space="preserve"><value>Use full width</value></data>
+  <data name="WideExit" xml:space="preserve"><value>Normal layout</value></data>
+  <data name="WideEnterTooltip" xml:space="preserve"><value>Expand the guide to the full available window width</value></data>
+  <data name="WideExitTooltip" xml:space="preserve"><value>Restore the normal application layout</value></data>
+</root>
