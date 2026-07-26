@@ -2,11 +2,11 @@ using System.Globalization;
 using Efiron.App.Playlists;
 using Efiron.Core.Epg;
 using Microsoft.UI;
+using Microsoft.UI.Text;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
-using Windows.UI.Text;
 
 namespace Efiron.App;
 
