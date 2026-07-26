@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="WindowTitle" xml:space="preserve"><value>Efiron</value></data>
+  <data name="NavigationLive.Content" xml:space="preserve"><value>Live TV</value></data>
+  <data name="NavigationGuide.Content" xml:space="preserve"><value>TV guide</value></data>
+  <data name="NavigationArchive.Content" xml:space="preserve"><value>Archive</value></data>
+  <data name="NavigationRecordings.Content" xml:space="preserve"><value>Recordings</value></data>
+  <data name="HeaderLive" xml:space="preserve"><value>Live TV</value></data>
+  <data name="HeaderGuide" xml:space="preserve"><value>TV guide</value></data>
+  <data name="HeaderArchive" xml:space="preserve"><value>Provider archive</value></data>
+  <data name="HeaderRecordings" xml:space="preserve"><value>Recordings</value></data>
+  <data name="HeaderSettings" xml:space="preserve"><value>Settings</value></data>
+  <data name="PlayerEmptyState.Text" xml:space="preserve"><value>Enter a stream URL and select Play.&#x0a;The first milestone validates the WinUI video surface.</value></data>
+  <data name="PlayerSource.PlaceholderText" xml:space="preserve"><value>HTTP, HTTPS, RTSP, RTP or UDP stream URL</value></data>
+  <data name="PlayerPlay.Content" xml:space="preserve"><value>Play</value></data>
+  <data name="PlayerPause.Content" xml:space="preserve"><value>Pause / resume</value></data>
+  <data name="PlayerStop.Content" xml:space="preserve"><value>Stop</value></data>
+  <data name="GuideIntro.Text" xml:space="preserve"><value>EPG is designed as three first-class views sharing the same selected channel, date and filter.</value></data>
+  <data name="GuideGridTitle.Text" xml:space="preserve"><value>Timeline grid</value></data>
+  <data name="GuideGridDescription.Text" xml:space="preserve"><value>Channels vertically and time horizontally for comparing programmes.</value></data>
+  <data name="GuideListTitle.Text" xml:space="preserve"><value>Channel programme list</value></data>
+  <data name="GuideListDescription.Text" xml:space="preserve"><value>Receiver-style day list with programme details and keyboard navigation.</value></data>
+  <data name="GuideNowTitle.Text" xml:space="preserve"><value>Now and next</value></data>
+  <data name="GuideNowDescription.Text" xml:space="preserve"><value>A compact channel list for choosing what to watch immediately.</value></data>
+  <data name="GuideArchiveInfo.Title" xml:space="preserve"><value>Server archive is part of EPG</value></data>
+  <data name="GuideArchiveInfo.Message" xml:space="preserve"><value>Past and current programmes will expose Watch from archive or Watch from start when the provider confirms catch-up availability.</value></data>
+  <data name="ArchiveIntro.Text" xml:space="preserve"><value>This section is an alternative archive entry point. The primary flow starts from a programme in EPG.</value></data>
+  <data name="ArchiveProviderInfo.Title" xml:space="preserve"><value>Provider adapters</value></data>
+  <data name="ArchiveProviderInfo.Message" xml:space="preserve"><value>M3U catch-up metadata and Xtream-compatible services are the first planned adapters.</value></data>
+  <data name="RecordingsIntro.Text" xml:space="preserve"><value>Persistent manual and scheduled recordings will be separate from the rolling timeshift buffer.</value></data>
+  <data name="SettingsLanguageTitle.Text" xml:space="preserve"><value>Interface language</value></data>
+  <data name="SettingsLanguageDescription.Text" xml:space="preserve"><value>Efiron supports Russian and English. Provider channel names and EPG content are not translated.</value></data>
+  <data name="SettingsLanguageSelector.Header" xml:space="preserve"><value>Language</value></data>
+  <data name="SettingsRestartInfo.Title" xml:space="preserve"><value>Restart required</value></data>
+  <data name="SettingsRestartInfo.Message" xml:space="preserve"><value>The selected interface language will be applied on the next application start.</value></data>
+  <data name="StatusReady" xml:space="preserve"><value>Ready</value></data>
+  <data name="StatusMediaReady" xml:space="preserve"><value>Media engine ready</value></data>
+  <data name="StatusMediaNotReady" xml:space="preserve"><value>Media engine is not ready</value></data>
+  <data name="StatusInvalidSource" xml:space="preserve"><value>Enter a valid absolute stream URL</value></data>
+  <data name="StatusOpeningStream" xml:space="preserve"><value>Opening stream</value></data>
+  <data name="StatusPlaybackToggled" xml:space="preserve"><value>Playback state changed</value></data>
+  <data name="StatusStopped" xml:space="preserve"><value>Stopped</value></data>
+  <data name="StatusPlaybackError" xml:space="preserve"><value>Playback failed. Verify the URL and provider access.</value></data>
+</root>

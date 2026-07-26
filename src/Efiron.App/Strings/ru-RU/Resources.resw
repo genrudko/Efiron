@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="WindowTitle" xml:space="preserve"><value>Efiron</value></data>
+  <data name="NavigationLive.Content" xml:space="preserve"><value>Эфир</value></data>
+  <data name="NavigationGuide.Content" xml:space="preserve"><value>Телепрограмма</value></data>
+  <data name="NavigationArchive.Content" xml:space="preserve"><value>Архив</value></data>
+  <data name="NavigationRecordings.Content" xml:space="preserve"><value>Записи</value></data>
+  <data name="HeaderLive" xml:space="preserve"><value>Прямой эфир</value></data>
+  <data name="HeaderGuide" xml:space="preserve"><value>Телепрограмма</value></data>
+  <data name="HeaderArchive" xml:space="preserve"><value>Архив провайдера</value></data>
+  <data name="HeaderRecordings" xml:space="preserve"><value>Записи</value></data>
+  <data name="HeaderSettings" xml:space="preserve"><value>Настройки</value></data>
+  <data name="PlayerEmptyState.Text" xml:space="preserve"><value>Введите адрес потока и нажмите «Воспроизвести».&#x0a;Первый этап проверяет видеоповерхность WinUI.</value></data>
+  <data name="PlayerSource.PlaceholderText" xml:space="preserve"><value>Адрес потока HTTP, HTTPS, RTSP, RTP или UDP</value></data>
+  <data name="PlayerPlay.Content" xml:space="preserve"><value>Воспроизвести</value></data>
+  <data name="PlayerPause.Content" xml:space="preserve"><value>Пауза / продолжить</value></data>
+  <data name="PlayerStop.Content" xml:space="preserve"><value>Остановить</value></data>
+  <data name="GuideIntro.Text" xml:space="preserve"><value>EPG проектируется как три полноценных представления с общей выбранной датой, каналом и фильтром.</value></data>
+  <data name="GuideGridTitle.Text" xml:space="preserve"><value>Временная сетка</value></data>
+  <data name="GuideGridDescription.Text" xml:space="preserve"><value>Каналы по вертикали и время по горизонтали для сравнения передач.</value></data>
+  <data name="GuideListTitle.Text" xml:space="preserve"><value>Программа канала</value></data>
+  <data name="GuideListDescription.Text" xml:space="preserve"><value>Список передач на день в стиле спутниковых ресиверов с подробностями и навигацией с клавиатуры.</value></data>
+  <data name="GuideNowTitle.Text" xml:space="preserve"><value>Сейчас и далее</value></data>
+  <data name="GuideNowDescription.Text" xml:space="preserve"><value>Компактный список каналов для быстрого выбора текущей передачи.</value></data>
+  <data name="GuideArchiveInfo.Title" xml:space="preserve"><value>Серверный архив является частью EPG</value></data>
+  <data name="GuideArchiveInfo.Message" xml:space="preserve"><value>Для прошедших и текущих передач появятся действия «Смотреть из архива» и «С начала», когда провайдер подтверждает доступность архива.</value></data>
+  <data name="ArchiveIntro.Text" xml:space="preserve"><value>Этот раздел является альтернативной точкой входа. Основной переход в архив выполняется из выбранной передачи EPG.</value></data>
+  <data name="ArchiveProviderInfo.Title" xml:space="preserve"><value>Адаптеры провайдеров</value></data>
+  <data name="ArchiveProviderInfo.Message" xml:space="preserve"><value>Первыми планируются Catch-up-атрибуты M3U и Xtream-совместимые сервисы.</value></data>
+  <data name="RecordingsIntro.Text" xml:space="preserve"><value>Постоянные ручные и запланированные записи будут отделены от циклического буфера Timeshift.</value></data>
+  <data name="SettingsLanguageTitle.Text" xml:space="preserve"><value>Язык интерфейса</value></data>
+  <data name="SettingsLanguageDescription.Text" xml:space="preserve"><value>Efiron поддерживает русский и английский языки. Названия каналов и содержимое EPG от провайдера не переводятся.</value></data>
+  <data name="SettingsLanguageSelector.Header" xml:space="preserve"><value>Язык</value></data>
+  <data name="SettingsRestartInfo.Title" xml:space="preserve"><value>Требуется перезапуск</value></data>
+  <data name="SettingsRestartInfo.Message" xml:space="preserve"><value>Выбранный язык интерфейса будет применён при следующем запуске приложения.</value></data>
+  <data name="StatusReady" xml:space="preserve"><value>Готово</value></data>
+  <data name="StatusMediaReady" xml:space="preserve"><value>Медиадвижок готов</value></data>
+  <data name="StatusMediaNotReady" xml:space="preserve"><value>Медиадвижок ещё не готов</value></data>
+  <data name="StatusInvalidSource" xml:space="preserve"><value>Введите корректный абсолютный адрес потока</value></data>
+  <data name="StatusOpeningStream" xml:space="preserve"><value>Открытие потока</value></data>
+  <data name="StatusPlaybackToggled" xml:space="preserve"><value>Состояние воспроизведения изменено</value></data>
+  <data name="StatusStopped" xml:space="preserve"><value>Остановлено</value></data>
+  <data name="StatusPlaybackError" xml:space="preserve"><value>Ошибка воспроизведения. Проверьте адрес и доступ у провайдера.</value></data>
+</root>
