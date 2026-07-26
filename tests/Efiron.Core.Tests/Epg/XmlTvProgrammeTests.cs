@@ -1,4 +1,5 @@
 using Efiron.Core.Epg;
+using Xunit;
 
 namespace Efiron.Core.Tests.Epg;
 
