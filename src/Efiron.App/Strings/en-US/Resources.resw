@@ -27,6 +27,22 @@
   <data name="PlayerPlay.Content" xml:space="preserve"><value>Play</value></data>
   <data name="PlayerPause.Content" xml:space="preserve"><value>Pause / resume</value></data>
   <data name="PlayerStop.Content" xml:space="preserve"><value>Stop</value></data>
+  <data name="PlayerPlayPauseButton.AutomationProperties.Name" xml:space="preserve"><value>Play</value></data>
+  <data name="PlayerPlayPauseButton.ToolTipService.ToolTip" xml:space="preserve"><value>Play or pause (Space)</value></data>
+  <data name="PlayerStopControlButton.AutomationProperties.Name" xml:space="preserve"><value>Stop</value></data>
+  <data name="PlayerStopControlButton.ToolTipService.ToolTip" xml:space="preserve"><value>Stop playback</value></data>
+  <data name="PlayerMuteButton.AutomationProperties.Name" xml:space="preserve"><value>Mute</value></data>
+  <data name="PlayerMuteButton.ToolTipService.ToolTip" xml:space="preserve"><value>Mute or unmute (M)</value></data>
+  <data name="PlayerVolumeSlider.AutomationProperties.Name" xml:space="preserve"><value>Volume</value></data>
+  <data name="PlayerVolumeSlider.ToolTipService.ToolTip" xml:space="preserve"><value>Audio volume</value></data>
+  <data name="PlayerFullscreenButton.AutomationProperties.Name" xml:space="preserve"><value>Fullscreen</value></data>
+  <data name="PlayerFullscreenButton.ToolTipService.ToolTip" xml:space="preserve"><value>Fullscreen (F11)</value></data>
+  <data name="PlayerPlayLabel" xml:space="preserve"><value>Play (Space)</value></data>
+  <data name="PlayerPauseLabel" xml:space="preserve"><value>Pause (Space)</value></data>
+  <data name="PlayerMuteLabel" xml:space="preserve"><value>Mute (M)</value></data>
+  <data name="PlayerUnmuteLabel" xml:space="preserve"><value>Unmute (M)</value></data>
+  <data name="PlayerEnterFullscreenLabel" xml:space="preserve"><value>Enter fullscreen (F11)</value></data>
+  <data name="PlayerExitFullscreenLabel" xml:space="preserve"><value>Exit fullscreen (Esc or F11)</value></data>
   <data name="PlaylistAllGroups" xml:space="preserve"><value>All groups</value></data>
   <data name="PlaylistNoGroup" xml:space="preserve"><value>No group</value></data>
   <data name="PlaylistSummaryFormat" xml:space="preserve"><value>Channels shown: {0} of {1}</value></data>
@@ -82,6 +98,8 @@
   <data name="StatusEpgLoadedFormat" xml:space="preserve"><value>TV guide loaded: {0} programmes</value></data>
   <data name="StatusOpeningStream" xml:space="preserve"><value>Opening stream</value></data>
   <data name="StatusOpeningChannelFormat" xml:space="preserve"><value>Opening “{0}”</value></data>
+  <data name="StatusPlaying" xml:space="preserve"><value>Playing</value></data>
+  <data name="StatusPaused" xml:space="preserve"><value>Paused</value></data>
   <data name="StatusPlaybackToggled" xml:space="preserve"><value>Playback state changed</value></data>
   <data name="StatusStopped" xml:space="preserve"><value>Stopped</value></data>
   <data name="StatusPlaybackError" xml:space="preserve"><value>Playback failed. Verify the URL and provider access.</value></data>

@@ -15,6 +15,7 @@
     <AppxPackage>false</AppxPackage>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <SelfContained>true</SelfContained>
+    <SatelliteResourceLanguages>en-US;ru-RU</SatelliteResourceLanguages>
   </PropertyGroup>
 
   <ItemGroup>
