@@ -40,7 +40,9 @@ public sealed partial class MainWindow
         }
 
         _guideTimelineRefinementsInitialized = true;
-        _guideRefinementResources = new ResourceLoader("GuideRefinements");
+        _guideRefinementResources = new ResourceLoader(
+            ResourceLoader.GetDefaultResourceFilePath(),
+            "GuideRefinements");
         _guideSourcePanel = GuideView.Children
             .OfType<FrameworkElement>()
             .First(child => Grid.GetRow(child) == 0);
