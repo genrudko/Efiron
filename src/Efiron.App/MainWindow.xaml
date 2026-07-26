@@ -289,7 +289,6 @@
                       </Grid.ColumnDefinitions>
                       <TextBlock
                           Text="{Binding TimeRange}"
-                          FontFeatures="tnum"
                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                       <StackPanel Grid.Column="1" Spacing="3">
                         <TextBlock
