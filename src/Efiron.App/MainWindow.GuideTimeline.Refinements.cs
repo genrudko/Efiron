@@ -2,6 +2,7 @@ using System.Globalization;
 using Efiron.App.Epg;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.Windows.ApplicationModel.Resources;
 using Windows.System;
@@ -354,8 +355,12 @@ public sealed partial class MainWindow
         NavigationView sender,
         NavigationViewSelectionChangedEventArgs args)
     {
-        if (_isTimelineWideMode && args.SelectedItemContainer?.Tag is not string tag ||
-            _isTimelineWideMode && tag != "guide")
+        if (!_isTimelineWideMode)
+        {
+            return;
+        }
+
+        if (args.SelectedItemContainer?.Tag is not string tag || tag != "guide")
         {
             SetTimelineWideMode(false);
         }
