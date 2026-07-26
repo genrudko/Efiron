@@ -34,7 +34,7 @@ public sealed partial class MainWindow : Window
         ShowSection("live");
     }
 
-    private void VideoView_Initialized(object sender, InitializedEventArgs e)
+    private void VideoView_Initialized(object? sender, InitializedEventArgs e)
     {
         _libVlc = new LibVLC(enableDebugLogs: true, e.SwapChainOptions);
         _mediaPlayer = new MediaPlayer(_libVlc);
