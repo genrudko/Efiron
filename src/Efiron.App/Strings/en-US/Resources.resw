@@ -14,11 +14,29 @@
   <data name="HeaderArchive" xml:space="preserve"><value>Provider archive</value></data>
   <data name="HeaderRecordings" xml:space="preserve"><value>Recordings</value></data>
   <data name="HeaderSettings" xml:space="preserve"><value>Settings</value></data>
-  <data name="PlayerEmptyState.Text" xml:space="preserve"><value>Enter a stream URL and select Play.&#x0a;The first milestone validates the WinUI video surface.</value></data>
+  <data name="PlaylistSourceTitle.Text" xml:space="preserve"><value>Channel playlist</value></data>
+  <data name="PlaylistSource.PlaceholderText" xml:space="preserve"><value>Remote M3U or M3U8 playlist URL</value></data>
+  <data name="PlaylistLoad.Content" xml:space="preserve"><value>Load</value></data>
+  <data name="ChannelSearch.PlaceholderText" xml:space="preserve"><value>Search channels</value></data>
+  <data name="GroupFilter.Header" xml:space="preserve"><value>Group</value></data>
+  <data name="ChannelEmptyState.Text" xml:space="preserve"><value>Load a playlist or change the channel filter.</value></data>
+  <data name="DirectStreamExpander.Header" xml:space="preserve"><value>Direct stream URL — diagnostics</value></data>
+  <data name="SelectedChannelEmpty.Text" xml:space="preserve"><value>No channel selected</value></data>
+  <data name="PlayerEmptyState.Text" xml:space="preserve"><value>Load a playlist and choose a channel.&#x0a;You can also open a direct stream URL from the diagnostics section.</value></data>
   <data name="PlayerSource.PlaceholderText" xml:space="preserve"><value>HTTP, HTTPS, RTSP, RTP or UDP stream URL</value></data>
   <data name="PlayerPlay.Content" xml:space="preserve"><value>Play</value></data>
   <data name="PlayerPause.Content" xml:space="preserve"><value>Pause / resume</value></data>
   <data name="PlayerStop.Content" xml:space="preserve"><value>Stop</value></data>
+  <data name="PlaylistAllGroups" xml:space="preserve"><value>All groups</value></data>
+  <data name="PlaylistNoGroup" xml:space="preserve"><value>No group</value></data>
+  <data name="PlaylistSummaryFormat" xml:space="preserve"><value>Channels shown: {0} of {1}</value></data>
+  <data name="PlaylistWarningTitle" xml:space="preserve"><value>Playlist loaded with warnings</value></data>
+  <data name="PlaylistWarningMessageFormat" xml:space="preserve"><value>Skipped or corrected entries: {0}. Remaining channels are available.</value></data>
+  <data name="PlaylistErrorTitle" xml:space="preserve"><value>Playlist could not be loaded</value></data>
+  <data name="PlaylistInvalidAddress" xml:space="preserve"><value>Enter an absolute HTTP or HTTPS playlist URL.</value></data>
+  <data name="PlaylistNoChannels" xml:space="preserve"><value>No valid IPTV channels were found in the document.</value></data>
+  <data name="PlaylistRequestTimedOut" xml:space="preserve"><value>The provider did not respond within 30 seconds.</value></data>
+  <data name="PlaylistLoadError" xml:space="preserve"><value>Verify the URL, provider connection and M3U format.</value></data>
   <data name="GuideIntro.Text" xml:space="preserve"><value>EPG is designed as three first-class views sharing the same selected channel, date and filter.</value></data>
   <data name="GuideGridTitle.Text" xml:space="preserve"><value>Timeline grid</value></data>
   <data name="GuideGridDescription.Text" xml:space="preserve"><value>Channels vertically and time horizontally for comparing programmes.</value></data>
@@ -41,7 +59,11 @@
   <data name="StatusMediaReady" xml:space="preserve"><value>Media engine ready</value></data>
   <data name="StatusMediaNotReady" xml:space="preserve"><value>Media engine is not ready</value></data>
   <data name="StatusInvalidSource" xml:space="preserve"><value>Enter a valid absolute stream URL</value></data>
+  <data name="StatusDownloadingPlaylist" xml:space="preserve"><value>Downloading playlist</value></data>
+  <data name="StatusPlaylistLoadFailed" xml:space="preserve"><value>Playlist loading failed</value></data>
+  <data name="StatusPlaylistLoadedFormat" xml:space="preserve"><value>Playlist loaded: {0} channels</value></data>
   <data name="StatusOpeningStream" xml:space="preserve"><value>Opening stream</value></data>
+  <data name="StatusOpeningChannelFormat" xml:space="preserve"><value>Opening “{0}”</value></data>
   <data name="StatusPlaybackToggled" xml:space="preserve"><value>Playback state changed</value></data>
   <data name="StatusStopped" xml:space="preserve"><value>Stopped</value></data>
   <data name="StatusPlaybackError" xml:space="preserve"><value>Playback failed. Verify the URL and provider access.</value></data>
