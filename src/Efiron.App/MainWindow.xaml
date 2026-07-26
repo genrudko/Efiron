@@ -159,6 +159,7 @@
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
           </Grid.RowDefinitions>
 
           <TextBlock
@@ -203,97 +204,98 @@
                   IsActive="False"
                   IsHitTestVisible="False"
                   Visibility="Collapsed" />
+            </Grid>
+          </Border>
 
-              <Border
-                  x:Name="PlayerControlOverlay"
-                  Padding="12"
-                  VerticalAlignment="Bottom"
-                  Background="#CC101010"
-                  PointerEntered="PlayerControlOverlay_PointerEntered"
-                  PointerExited="PlayerControlOverlay_PointerExited">
-                <Grid ColumnSpacing="10">
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="140" />
-                    <ColumnDefinition Width="52" />
-                    <ColumnDefinition Width="Auto" />
-                  </Grid.ColumnDefinitions>
+          <Border
+              x:Name="PlayerControlOverlay"
+              Grid.Row="2"
+              Padding="12"
+              Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+              BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+              BorderThickness="1"
+              CornerRadius="8"
+              PointerEntered="PlayerControlOverlay_PointerEntered"
+              PointerExited="PlayerControlOverlay_PointerExited">
+            <Grid ColumnSpacing="10">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="140" />
+                <ColumnDefinition Width="52" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
 
-                  <Button
-                      x:Name="PlayerPlayPauseButton"
-                      x:Uid="PlayerPlayPauseButton"
-                      Width="40"
-                      Height="40"
-                      Padding="0"
-                      Click="PlayerPlayPauseButton_Click">
-                    <FontIcon x:Name="PlayerPlayPauseIcon" Glyph="&#xE768;" FontSize="18" />
-                  </Button>
+              <Button
+                  x:Name="PlayerPlayPauseButton"
+                  x:Uid="PlayerPlayPauseButton"
+                  Width="40"
+                  Height="40"
+                  Padding="0"
+                  Click="PlayerPlayPauseButton_Click">
+                <FontIcon x:Name="PlayerPlayPauseIcon" Glyph="&#xE768;" FontSize="18" />
+              </Button>
 
-                  <Button
-                      x:Name="PlayerStopControlButton"
-                      Grid.Column="1"
-                      x:Uid="PlayerStopControlButton"
-                      Width="40"
-                      Height="40"
-                      Padding="0"
-                      Click="PlayerStopControlButton_Click">
-                    <FontIcon Glyph="&#xE71A;" FontSize="17" />
-                  </Button>
+              <Button
+                  x:Name="PlayerStopControlButton"
+                  Grid.Column="1"
+                  x:Uid="PlayerStopControlButton"
+                  Width="40"
+                  Height="40"
+                  Padding="0"
+                  Click="PlayerStopControlButton_Click">
+                <FontIcon Glyph="&#xE71A;" FontSize="17" />
+              </Button>
 
-                  <TextBlock
-                      Grid.Column="2"
-                      Margin="4,0,8,0"
-                      VerticalAlignment="Center"
-                      Foreground="White"
-                      Style="{StaticResource BodyStrongTextBlockStyle}"
-                      Text="{Binding Text, ElementName=SelectedChannelText}"
-                      TextTrimming="CharacterEllipsis" />
+              <TextBlock
+                  Grid.Column="2"
+                  Margin="4,0,8,0"
+                  VerticalAlignment="Center"
+                  Style="{StaticResource BodyStrongTextBlockStyle}"
+                  Text="{Binding Text, ElementName=SelectedChannelText}"
+                  TextTrimming="CharacterEllipsis" />
 
-                  <Button
-                      x:Name="PlayerMuteButton"
-                      Grid.Column="3"
-                      x:Uid="PlayerMuteButton"
-                      Width="40"
-                      Height="40"
-                      Padding="0"
-                      Click="PlayerMuteButton_Click">
-                    <FontIcon x:Name="PlayerMuteIcon" Glyph="&#xE767;" FontSize="18" />
-                  </Button>
+              <Button
+                  x:Name="PlayerMuteButton"
+                  Grid.Column="3"
+                  x:Uid="PlayerMuteButton"
+                  Width="40"
+                  Height="40"
+                  Padding="0"
+                  Click="PlayerMuteButton_Click">
+                <FontIcon x:Name="PlayerMuteIcon" Glyph="&#xE767;" FontSize="18" />
+              </Button>
 
-                  <Slider
-                      x:Name="VolumeSlider"
-                      Grid.Column="4"
-                      x:Uid="PlayerVolumeSlider"
-                      Minimum="0"
-                      Maximum="100"
-                      StepFrequency="1"
-                      Value="100"
-                      VerticalAlignment="Center"
-                      ValueChanged="VolumeSlider_ValueChanged" />
+              <Slider
+                  x:Name="VolumeSlider"
+                  Grid.Column="4"
+                  x:Uid="PlayerVolumeSlider"
+                  Minimum="0"
+                  Maximum="100"
+                  StepFrequency="1"
+                  Value="100"
+                  VerticalAlignment="Center"
+                  ValueChanged="VolumeSlider_ValueChanged" />
 
-                  <TextBlock
-                      x:Name="VolumeValueText"
-                      Grid.Column="5"
-                      VerticalAlignment="Center"
-                      Foreground="White"
-                      Text="100%"
-                      TextAlignment="Right" />
+              <TextBlock
+                  x:Name="VolumeValueText"
+                  Grid.Column="5"
+                  VerticalAlignment="Center"
+                  Text="100%"
+                  TextAlignment="Right" />
 
-                  <Button
-                      x:Name="PlayerFullscreenButton"
-                      Grid.Column="6"
-                      x:Uid="PlayerFullscreenButton"
-                      Width="40"
-                      Height="40"
-                      Padding="0"
-                      Click="PlayerFullscreenButton_Click">
-                    <FontIcon x:Name="PlayerFullscreenIcon" Glyph="&#xE740;" FontSize="18" />
-                  </Button>
-                </Grid>
-              </Border>
+              <Button
+                  x:Name="PlayerFullscreenButton"
+                  Grid.Column="6"
+                  x:Uid="PlayerFullscreenButton"
+                  Width="40"
+                  Height="40"
+                  Padding="0"
+                  Click="PlayerFullscreenButton_Click">
+                <FontIcon x:Name="PlayerFullscreenIcon" Glyph="&#xE740;" FontSize="18" />
+              </Button>
             </Grid>
           </Border>
         </Grid>
