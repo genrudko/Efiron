@@ -23,6 +23,7 @@ public partial class App : Application
     {
         var mainWindow = new MainWindow();
         mainWindow.InitializeLiveProgrammeWorkspace();
+        mainWindow.InitializeGuideTimelineWorkspace();
         _window = mainWindow;
         _window.Activate();
     }
