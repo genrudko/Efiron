@@ -7,6 +7,14 @@ public sealed record EpgNowNext(
     double ProgressPercent,
     bool IsProgressKnown);
 
+public sealed record EpgTimelineEntry(
+    XmlTvProgramme Programme,
+    DateTimeOffset EffectiveStop,
+    DateTimeOffset VisibleStart,
+    DateTimeOffset VisibleStop,
+    bool StartsBeforeWindow,
+    bool EndsAfterWindow);
+
 public sealed class EpgScheduleIndex
 {
     private readonly Dictionary<string, XmlTvProgramme[]> _programmesByChannel;
@@ -58,6 +66,89 @@ public sealed class EpgScheduleIndex
             effectiveStop,
             progress.ProgressPercent,
             progress.IsKnown);
+    }
+
+    public IReadOnlyList<EpgTimelineEntry> FindRange(
+        string channelId,
+        DateTimeOffset windowStart,
+        DateTimeOffset windowEnd)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(channelId);
+        if (windowEnd <= windowStart)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(windowEnd),
+                windowEnd,
+                "The timeline window end must be later than its start.");
+        }
+
+        if (!_programmesByChannel.TryGetValue(channelId, out var programmes) || programmes.Length == 0)
+        {
+            return Array.Empty<EpgTimelineEntry>();
+        }
+
+        var firstIndex = FindLastStartedProgrammeIndex(programmes, windowStart);
+        firstIndex = Math.Max(firstIndex, 0);
+
+        while (firstIndex < programmes.Length)
+        {
+            var effectiveStop = GetEffectiveStop(programmes, firstIndex, windowEnd);
+            if (effectiveStop > windowStart)
+            {
+                break;
+            }
+
+            firstIndex++;
+        }
+
+        var entries = new List<EpgTimelineEntry>();
+        for (var index = firstIndex; index < programmes.Length; index++)
+        {
+            var programme = programmes[index];
+            if (programme.Start >= windowEnd)
+            {
+                break;
+            }
+
+            var effectiveStop = GetEffectiveStop(programmes, index, windowEnd);
+            if (effectiveStop <= windowStart || effectiveStop <= programme.Start)
+            {
+                continue;
+            }
+
+            var visibleStart = programme.Start < windowStart ? windowStart : programme.Start;
+            var visibleStop = effectiveStop > windowEnd ? windowEnd : effectiveStop;
+            if (visibleStop <= visibleStart)
+            {
+                continue;
+            }
+
+            entries.Add(new EpgTimelineEntry(
+                programme,
+                effectiveStop,
+                visibleStart,
+                visibleStop,
+                programme.Start < windowStart,
+                effectiveStop > windowEnd));
+        }
+
+        return entries;
+    }
+
+    private static DateTimeOffset GetEffectiveStop(
+        IReadOnlyList<XmlTvProgramme> programmes,
+        int index,
+        DateTimeOffset fallbackStop)
+    {
+        var programme = programmes[index];
+        if (programme.Stop is not null)
+        {
+            return programme.Stop.Value;
+        }
+
+        return index + 1 < programmes.Count
+            ? programmes[index + 1].Start
+            : fallbackStop;
     }
 
     private static int FindLastStartedProgrammeIndex(

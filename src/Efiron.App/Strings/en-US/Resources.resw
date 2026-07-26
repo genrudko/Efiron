@@ -70,6 +70,19 @@
   <data name="GuideToday.Content" xml:space="preserve"><value>Today</value></data>
   <data name="GuideNextDay.Content" xml:space="preserve"><value>›</value></data>
   <data name="GuideNextDay.AutomationProperties.Name" xml:space="preserve"><value>Next day</value></data>
+  <data name="GuideListMode" xml:space="preserve"><value>List</value></data>
+  <data name="GuideTimelineMode" xml:space="preserve"><value>Timeline</value></data>
+  <data name="GuideTimelinePreviousWindow" xml:space="preserve"><value>Move 3 hours earlier</value></data>
+  <data name="GuideTimelineNow" xml:space="preserve"><value>Now</value></data>
+  <data name="GuideTimelineNextWindow" xml:space="preserve"><value>Move 3 hours later</value></data>
+  <data name="GuideTimelineZoom" xml:space="preserve"><value>Zoom</value></data>
+  <data name="GuideTimelinePreviousPage" xml:space="preserve"><value>Previous channel page</value></data>
+  <data name="GuideTimelineNextPage" xml:space="preserve"><value>Next channel page</value></data>
+  <data name="GuideTimelinePageFormat" xml:space="preserve"><value>Channels: {0} / {1}</value></data>
+  <data name="GuideTimelineWindowFormat" xml:space="preserve"><value>{0:d} • {0:t}–{1:t}</value></data>
+  <data name="GuideTimelineChannelHeader" xml:space="preserve"><value>Channel</value></data>
+  <data name="GuideTimelineNoData" xml:space="preserve"><value>Load a playlist and XMLTV. The timeline shows channels matched to the guide.</value></data>
+  <data name="GuideTimelineProgrammeTooltipFormat" xml:space="preserve"><value>{0}&#x0a;{1}&#x0a;{2}</value></data>
   <data name="ProgrammeEmptyState.Text" xml:space="preserve"><value>No programmes were found for the selected channel and date.</value></data>
   <data name="ProgrammeDetailsTitle.Text" xml:space="preserve"><value>Programme details</value></data>
   <data name="EpgNotLoadedSummary" xml:space="preserve"><value>Load XMLTV after loading the channel playlist.</value></data>
