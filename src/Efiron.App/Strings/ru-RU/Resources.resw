@@ -70,6 +70,19 @@
   <data name="GuideToday.Content" xml:space="preserve"><value>Сегодня</value></data>
   <data name="GuideNextDay.Content" xml:space="preserve"><value>›</value></data>
   <data name="GuideNextDay.AutomationProperties.Name" xml:space="preserve"><value>Следующий день</value></data>
+  <data name="GuideListMode" xml:space="preserve"><value>Список</value></data>
+  <data name="GuideTimelineMode" xml:space="preserve"><value>Сетка</value></data>
+  <data name="GuideTimelinePreviousWindow" xml:space="preserve"><value>На 3 часа назад</value></data>
+  <data name="GuideTimelineNow" xml:space="preserve"><value>Сейчас</value></data>
+  <data name="GuideTimelineNextWindow" xml:space="preserve"><value>На 3 часа вперёд</value></data>
+  <data name="GuideTimelineZoom" xml:space="preserve"><value>Масштаб</value></data>
+  <data name="GuideTimelinePreviousPage" xml:space="preserve"><value>Предыдущая страница каналов</value></data>
+  <data name="GuideTimelineNextPage" xml:space="preserve"><value>Следующая страница каналов</value></data>
+  <data name="GuideTimelinePageFormat" xml:space="preserve"><value>Каналы: {0} / {1}</value></data>
+  <data name="GuideTimelineWindowFormat" xml:space="preserve"><value>{0:d} • {0:t}–{1:t}</value></data>
+  <data name="GuideTimelineChannelHeader" xml:space="preserve"><value>Канал</value></data>
+  <data name="GuideTimelineNoData" xml:space="preserve"><value>Загрузите плейлист и XMLTV. В сетке отображаются каналы, для которых найдено соответствие телепрограмме.</value></data>
+  <data name="GuideTimelineProgrammeTooltipFormat" xml:space="preserve"><value>{0}&#x0a;{1}&#x0a;{2}</value></data>
   <data name="ProgrammeEmptyState.Text" xml:space="preserve"><value>Для выбранного канала и даты передач не найдено.</value></data>
   <data name="ProgrammeDetailsTitle.Text" xml:space="preserve"><value>О передаче</value></data>
   <data name="EpgNotLoadedSummary" xml:space="preserve"><value>Загрузите XMLTV после плейлиста каналов.</value></data>
