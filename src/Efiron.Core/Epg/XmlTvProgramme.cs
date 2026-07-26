@@ -68,7 +68,7 @@ public sealed record XmlTvProgramme
             }
         }
 
-        return normalized;
+        return normalized.ToArray();
     }
 
     private static bool IsTechnicalAlias(string value) =>
