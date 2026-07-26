@@ -26,38 +26,162 @@
     </NavigationView.Header>
 
     <Grid Padding="24,12,24,24">
-      <Grid x:Name="LiveView">
-        <Grid.RowDefinitions>
-          <RowDefinition Height="*" />
-          <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+      <Grid x:Name="LiveView" ColumnSpacing="16">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="360" />
+          <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
 
-        <Border Background="Black" CornerRadius="8">
-          <Grid x:Name="LivePlayerHost">
-            <lvs:VideoView x:Name="VideoView" />
-            <TextBlock
-                x:Name="PlayerEmptyState"
-                x:Uid="PlayerEmptyState"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                Foreground="White"
-                TextAlignment="Center"
-                TextWrapping="Wrap" />
+        <Border
+            Padding="16"
+            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+            BorderThickness="1"
+            CornerRadius="8">
+          <Grid RowSpacing="12">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="*" />
+              <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Spacing="8">
+              <TextBlock x:Uid="PlaylistSourceTitle" Style="{StaticResource SubtitleTextBlockStyle}" />
+              <Grid ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="PlaylistSourceTextBox" x:Uid="PlaylistSource" />
+                <Button
+                    x:Name="LoadPlaylistButton"
+                    Grid.Column="1"
+                    x:Uid="PlaylistLoad"
+                    Click="LoadPlaylistButton_Click" />
+                <ProgressRing
+                    x:Name="PlaylistProgressRing"
+                    Grid.Column="2"
+                    Width="24"
+                    Height="24"
+                    IsActive="False"
+                    Visibility="Collapsed" />
+              </Grid>
+              <InfoBar
+                  x:Name="PlaylistInfoBar"
+                  IsClosable="True"
+                  IsOpen="False" />
+            </StackPanel>
+
+            <StackPanel Grid.Row="1" Spacing="8">
+              <Grid ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="3*" />
+                  <ColumnDefinition Width="2*" />
+                </Grid.ColumnDefinitions>
+                <TextBox
+                    x:Name="ChannelSearchTextBox"
+                    x:Uid="ChannelSearch"
+                    TextChanged="ChannelSearchTextBox_TextChanged" />
+                <ComboBox
+                    x:Name="GroupFilterComboBox"
+                    Grid.Column="1"
+                    x:Uid="GroupFilter"
+                    HorizontalAlignment="Stretch"
+                    SelectionChanged="GroupFilterComboBox_SelectionChanged" />
+              </Grid>
+              <TextBlock
+                  x:Name="PlaylistSummaryText"
+                  Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </StackPanel>
+
+            <Grid Grid.Row="2">
+              <ListView
+                  x:Name="ChannelListView"
+                  IsItemClickEnabled="True"
+                  ItemClick="ChannelListView_ItemClick"
+                  SelectionMode="Single">
+                <ListView.ItemTemplate>
+                  <DataTemplate>
+                    <Grid Padding="4,8">
+                      <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                      </Grid.RowDefinitions>
+                      <TextBlock
+                          Text="{Binding Name}"
+                          Style="{StaticResource BodyStrongTextBlockStyle}"
+                          TextTrimming="CharacterEllipsis" />
+                      <TextBlock
+                          Grid.Row="1"
+                          Text="{Binding GroupDisplayName}"
+                          Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                          TextTrimming="CharacterEllipsis" />
+                    </Grid>
+                  </DataTemplate>
+                </ListView.ItemTemplate>
+              </ListView>
+              <TextBlock
+                  x:Name="ChannelEmptyState"
+                  x:Uid="ChannelEmptyState"
+                  Margin="20"
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Center"
+                  IsHitTestVisible="False"
+                  TextAlignment="Center"
+                  TextWrapping="Wrap" />
+            </Grid>
+
+            <Expander Grid.Row="3" x:Name="DirectStreamExpander" x:Uid="DirectStreamExpander">
+              <Grid Margin="0,8,0,0" ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="SourceTextBox" x:Uid="PlayerSource" />
+                <Button Grid.Column="1" x:Uid="PlayerPlay" Click="PlayButton_Click" />
+              </Grid>
+            </Expander>
           </Grid>
         </Border>
 
-        <Grid Grid.Row="1" Margin="0,16,0,0" ColumnSpacing="8">
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="Auto" />
-          </Grid.ColumnDefinitions>
+        <Grid Grid.Column="1" RowSpacing="12">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
 
-          <TextBox x:Name="SourceTextBox" x:Uid="PlayerSource" />
-          <Button Grid.Column="1" x:Uid="PlayerPlay" Click="PlayButton_Click" />
-          <Button Grid.Column="2" x:Uid="PlayerPause" Click="PauseButton_Click" />
-          <Button Grid.Column="3" x:Uid="PlayerStop" Click="StopButton_Click" />
+          <TextBlock
+              x:Name="SelectedChannelText"
+              x:Uid="SelectedChannelEmpty"
+              Style="{StaticResource SubtitleTextBlockStyle}"
+              TextTrimming="CharacterEllipsis" />
+
+          <Border Grid.Row="1" Background="Black" CornerRadius="8">
+            <Grid x:Name="LivePlayerHost">
+              <lvs:VideoView x:Name="VideoView" />
+              <TextBlock
+                  x:Name="PlayerEmptyState"
+                  x:Uid="PlayerEmptyState"
+                  Margin="24"
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Center"
+                  Foreground="White"
+                  TextAlignment="Center"
+                  TextWrapping="Wrap" />
+            </Grid>
+          </Border>
+
+          <StackPanel
+              Grid.Row="2"
+              HorizontalAlignment="Right"
+              Orientation="Horizontal"
+              Spacing="8">
+            <Button x:Uid="PlayerPause" Click="PauseButton_Click" />
+            <Button x:Uid="PlayerStop" Click="StopButton_Click" />
+          </StackPanel>
         </Grid>
       </Grid>
 

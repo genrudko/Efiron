@@ -14,11 +14,29 @@
   <data name="HeaderArchive" xml:space="preserve"><value>Архив провайдера</value></data>
   <data name="HeaderRecordings" xml:space="preserve"><value>Записи</value></data>
   <data name="HeaderSettings" xml:space="preserve"><value>Настройки</value></data>
-  <data name="PlayerEmptyState.Text" xml:space="preserve"><value>Введите адрес потока и нажмите «Воспроизвести».&#x0a;Первый этап проверяет видеоповерхность WinUI.</value></data>
+  <data name="PlaylistSourceTitle.Text" xml:space="preserve"><value>Плейлист каналов</value></data>
+  <data name="PlaylistSource.PlaceholderText" xml:space="preserve"><value>Адрес удалённого M3U или M3U8-плейлиста</value></data>
+  <data name="PlaylistLoad.Content" xml:space="preserve"><value>Загрузить</value></data>
+  <data name="ChannelSearch.PlaceholderText" xml:space="preserve"><value>Поиск канала</value></data>
+  <data name="GroupFilter.Header" xml:space="preserve"><value>Группа</value></data>
+  <data name="ChannelEmptyState.Text" xml:space="preserve"><value>Загрузите плейлист или измените фильтр каналов.</value></data>
+  <data name="DirectStreamExpander.Header" xml:space="preserve"><value>Прямой адрес потока — диагностика</value></data>
+  <data name="SelectedChannelEmpty.Text" xml:space="preserve"><value>Канал не выбран</value></data>
+  <data name="PlayerEmptyState.Text" xml:space="preserve"><value>Загрузите плейлист и выберите канал.&#x0a;Также можно открыть прямой адрес потока в диагностическом блоке.</value></data>
   <data name="PlayerSource.PlaceholderText" xml:space="preserve"><value>Адрес потока HTTP, HTTPS, RTSP, RTP или UDP</value></data>
   <data name="PlayerPlay.Content" xml:space="preserve"><value>Воспроизвести</value></data>
   <data name="PlayerPause.Content" xml:space="preserve"><value>Пауза / продолжить</value></data>
   <data name="PlayerStop.Content" xml:space="preserve"><value>Остановить</value></data>
+  <data name="PlaylistAllGroups" xml:space="preserve"><value>Все группы</value></data>
+  <data name="PlaylistNoGroup" xml:space="preserve"><value>Без группы</value></data>
+  <data name="PlaylistSummaryFormat" xml:space="preserve"><value>Показано каналов: {0} из {1}</value></data>
+  <data name="PlaylistWarningTitle" xml:space="preserve"><value>Плейлист загружен с предупреждениями</value></data>
+  <data name="PlaylistWarningMessageFormat" xml:space="preserve"><value>Пропущено или скорректировано записей: {0}. Остальные каналы доступны.</value></data>
+  <data name="PlaylistErrorTitle" xml:space="preserve"><value>Не удалось загрузить плейлист</value></data>
+  <data name="PlaylistInvalidAddress" xml:space="preserve"><value>Введите абсолютный адрес плейлиста HTTP или HTTPS.</value></data>
+  <data name="PlaylistNoChannels" xml:space="preserve"><value>В документе не найдено ни одного корректного IPTV-канала.</value></data>
+  <data name="PlaylistRequestTimedOut" xml:space="preserve"><value>Провайдер не ответил за 30 секунд.</value></data>
+  <data name="PlaylistLoadError" xml:space="preserve"><value>Проверьте адрес, подключение к провайдеру и формат M3U.</value></data>
   <data name="GuideIntro.Text" xml:space="preserve"><value>EPG проектируется как три полноценных представления с общей выбранной датой, каналом и фильтром.</value></data>
   <data name="GuideGridTitle.Text" xml:space="preserve"><value>Временная сетка</value></data>
   <data name="GuideGridDescription.Text" xml:space="preserve"><value>Каналы по вертикали и время по горизонтали для сравнения передач.</value></data>
@@ -41,7 +59,11 @@
   <data name="StatusMediaReady" xml:space="preserve"><value>Медиадвижок готов</value></data>
   <data name="StatusMediaNotReady" xml:space="preserve"><value>Медиадвижок ещё не готов</value></data>
   <data name="StatusInvalidSource" xml:space="preserve"><value>Введите корректный абсолютный адрес потока</value></data>
+  <data name="StatusDownloadingPlaylist" xml:space="preserve"><value>Загрузка плейлиста</value></data>
+  <data name="StatusPlaylistLoadFailed" xml:space="preserve"><value>Ошибка загрузки плейлиста</value></data>
+  <data name="StatusPlaylistLoadedFormat" xml:space="preserve"><value>Плейлист загружен: {0} каналов</value></data>
   <data name="StatusOpeningStream" xml:space="preserve"><value>Открытие потока</value></data>
+  <data name="StatusOpeningChannelFormat" xml:space="preserve"><value>Открытие канала «{0}»</value></data>
   <data name="StatusPlaybackToggled" xml:space="preserve"><value>Состояние воспроизведения изменено</value></data>
   <data name="StatusStopped" xml:space="preserve"><value>Остановлено</value></data>
   <data name="StatusPlaybackError" xml:space="preserve"><value>Ошибка воспроизведения. Проверьте адрес и доступ у провайдера.</value></data>
