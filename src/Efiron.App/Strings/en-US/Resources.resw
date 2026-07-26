@@ -37,15 +37,30 @@
   <data name="PlaylistNoChannels" xml:space="preserve"><value>No valid IPTV channels were found in the document.</value></data>
   <data name="PlaylistRequestTimedOut" xml:space="preserve"><value>The provider did not respond within 30 seconds.</value></data>
   <data name="PlaylistLoadError" xml:space="preserve"><value>Verify the URL, provider connection and M3U format.</value></data>
-  <data name="GuideIntro.Text" xml:space="preserve"><value>EPG is designed as three first-class views sharing the same selected channel, date and filter.</value></data>
-  <data name="GuideGridTitle.Text" xml:space="preserve"><value>Timeline grid</value></data>
-  <data name="GuideGridDescription.Text" xml:space="preserve"><value>Channels vertically and time horizontally for comparing programmes.</value></data>
-  <data name="GuideListTitle.Text" xml:space="preserve"><value>Channel programme list</value></data>
-  <data name="GuideListDescription.Text" xml:space="preserve"><value>Receiver-style day list with programme details and keyboard navigation.</value></data>
-  <data name="GuideNowTitle.Text" xml:space="preserve"><value>Now and next</value></data>
-  <data name="GuideNowDescription.Text" xml:space="preserve"><value>A compact channel list for choosing what to watch immediately.</value></data>
-  <data name="GuideArchiveInfo.Title" xml:space="preserve"><value>Server archive is part of EPG</value></data>
-  <data name="GuideArchiveInfo.Message" xml:space="preserve"><value>Past and current programmes will expose Watch from archive or Watch from start when the provider confirms catch-up availability.</value></data>
+  <data name="EpgSourceTitle.Text" xml:space="preserve"><value>TV guide source</value></data>
+  <data name="EpgSource.PlaceholderText" xml:space="preserve"><value>XMLTV or XMLTV.GZ URL</value></data>
+  <data name="EpgLoad.Content" xml:space="preserve"><value>Load</value></data>
+  <data name="GuideChannelSelector.Header" xml:space="preserve"><value>Channel</value></data>
+  <data name="GuidePreviousDay.Content" xml:space="preserve"><value>‹</value></data>
+  <data name="GuidePreviousDay.AutomationProperties.Name" xml:space="preserve"><value>Previous day</value></data>
+  <data name="GuideDateSelector.PlaceholderText" xml:space="preserve"><value>Guide date</value></data>
+  <data name="GuideToday.Content" xml:space="preserve"><value>Today</value></data>
+  <data name="GuideNextDay.Content" xml:space="preserve"><value>›</value></data>
+  <data name="GuideNextDay.AutomationProperties.Name" xml:space="preserve"><value>Next day</value></data>
+  <data name="ProgrammeEmptyState.Text" xml:space="preserve"><value>No programmes were found for the selected channel and date.</value></data>
+  <data name="ProgrammeDetailsTitle.Text" xml:space="preserve"><value>Programme details</value></data>
+  <data name="EpgNotLoadedSummary" xml:space="preserve"><value>Load XMLTV after loading the channel playlist.</value></data>
+  <data name="EpgSummaryFormat" xml:space="preserve"><value>XMLTV: {0} channels, {1} programmes • playlist matches: {2} ({3} by ID, {4} by name)</value></data>
+  <data name="EpgWarningTitle" xml:space="preserve"><value>Guide loaded with warnings</value></data>
+  <data name="EpgWarningMessageFormat" xml:space="preserve"><value>Skipped or corrected elements: {0}. Remaining guide data is available.</value></data>
+  <data name="EpgErrorTitle" xml:space="preserve"><value>TV guide could not be loaded</value></data>
+  <data name="EpgInvalidAddress" xml:space="preserve"><value>Enter an absolute HTTP or HTTPS XMLTV URL.</value></data>
+  <data name="EpgNoProgrammes" xml:space="preserve"><value>No channels or programmes were found in the XMLTV document.</value></data>
+  <data name="EpgRequestTimedOut" xml:space="preserve"><value>The TV guide source did not respond within 60 seconds.</value></data>
+  <data name="EpgLoadError" xml:space="preserve"><value>Verify the URL, connection and XMLTV/XMLTV.GZ format.</value></data>
+  <data name="ProgrammeUntitled" xml:space="preserve"><value>Untitled programme</value></data>
+  <data name="ProgrammeNoDescription" xml:space="preserve"><value>No programme description is available.</value></data>
+  <data name="ProgrammeDetailsEmpty" xml:space="preserve"><value>Select a programme from the list</value></data>
   <data name="ArchiveIntro.Text" xml:space="preserve"><value>This section is an alternative archive entry point. The primary flow starts from a programme in EPG.</value></data>
   <data name="ArchiveProviderInfo.Title" xml:space="preserve"><value>Provider adapters</value></data>
   <data name="ArchiveProviderInfo.Message" xml:space="preserve"><value>M3U catch-up metadata and Xtream-compatible services are the first planned adapters.</value></data>
@@ -62,6 +77,9 @@
   <data name="StatusDownloadingPlaylist" xml:space="preserve"><value>Downloading playlist</value></data>
   <data name="StatusPlaylistLoadFailed" xml:space="preserve"><value>Playlist loading failed</value></data>
   <data name="StatusPlaylistLoadedFormat" xml:space="preserve"><value>Playlist loaded: {0} channels</value></data>
+  <data name="StatusDownloadingEpg" xml:space="preserve"><value>Downloading TV guide</value></data>
+  <data name="StatusEpgLoadFailed" xml:space="preserve"><value>TV guide loading failed</value></data>
+  <data name="StatusEpgLoadedFormat" xml:space="preserve"><value>TV guide loaded: {0} programmes</value></data>
   <data name="StatusOpeningStream" xml:space="preserve"><value>Opening stream</value></data>
   <data name="StatusOpeningChannelFormat" xml:space="preserve"><value>Opening “{0}”</value></data>
   <data name="StatusPlaybackToggled" xml:space="preserve"><value>Playback state changed</value></data>

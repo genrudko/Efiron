@@ -31,7 +31,34 @@ jobs:
         run: dotnet build src/Efiron.Core/Efiron.Core.csproj -c Release --no-restore
 
       - name: Test
-        run: dotnet test tests/Efiron.Core.Tests/Efiron.Core.Tests.csproj -c Release --no-restore --logger "trx;LogFileName=core-tests.trx"
+        id: core_tests
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          dotnet test tests/Efiron.Core.Tests/Efiron.Core.Tests.csproj `
+            -c Release `
+            --no-restore `
+            --logger "trx;LogFileName=core-tests.trx" `
+            --verbosity normal *> core-test.log
+          exit $LASTEXITCODE
+
+      - name: Upload Core test diagnostics
+        if: steps.core_tests.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-test-diagnostics
+          path: |
+            core-test.log
+            tests/Efiron.Core.Tests/TestResults/core-tests.trx
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Enforce Core test result
+        if: steps.core_tests.outcome == 'failure'
+        shell: pwsh
+        run: |
+          Write-Error "Core tests failed. See core-test-diagnostics."
+          exit 1
 
   windows-app:
     name: Windows application build

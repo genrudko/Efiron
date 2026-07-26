@@ -37,15 +37,30 @@
   <data name="PlaylistNoChannels" xml:space="preserve"><value>В документе не найдено ни одного корректного IPTV-канала.</value></data>
   <data name="PlaylistRequestTimedOut" xml:space="preserve"><value>Провайдер не ответил за 30 секунд.</value></data>
   <data name="PlaylistLoadError" xml:space="preserve"><value>Проверьте адрес, подключение к провайдеру и формат M3U.</value></data>
-  <data name="GuideIntro.Text" xml:space="preserve"><value>EPG проектируется как три полноценных представления с общей выбранной датой, каналом и фильтром.</value></data>
-  <data name="GuideGridTitle.Text" xml:space="preserve"><value>Временная сетка</value></data>
-  <data name="GuideGridDescription.Text" xml:space="preserve"><value>Каналы по вертикали и время по горизонтали для сравнения передач.</value></data>
-  <data name="GuideListTitle.Text" xml:space="preserve"><value>Программа канала</value></data>
-  <data name="GuideListDescription.Text" xml:space="preserve"><value>Список передач на день в стиле спутниковых ресиверов с подробностями и навигацией с клавиатуры.</value></data>
-  <data name="GuideNowTitle.Text" xml:space="preserve"><value>Сейчас и далее</value></data>
-  <data name="GuideNowDescription.Text" xml:space="preserve"><value>Компактный список каналов для быстрого выбора текущей передачи.</value></data>
-  <data name="GuideArchiveInfo.Title" xml:space="preserve"><value>Серверный архив является частью EPG</value></data>
-  <data name="GuideArchiveInfo.Message" xml:space="preserve"><value>Для прошедших и текущих передач появятся действия «Смотреть из архива» и «С начала», когда провайдер подтверждает доступность архива.</value></data>
+  <data name="EpgSourceTitle.Text" xml:space="preserve"><value>Источник телепрограммы</value></data>
+  <data name="EpgSource.PlaceholderText" xml:space="preserve"><value>Адрес XMLTV или XMLTV.GZ</value></data>
+  <data name="EpgLoad.Content" xml:space="preserve"><value>Загрузить</value></data>
+  <data name="GuideChannelSelector.Header" xml:space="preserve"><value>Канал</value></data>
+  <data name="GuidePreviousDay.Content" xml:space="preserve"><value>‹</value></data>
+  <data name="GuidePreviousDay.AutomationProperties.Name" xml:space="preserve"><value>Предыдущий день</value></data>
+  <data name="GuideDateSelector.PlaceholderText" xml:space="preserve"><value>Дата программы</value></data>
+  <data name="GuideToday.Content" xml:space="preserve"><value>Сегодня</value></data>
+  <data name="GuideNextDay.Content" xml:space="preserve"><value>›</value></data>
+  <data name="GuideNextDay.AutomationProperties.Name" xml:space="preserve"><value>Следующий день</value></data>
+  <data name="ProgrammeEmptyState.Text" xml:space="preserve"><value>Для выбранного канала и даты передач не найдено.</value></data>
+  <data name="ProgrammeDetailsTitle.Text" xml:space="preserve"><value>О передаче</value></data>
+  <data name="EpgNotLoadedSummary" xml:space="preserve"><value>Загрузите XMLTV после плейлиста каналов.</value></data>
+  <data name="EpgSummaryFormat" xml:space="preserve"><value>XMLTV: {0} каналов, {1} передач • совпало с плейлистом: {2} ({3} по ID, {4} по имени)</value></data>
+  <data name="EpgWarningTitle" xml:space="preserve"><value>Телепрограмма загружена с предупреждениями</value></data>
+  <data name="EpgWarningMessageFormat" xml:space="preserve"><value>Пропущено или скорректировано элементов: {0}. Остальные данные доступны.</value></data>
+  <data name="EpgErrorTitle" xml:space="preserve"><value>Не удалось загрузить телепрограмму</value></data>
+  <data name="EpgInvalidAddress" xml:space="preserve"><value>Введите абсолютный адрес XMLTV по HTTP или HTTPS.</value></data>
+  <data name="EpgNoProgrammes" xml:space="preserve"><value>В XMLTV не найдено каналов или передач.</value></data>
+  <data name="EpgRequestTimedOut" xml:space="preserve"><value>Источник телепрограммы не ответил за 60 секунд.</value></data>
+  <data name="EpgLoadError" xml:space="preserve"><value>Проверьте адрес, подключение и формат XMLTV/XMLTV.GZ.</value></data>
+  <data name="ProgrammeUntitled" xml:space="preserve"><value>Без названия</value></data>
+  <data name="ProgrammeNoDescription" xml:space="preserve"><value>Описание передачи отсутствует.</value></data>
+  <data name="ProgrammeDetailsEmpty" xml:space="preserve"><value>Выберите передачу в списке</value></data>
   <data name="ArchiveIntro.Text" xml:space="preserve"><value>Этот раздел является альтернативной точкой входа. Основной переход в архив выполняется из выбранной передачи EPG.</value></data>
   <data name="ArchiveProviderInfo.Title" xml:space="preserve"><value>Адаптеры провайдеров</value></data>
   <data name="ArchiveProviderInfo.Message" xml:space="preserve"><value>Первыми планируются Catch-up-атрибуты M3U и Xtream-совместимые сервисы.</value></data>
@@ -62,6 +77,9 @@
   <data name="StatusDownloadingPlaylist" xml:space="preserve"><value>Загрузка плейлиста</value></data>
   <data name="StatusPlaylistLoadFailed" xml:space="preserve"><value>Ошибка загрузки плейлиста</value></data>
   <data name="StatusPlaylistLoadedFormat" xml:space="preserve"><value>Плейлист загружен: {0} каналов</value></data>
+  <data name="StatusDownloadingEpg" xml:space="preserve"><value>Загрузка телепрограммы</value></data>
+  <data name="StatusEpgLoadFailed" xml:space="preserve"><value>Ошибка загрузки телепрограммы</value></data>
+  <data name="StatusEpgLoadedFormat" xml:space="preserve"><value>Телепрограмма загружена: {0} передач</value></data>
   <data name="StatusOpeningStream" xml:space="preserve"><value>Открытие потока</value></data>
   <data name="StatusOpeningChannelFormat" xml:space="preserve"><value>Открытие канала «{0}»</value></data>
   <data name="StatusPlaybackToggled" xml:space="preserve"><value>Состояние воспроизведения изменено</value></data>
