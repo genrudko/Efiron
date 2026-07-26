@@ -43,6 +43,13 @@
   <data name="PlayerUnmuteLabel" xml:space="preserve"><value>Включить звук (M)</value></data>
   <data name="PlayerEnterFullscreenLabel" xml:space="preserve"><value>Полноэкранный режим (F11)</value></data>
   <data name="PlayerExitFullscreenLabel" xml:space="preserve"><value>Выйти из полноэкранного режима (Esc или F11)</value></data>
+  <data name="LiveNowLabel" xml:space="preserve"><value>Сейчас</value></data>
+  <data name="LiveNextLabel" xml:space="preserve"><value>Далее</value></data>
+  <data name="LiveGuideSelectChannel" xml:space="preserve"><value>Выберите канал, чтобы увидеть текущую передачу.</value></data>
+  <data name="LiveGuideNotLoaded" xml:space="preserve"><value>Загрузите телепрограмму XMLTV.</value></data>
+  <data name="LiveGuideNoMatch" xml:space="preserve"><value>Для выбранного канала не найдено соответствие в телепрограмме.</value></data>
+  <data name="LiveGuideNoCurrent" xml:space="preserve"><value>Сейчас передача по расписанию не указана.</value></data>
+  <data name="LiveGuideNoNext" xml:space="preserve"><value>Следующая передача не указана.</value></data>
   <data name="PlaylistAllGroups" xml:space="preserve"><value>Все группы</value></data>
   <data name="PlaylistNoGroup" xml:space="preserve"><value>Без группы</value></data>
   <data name="PlaylistSummaryFormat" xml:space="preserve"><value>Показано каналов: {0} из {1}</value></data>
