@@ -104,11 +104,12 @@ public sealed partial class MainWindow
 
         var nextBorder = new Border
         {
-            Grid.Column = 1,
             Padding = new Thickness(16, 0, 0, 0),
             BorderBrush = new SolidColorBrush(ColorHelper.FromArgb(48, 128, 128, 128)),
             BorderThickness = new Thickness(1, 0, 0, 0),
         };
+        Grid.SetColumn(nextBorder, 1);
+
         var nextPanel = new StackPanel
         {
             Spacing = 4,
