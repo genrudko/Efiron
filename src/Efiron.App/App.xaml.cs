@@ -26,6 +26,7 @@ public partial class App : Application
         mainWindow.InitializeGuideTimelineWorkspace();
         mainWindow.InitializeGuideTimelineEmptyStateTracking();
         mainWindow.InitializeGuideTimelineRefinements();
+        mainWindow.InitializeChannelLibraryWorkspace();
         _window = mainWindow;
         _window.Activate();
     }
