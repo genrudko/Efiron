@@ -148,9 +148,11 @@ jobs:
           $ErrorActionPreference = "Stop"
           $output = "src/Efiron.App/bin/Release/net10.0-windows10.0.22000.0/win-x64"
           $executable = Join-Path $output "Efiron.exe"
+          $applicationError = Join-Path $output "efiron-startup-error.log"
           $process = $null
 
           try {
+            Remove-Item -LiteralPath $applicationError -Force -ErrorAction SilentlyContinue
             $process = Start-Process `
               -FilePath $executable `
               -WorkingDirectory $output `
@@ -169,6 +171,12 @@ jobs:
           catch {
             $_ | Out-String |
               Set-Content -LiteralPath startup-smoke.log -Encoding utf8
+            if (Test-Path -LiteralPath $applicationError) {
+              "`n===== APPLICATION STARTUP EXCEPTION =====`n" |
+                Add-Content -LiteralPath startup-smoke.log -Encoding utf8
+              Get-Content -LiteralPath $applicationError -Raw |
+                Add-Content -LiteralPath startup-smoke.log -Encoding utf8
+            }
             throw
           }
           finally {
@@ -185,7 +193,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-startup-diagnostics
-          path: startup-smoke.log
+          path: |
+            startup-smoke.log
+            src/Efiron.App/bin/Release/net10.0-windows10.0.22000.0/win-x64/efiron-startup-error.log
           if-no-files-found: error
           retention-days: 7
 
