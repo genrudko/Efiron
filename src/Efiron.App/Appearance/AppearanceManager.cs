@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Efiron.Core.Appearance;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -191,7 +192,8 @@ internal static class AppearanceManager
                 brush.Color = ColorFromArgb(argb);
             }
         }
-        catch (Exception exception) when (exception is KeyNotFoundException or ArgumentException)
+        catch (Exception exception) when (
+            exception is KeyNotFoundException or ArgumentException or COMException)
         {
         }
     }
