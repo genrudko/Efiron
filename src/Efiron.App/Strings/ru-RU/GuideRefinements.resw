@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="SearchPlaceholder" xml:space="preserve"><value>Поиск канала в сетке</value></data>
+  <data name="CategoryHeader" xml:space="preserve"><value>Категория</value></data>
+  <data name="AllCategories" xml:space="preserve"><value>Все категории</value></data>
+  <data name="NoCategory" xml:space="preserve"><value>Без категории</value></data>
+  <data name="SummaryFormat" xml:space="preserve"><value>Показано каналов: {0} из {1}</value></data>
+  <data name="NoChannels" xml:space="preserve"><value>По заданному поиску и категории каналы не найдены.</value></data>
+  <data name="FitWidth" xml:space="preserve"><value>По ширине</value></data>
+  <data name="FitWidthTooltip" xml:space="preserve"><value>Растянуть шестичасовой таймлайн на всю доступную ширину области программы</value></data>
+  <data name="PreviousRange" xml:space="preserve"><value>Предыдущий диапазон каналов</value></data>
+  <data name="NextRange" xml:space="preserve"><value>Следующий диапазон каналов</value></data>
+  <data name="RangeSelectorTooltip" xml:space="preserve"><value>Перейти к диапазону каналов</value></data>
+  <data name="RangeOptionFormat" xml:space="preserve"><value>{0}–{1}</value></data>
+  <data name="RangeFormat" xml:space="preserve"><value>Каналы {0}–{1} из {2}</value></data>
+</root>
