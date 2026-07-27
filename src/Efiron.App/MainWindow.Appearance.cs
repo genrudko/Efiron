@@ -341,7 +341,8 @@ public sealed partial class MainWindow
     {
         _appearanceSettings = _appearanceSettings.Normalize();
         AppearanceManager.Apply(RootNavigation, _appearanceSettings);
-        ContentRoot.Background = (Brush)Application.Current.Resources["EfironAppBackgroundBrush"];
+        ApplyWindowChrome();
+        ApplyExistingWorkspaceAppearance();
         UpdateAppearanceControls();
 
         if (save && !AppearanceSettingsStore.TrySave(_appearanceSettings))
@@ -351,6 +352,78 @@ public sealed partial class MainWindow
                 _appearanceResources.GetString("StoreErrorTitle"),
                 _appearanceResources.GetString("StoreErrorMessage"));
         }
+    }
+
+    private void ApplyWindowChrome()
+    {
+        var isDark = AppearanceManager.ResolveIsDark(_appearanceSettings);
+        var titleBar = AppWindow.TitleBar;
+        var surface = AppearanceManager.GetBrush("EfironSurfaceBrush").Color;
+        var subtle = AppearanceManager.GetBrush("EfironSubtleSurfaceBrush").Color;
+        var stroke = AppearanceManager.GetBrush("EfironStrokeBrush").Color;
+        var primary = AppearanceManager.GetBrush("EfironTextPrimaryBrush").Color;
+        var tertiary = AppearanceManager.GetBrush("EfironTextTertiaryBrush").Color;
+
+        titleBar.BackgroundColor = surface;
+        titleBar.ForegroundColor = primary;
+        titleBar.InactiveBackgroundColor = surface;
+        titleBar.InactiveForegroundColor = tertiary;
+        titleBar.ButtonBackgroundColor = surface;
+        titleBar.ButtonForegroundColor = primary;
+        titleBar.ButtonHoverBackgroundColor = subtle;
+        titleBar.ButtonHoverForegroundColor = primary;
+        titleBar.ButtonPressedBackgroundColor = stroke;
+        titleBar.ButtonPressedForegroundColor = primary;
+        titleBar.ButtonInactiveBackgroundColor = surface;
+        titleBar.ButtonInactiveForegroundColor = tertiary;
+
+        if (!isDark)
+        {
+            titleBar.IconShowOptions = Microsoft.UI.Windowing.IconShowOptions.HideIconAndSystemMenu;
+        }
+        else
+        {
+            titleBar.IconShowOptions = Microsoft.UI.Windowing.IconShowOptions.ShowIconAndSystemMenu;
+        }
+    }
+
+    private void ApplyExistingWorkspaceAppearance()
+    {
+        var appBackground = AppearanceManager.GetBrush("EfironAppBackgroundBrush");
+        var surface = AppearanceManager.GetBrush("EfironSurfaceBrush");
+        var stroke = AppearanceManager.GetBrush("EfironStrokeBrush");
+        var accent = AppearanceManager.GetBrush("EfironAccentBrush");
+        var selection = AppearanceManager.GetBrush("EfironAccentSelectionBrush");
+        var primaryButtonStyle = (Style)Application.Current.Resources["EfironPrimaryButtonStyle"];
+
+        ContentRoot.Background = appBackground;
+        LiveSidebar.Background = surface;
+        LiveSidebar.BorderBrush = stroke;
+        PlayerControlOverlay.Background = surface;
+        PlayerControlOverlay.BorderBrush = stroke;
+
+        HeaderTitle.Style = (Style)Application.Current.Resources["EfironPageTitleTextStyle"];
+        SelectedChannelText.Style = (Style)Application.Current.Resources["EfironSectionTitleTextStyle"];
+
+        LoadPlaylistButton.Style = primaryButtonStyle;
+        LoadEpgButton.Style = primaryButtonStyle;
+        PlayerPlayPauseButton.Style = primaryButtonStyle;
+
+        PlaylistProgressRing.Foreground = accent;
+        EpgProgressRing.Foreground = accent;
+        PlayerOpeningIndicator.Foreground = accent;
+        VolumeSlider.Foreground = accent;
+
+        ApplyListAccent(ChannelListView, accent, selection);
+        ApplyListAccent(ProgrammeListView, accent, selection);
+    }
+
+    private static void ApplyListAccent(ListView listView, Brush accent, Brush selection)
+    {
+        listView.Resources["ListViewItemSelectionIndicatorBrush"] = accent;
+        listView.Resources["ListViewItemBackgroundSelected"] = selection;
+        listView.Resources["ListViewItemBackgroundSelectedPointerOver"] = selection;
+        listView.Resources["ListViewItemBackgroundSelectedPressed"] = selection;
     }
 
     private void UpdateAppearanceControls()
