@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="NumberingHeader" xml:space="preserve"><value>Numbering</value></data>
+  <data name="NumberingProvider" xml:space="preserve"><value>Provider order</value></data>
+  <data name="NumberingContinuous" xml:space="preserve"><value>Continuous</value></data>
+  <data name="NumberingPerCategory" xml:space="preserve"><value>Restart by category</value></data>
+  <data name="NumberingManual" xml:space="preserve"><value>Manual</value></data>
+  <data name="FavoritesFilter" xml:space="preserve"><value>★ Favorites</value></data>
+  <data name="ShowHidden" xml:space="preserve"><value>Show hidden</value></data>
+  <data name="HiddenLabel" xml:space="preserve"><value>Hidden</value></data>
+  <data name="AddFavorite" xml:space="preserve"><value>Add to favorites</value></data>
+  <data name="RemoveFavorite" xml:space="preserve"><value>Remove from favorites</value></data>
+  <data name="EditChannel" xml:space="preserve"><value>Edit channel</value></data>
+  <data name="SelectChannel" xml:space="preserve"><value>Select a channel first.</value></data>
+  <data name="SummaryFormat" xml:space="preserve"><value>Shown: {0} of {1} • favorites: {2} • hidden: {3}</value></data>
+  <data name="EditorTitleFormat" xml:space="preserve"><value>Channel “{0}”</value></data>
+  <data name="CustomNameLabel" xml:space="preserve"><value>Name in Efiron</value></data>
+  <data name="CustomNamePlaceholder" xml:space="preserve"><value>Empty — use the provider name</value></data>
+  <data name="ManualNumberLabel" xml:space="preserve"><value>Manual number</value></data>
+  <data name="CustomCategoryLabel" xml:space="preserve"><value>Custom category</value></data>
+  <data name="CustomCategoryPlaceholder" xml:space="preserve"><value>Empty — use the provider group</value></data>
+  <data name="FavoriteLabel" xml:space="preserve"><value>Favorite channel</value></data>
+  <data name="HiddenEditorLabel" xml:space="preserve"><value>Hide channel from normal lists</value></data>
+  <data name="Save" xml:space="preserve"><value>Save</value></data>
+  <data name="Reset" xml:space="preserve"><value>Reset changes</value></data>
+  <data name="Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="StoreErrorTitle" xml:space="preserve"><value>Channel settings were not saved</value></data>
+  <data name="StoreErrorMessage" xml:space="preserve"><value>Check access to the local Efiron folder. Changes remain active until the application closes.</value></data>
+  <data name="StoreRecoveredTitle" xml:space="preserve"><value>Channel settings were recovered</value></data>
+  <data name="StoreRecoveredMessage" xml:space="preserve"><value>The customization file was damaged or used an unsupported version. Safe defaults were loaded.</value></data>
+</root>
