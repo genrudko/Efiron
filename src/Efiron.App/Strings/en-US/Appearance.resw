@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="InterfaceTitle" xml:space="preserve"><value>Interface</value></data>
+  <data name="InterfaceDescription" xml:space="preserve"><value>Theme and accent changes apply immediately and are saved for the next Efiron launch.</value></data>
+  <data name="ThemeHeader" xml:space="preserve"><value>Theme</value></data>
+  <data name="ThemeSystem" xml:space="preserve"><value>Use Windows setting</value></data>
+  <data name="ThemeLight" xml:space="preserve"><value>Light</value></data>
+  <data name="ThemeDark" xml:space="preserve"><value>Dark</value></data>
+  <data name="AccentHeader" xml:space="preserve"><value>Accent color</value></data>
+  <data name="AccentDescription" xml:space="preserve"><value>The accent is used for selection, primary actions, progress and focus. LIVE, archive, favorite and error colors remain semantic.</value></data>
+  <data name="AccentWindows" xml:space="preserve"><value>Windows accent</value></data>
+  <data name="AccentBlue" xml:space="preserve"><value>Blue</value></data>
+  <data name="AccentPurple" xml:space="preserve"><value>Purple</value></data>
+  <data name="AccentPink" xml:space="preserve"><value>Pink</value></data>
+  <data name="AccentOrange" xml:space="preserve"><value>Orange</value></data>
+  <data name="AccentGreen" xml:space="preserve"><value>Green</value></data>
+  <data name="AccentTeal" xml:space="preserve"><value>Teal</value></data>
+  <data name="AccentCustom" xml:space="preserve"><value>Custom color…</value></data>
+  <data name="AccentCustomAutomation" xml:space="preserve"><value>Choose a custom accent color</value></data>
+  <data name="AccentCustomPickerTitle" xml:space="preserve"><value>Custom accent</value></data>
+  <data name="PreviewTitle" xml:space="preserve"><value>Preview</value></data>
+  <data name="PreviewChannelName" xml:space="preserve"><value>1  First Channel</value></data>
+  <data name="PreviewProgrammeName" xml:space="preserve"><value>News channel · 12:15–13:00</value></data>
+  <data name="PreviewPrimaryAction" xml:space="preserve"><value>Watch</value></data>
+  <data name="PreviewLiveBadge" xml:space="preserve"><value>LIVE</value></data>
+  <data name="PreviewArchiveBadge" xml:space="preserve"><value>ARCHIVE</value></data>
+  <data name="StoreRecoveredTitle" xml:space="preserve"><value>Interface settings recovered</value></data>
+  <data name="StoreRecoveredMessage" xml:space="preserve"><value>A damaged or unsupported settings file was replaced with safe defaults.</value></data>
+  <data name="StoreErrorTitle" xml:space="preserve"><value>Could not save appearance</value></data>
+  <data name="StoreErrorMessage" xml:space="preserve"><value>The theme is applied for this session but may not persist after the application closes.</value></data>
+</root>
