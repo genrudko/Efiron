@@ -10,8 +10,11 @@
   <data name="NoCategory" xml:space="preserve"><value>No category</value></data>
   <data name="SummaryFormat" xml:space="preserve"><value>Channels shown: {0} of {1}</value></data>
   <data name="NoChannels" xml:space="preserve"><value>No channels match the current search and category.</value></data>
-  <data name="WideEnter" xml:space="preserve"><value>Use full width</value></data>
-  <data name="WideExit" xml:space="preserve"><value>Normal layout</value></data>
-  <data name="WideEnterTooltip" xml:space="preserve"><value>Expand the guide to the full available window width</value></data>
-  <data name="WideExitTooltip" xml:space="preserve"><value>Restore the normal application layout</value></data>
+  <data name="FitWidth" xml:space="preserve"><value>Fit width</value></data>
+  <data name="FitWidthTooltip" xml:space="preserve"><value>Fit the six-hour timeline to the full available programme width</value></data>
+  <data name="PreviousRange" xml:space="preserve"><value>Previous channel range</value></data>
+  <data name="NextRange" xml:space="preserve"><value>Next channel range</value></data>
+  <data name="RangeSelectorTooltip" xml:space="preserve"><value>Jump to a channel range</value></data>
+  <data name="RangeOptionFormat" xml:space="preserve"><value>{0}–{1}</value></data>
+  <data name="RangeFormat" xml:space="preserve"><value>Channels {0}–{1} of {2}</value></data>
 </root>
