@@ -29,7 +29,6 @@ public sealed partial class MainWindow
     private bool _isRenderingGuideTimeline;
     private bool _isUpdatingTimelineRangeSelector;
     private bool _timelineFitResizePending;
-    private bool _isTimelineFitToWidth = true;
     private int _timelinePageIndex;
     private int _timelinePendingScrollRow = -1;
     private int _timelineRangeSelectorChannelCount = -1;
@@ -43,7 +42,6 @@ public sealed partial class MainWindow
     private Button _guideTimelineModeButton = null!;
     private Button _timelinePreviousPageButton = null!;
     private Button _timelineNextPageButton = null!;
-    private ComboBox _timelineZoomComboBox = null!;
     private ComboBox _timelineRangeComboBox = null!;
     private TextBlock _timelineWindowText = null!;
     private TextBlock _timelinePageText = null!;
@@ -140,7 +138,7 @@ public sealed partial class MainWindow
     private Grid CreateTimelineCommandBar()
     {
         var grid = new Grid { ColumnSpacing = 8 };
-        for (var index = 0; index < 10; index++)
+        for (var index = 0; index < 8; index++)
         {
             grid.ColumnDefinitions.Add(new ColumnDefinition
             {
@@ -178,35 +176,11 @@ public sealed partial class MainWindow
         Grid.SetColumn(_timelineWindowText, 3);
         grid.Children.Add(_timelineWindowText);
 
-        var zoomLabel = new TextBlock
-        {
-            Text = _resources.GetString("GuideTimelineZoom"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Opacity = 0.72,
-        };
-        Grid.SetColumn(zoomLabel, 4);
-        grid.Children.Add(zoomLabel);
-
-        _timelineZoomComboBox = new ComboBox { MinWidth = 120 };
-        _timelineZoomComboBox.Items.Add(CreateZoomItem(
-            _guideRefinementResources.GetString("FitWidth"),
-            pixelsPerHour: null));
-        _timelineZoomComboBox.Items.Add(CreateZoomItem("67%", 120d));
-        _timelineZoomComboBox.Items.Add(CreateZoomItem("100%", 180d));
-        _timelineZoomComboBox.Items.Add(CreateZoomItem("133%", 240d));
-        _timelineZoomComboBox.SelectedIndex = 0;
-        _timelineZoomComboBox.SelectionChanged += TimelineZoomComboBox_SelectionChanged;
-        ToolTipService.SetToolTip(
-            _timelineZoomComboBox,
-            _guideRefinementResources.GetString("FitWidthTooltip"));
-        Grid.SetColumn(_timelineZoomComboBox, 5);
-        grid.Children.Add(_timelineZoomComboBox);
-
         _timelinePreviousPageButton = CreateCommandButton(
             "‹",
             _guideRefinementResources.GetString("PreviousRange"),
             TimelinePreviousPageButton_Click);
-        Grid.SetColumn(_timelinePreviousPageButton, 6);
+        Grid.SetColumn(_timelinePreviousPageButton, 4);
         grid.Children.Add(_timelinePreviousPageButton);
 
         _timelineRangeComboBox = new ComboBox
@@ -218,7 +192,7 @@ public sealed partial class MainWindow
         ToolTipService.SetToolTip(
             _timelineRangeComboBox,
             _guideRefinementResources.GetString("RangeSelectorTooltip"));
-        Grid.SetColumn(_timelineRangeComboBox, 7);
+        Grid.SetColumn(_timelineRangeComboBox, 5);
         grid.Children.Add(_timelineRangeComboBox);
 
         _timelinePageText = new TextBlock
@@ -227,14 +201,14 @@ public sealed partial class MainWindow
             TextAlignment = TextAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
         };
-        Grid.SetColumn(_timelinePageText, 8);
+        Grid.SetColumn(_timelinePageText, 6);
         grid.Children.Add(_timelinePageText);
 
         _timelineNextPageButton = CreateCommandButton(
             "›",
             _guideRefinementResources.GetString("NextRange"),
             TimelineNextPageButton_Click);
-        Grid.SetColumn(_timelineNextPageButton, 9);
+        Grid.SetColumn(_timelineNextPageButton, 7);
         grid.Children.Add(_timelineNextPageButton);
 
         return grid;
@@ -299,7 +273,6 @@ public sealed partial class MainWindow
             VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollMode = ScrollMode.Disabled,
         };
-        _timelineBodyHorizontalScroll.ViewChanged += TimelineBodyHorizontalScroll_ViewChanged;
         _timelineBodyHorizontalScroll.SizeChanged += TimelineBodyHorizontalScroll_SizeChanged;
         Grid.SetColumn(_timelineBodyHorizontalScroll, 1);
         rowsGrid.Children.Add(_timelineBodyHorizontalScroll);
@@ -352,13 +325,6 @@ public sealed partial class MainWindow
         ToolTipService.SetToolTip(button, tooltip);
         return button;
     }
-
-    private static ComboBoxItem CreateZoomItem(string label, double? pixelsPerHour) =>
-        new()
-        {
-            Content = label,
-            Tag = new TimelineZoomOption(pixelsPerHour),
-        };
 
     private static SolidColorBrush NeutralBrush(byte alpha) =>
         new(ColorHelper.FromArgb(alpha, 128, 128, 128));
@@ -421,26 +387,6 @@ public sealed partial class MainWindow
 
         _timelinePageIndex = option.PageIndex;
         _timelinePendingScrollRow = 0;
-        RenderGuideTimeline();
-    }
-
-    private void TimelineZoomComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_timelineZoomComboBox.SelectedItem is not ComboBoxItem
-            {
-                Tag: TimelineZoomOption option,
-            })
-        {
-            return;
-        }
-
-        _isTimelineFitToWidth = option.PixelsPerHour is null;
-        if (option.PixelsPerHour is double pixelsPerHour)
-        {
-            _timelinePixelsPerHour = pixelsPerHour;
-        }
-
-        UpdateTimelineHorizontalScrollMode();
         RenderGuideTimeline();
     }
 
@@ -515,19 +461,9 @@ public sealed partial class MainWindow
         }
     }
 
-    private void TimelineBodyHorizontalScroll_ViewChanged(
-        object? sender,
-        ScrollViewerViewChangedEventArgs e) =>
-        _timelineHeaderScroll.ChangeView(
-            _timelineBodyHorizontalScroll.HorizontalOffset,
-            null,
-            null,
-            disableAnimation: true);
-
     private void TimelineBodyHorizontalScroll_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        if (!_isTimelineFitToWidth ||
-            !_isGuideTimelineMode ||
+        if (!_isGuideTimelineMode ||
             Math.Abs(e.NewSize.Width - _lastFitViewportWidth) < 2)
         {
             return;
@@ -610,7 +546,6 @@ public sealed partial class MainWindow
             _timelineChannelLabels.Children.Clear();
             _timelineRows.Children.Clear();
 
-            UpdateTimelineHorizontalScrollMode();
             _timelinePixelsPerHour = ResolveTimelinePixelsPerHour();
             var timelineWidth = TimelineWindowDuration.TotalHours * _timelinePixelsPerHour;
             _timelineHeaderCanvas.Width = timelineWidth;
@@ -677,11 +612,6 @@ public sealed partial class MainWindow
 
     private double ResolveTimelinePixelsPerHour()
     {
-        if (!_isTimelineFitToWidth)
-        {
-            return _timelinePixelsPerHour;
-        }
-
         var viewportWidth = _timelineBodyHorizontalScroll.ActualWidth;
         if (viewportWidth < 320)
         {
@@ -690,32 +620,6 @@ public sealed partial class MainWindow
 
         _lastFitViewportWidth = viewportWidth;
         return viewportWidth / TimelineWindowDuration.TotalHours;
-    }
-
-    private void UpdateTimelineHorizontalScrollMode()
-    {
-        var scrollMode = _isTimelineFitToWidth ? ScrollMode.Disabled : ScrollMode.Enabled;
-        var scrollBarVisibility = _isTimelineFitToWidth
-            ? ScrollBarVisibility.Hidden
-            : ScrollBarVisibility.Auto;
-
-        _timelineBodyHorizontalScroll.HorizontalScrollMode = scrollMode;
-        _timelineBodyHorizontalScroll.HorizontalScrollBarVisibility = scrollBarVisibility;
-        _timelineHeaderScroll.HorizontalScrollMode = scrollMode;
-
-        if (_isTimelineFitToWidth)
-        {
-            _timelineBodyHorizontalScroll.ChangeView(
-                horizontalOffset: 0,
-                verticalOffset: null,
-                zoomFactor: null,
-                disableAnimation: true);
-            _timelineHeaderScroll.ChangeView(
-                horizontalOffset: 0,
-                verticalOffset: null,
-                zoomFactor: null,
-                disableAnimation: true);
-        }
     }
 
     private void QueuePendingTimelineScroll(int renderedChannelCount)
@@ -831,8 +735,7 @@ public sealed partial class MainWindow
         var left = (entry.VisibleStart - _timelineWindowStart).TotalHours * _timelinePixelsPerHour;
         var availableWidth =
             (entry.VisibleStop - entry.VisibleStart).TotalHours * _timelinePixelsPerHour - 3;
-        var minimumWidth = _isTimelineFitToWidth ? 16 : 28;
-        var width = Math.Max(minimumWidth, availableWidth);
+        var width = Math.Max(16, availableWidth);
         var title = GetProgrammeTitle(entry.Programme);
         var time = string.Format(
             CultureInfo.CurrentCulture,
@@ -967,10 +870,8 @@ public sealed partial class MainWindow
         GuideDatePicker.DateChanged -= GuideTimelineDatePicker_DateChanged;
         GuideChannelComboBox.SelectionChanged -= GuideTimelineChannelComboBox_SelectionChanged;
         RootNavigation.SelectionChanged -= GuideTimelineRootNavigation_SelectionChanged;
-        _timelineBodyHorizontalScroll.ViewChanged -= TimelineBodyHorizontalScroll_ViewChanged;
         _timelineBodyHorizontalScroll.SizeChanged -= TimelineBodyHorizontalScroll_SizeChanged;
         _timelineRangeComboBox.SelectionChanged -= TimelineRangeComboBox_SelectionChanged;
-        _timelineZoomComboBox.SelectionChanged -= TimelineZoomComboBox_SelectionChanged;
         _guideListModeButton.Click -= GuideListModeButton_Click;
         _guideTimelineModeButton.Click -= GuideTimelineModeButton_Click;
         Closed -= GuideTimelineWindow_Closed;
@@ -979,8 +880,6 @@ public sealed partial class MainWindow
     private sealed record TimelineProgrammeSelection(
         EpgChannelListItem Channel,
         XmlTvProgramme Programme);
-
-    private sealed record TimelineZoomOption(double? PixelsPerHour);
 
     private sealed record TimelineRangeOption(int PageIndex, string Label);
 }
