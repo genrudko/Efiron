@@ -10,8 +10,11 @@
   <data name="NoCategory" xml:space="preserve"><value>Без категории</value></data>
   <data name="SummaryFormat" xml:space="preserve"><value>Показано каналов: {0} из {1}</value></data>
   <data name="NoChannels" xml:space="preserve"><value>По заданному поиску и категории каналы не найдены.</value></data>
-  <data name="WideEnter" xml:space="preserve"><value>На всю ширину</value></data>
-  <data name="WideExit" xml:space="preserve"><value>Обычный вид</value></data>
-  <data name="WideEnterTooltip" xml:space="preserve"><value>Расширить сетку на всю доступную ширину окна</value></data>
-  <data name="WideExitTooltip" xml:space="preserve"><value>Вернуть обычную компоновку приложения</value></data>
+  <data name="FitWidth" xml:space="preserve"><value>По ширине</value></data>
+  <data name="FitWidthTooltip" xml:space="preserve"><value>Растянуть шестичасовой таймлайн на всю доступную ширину области программы</value></data>
+  <data name="PreviousRange" xml:space="preserve"><value>Предыдущий диапазон каналов</value></data>
+  <data name="NextRange" xml:space="preserve"><value>Следующий диапазон каналов</value></data>
+  <data name="RangeSelectorTooltip" xml:space="preserve"><value>Перейти к диапазону каналов</value></data>
+  <data name="RangeOptionFormat" xml:space="preserve"><value>{0}–{1}</value></data>
+  <data name="RangeFormat" xml:space="preserve"><value>Каналы {0}–{1} из {2}</value></data>
 </root>
