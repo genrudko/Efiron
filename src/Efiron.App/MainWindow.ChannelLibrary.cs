@@ -274,7 +274,9 @@ public sealed partial class MainWindow
             Minimum = 1,
             Maximum = 99999,
             SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact,
-            Value = current?.ManualNumber is int manualNumber ? manualNumber : double.NaN,
+            Value = current?.ManualNumber is int existingManualNumber
+                ? existingManualNumber
+                : double.NaN,
         };
         var customCategoryTextBox = new TextBox
         {
@@ -329,13 +331,13 @@ public sealed partial class MainWindow
         }
 
         var isFavorite = favoriteCheckBox.IsChecked == true;
-        var manualNumber = double.IsNaN(manualNumberBox.Value)
+        var editedManualNumber = double.IsNaN(manualNumberBox.Value)
             ? null
             : (int?)Math.Round(manualNumberBox.Value, MidpointRounding.AwayFromZero);
         var updated = new ChannelUserOverride(
             stableId,
             NormalizeEditorText(customNameTextBox.Text),
-            manualNumber,
+            editedManualNumber,
             isFavorite,
             isFavorite ? current?.FavoriteOrder ?? GetNextFavoriteOrder() : null,
             hiddenCheckBox.IsChecked == true,
