@@ -10,6 +10,13 @@ internal static class AppearanceManager
 {
     private static readonly UISettings UiSettings = new();
 
+    static AppearanceManager()
+    {
+        UiSettings.ColorValuesChanged += (_, _) => SystemColorsChanged?.Invoke(null, EventArgs.Empty);
+    }
+
+    public static event EventHandler? SystemColorsChanged;
+
     public static uint WindowsAccentArgb => ToArgb(UiSettings.GetColorValue(UIColorType.Accent));
 
     public static uint ResolveAccentArgb(AppearanceSettings settings) =>
