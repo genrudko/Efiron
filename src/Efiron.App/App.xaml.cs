@@ -27,6 +27,7 @@ public partial class App : Application
         try
         {
             var mainWindow = new MainWindow();
+            mainWindow.InitializeAppearanceWorkspace();
             mainWindow.InitializeLiveProgrammeWorkspace();
             mainWindow.InitializeGuideTimelineWorkspace();
             mainWindow.InitializeGuideTimelineEmptyStateTracking();
