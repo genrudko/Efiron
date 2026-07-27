@@ -139,8 +139,6 @@ internal static class AppearanceManager
         var selection = GetBrush("EfironAccentSelectionBrush");
         var focus = GetBrush("EfironFocusBrush");
 
-        root.Background = appBackground;
-
         root.Resources["NavigationViewExpandedPaneBackground"] = surface;
         root.Resources["NavigationViewDefaultPaneBackground"] = surface;
         root.Resources["NavigationViewTopPaneBackground"] = surface;
