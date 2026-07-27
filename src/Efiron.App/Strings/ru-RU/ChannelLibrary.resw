@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="NumberingHeader" xml:space="preserve"><value>Нумерация</value></data>
+  <data name="NumberingProvider" xml:space="preserve"><value>Порядок провайдера</value></data>
+  <data name="NumberingContinuous" xml:space="preserve"><value>Сквозная</value></data>
+  <data name="NumberingPerCategory" xml:space="preserve"><value>В каждой категории</value></data>
+  <data name="NumberingManual" xml:space="preserve"><value>Ручная</value></data>
+  <data name="FavoritesFilter" xml:space="preserve"><value>★ Избранное</value></data>
+  <data name="ShowHidden" xml:space="preserve"><value>Показывать скрытые</value></data>
+  <data name="HiddenLabel" xml:space="preserve"><value>Скрыт</value></data>
+  <data name="AddFavorite" xml:space="preserve"><value>В избранное</value></data>
+  <data name="RemoveFavorite" xml:space="preserve"><value>Убрать из избранного</value></data>
+  <data name="EditChannel" xml:space="preserve"><value>Изменить канал</value></data>
+  <data name="SelectChannel" xml:space="preserve"><value>Сначала выберите канал.</value></data>
+  <data name="SummaryFormat" xml:space="preserve"><value>Показано: {0} из {1} • избранное: {2} • скрыто: {3}</value></data>
+  <data name="EditorTitleFormat" xml:space="preserve"><value>Канал «{0}»</value></data>
+  <data name="CustomNameLabel" xml:space="preserve"><value>Название в Efiron</value></data>
+  <data name="CustomNamePlaceholder" xml:space="preserve"><value>Пусто — использовать название провайдера</value></data>
+  <data name="ManualNumberLabel" xml:space="preserve"><value>Ручной номер</value></data>
+  <data name="CustomCategoryLabel" xml:space="preserve"><value>Пользовательская категория</value></data>
+  <data name="CustomCategoryPlaceholder" xml:space="preserve"><value>Пусто — использовать группу провайдера</value></data>
+  <data name="FavoriteLabel" xml:space="preserve"><value>Избранный канал</value></data>
+  <data name="HiddenEditorLabel" xml:space="preserve"><value>Скрыть канал из обычных списков</value></data>
+  <data name="Save" xml:space="preserve"><value>Сохранить</value></data>
+  <data name="Reset" xml:space="preserve"><value>Сбросить изменения</value></data>
+  <data name="Cancel" xml:space="preserve"><value>Отмена</value></data>
+  <data name="StoreErrorTitle" xml:space="preserve"><value>Настройки каналов не сохранены</value></data>
+  <data name="StoreErrorMessage" xml:space="preserve"><value>Проверьте доступ к локальной папке Efiron. Изменения действуют до закрытия приложения.</value></data>
+  <data name="StoreRecoveredTitle" xml:space="preserve"><value>Настройки каналов восстановлены</value></data>
+  <data name="StoreRecoveredMessage" xml:space="preserve"><value>Файл пользовательских настроек был повреждён или имел неподдерживаемую версию. Загружены безопасные значения по умолчанию.</value></data>
+</root>
