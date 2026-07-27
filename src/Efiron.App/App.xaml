@@ -7,6 +7,139 @@
       <ResourceDictionary.MergedDictionaries>
         <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
       </ResourceDictionary.MergedDictionaries>
+
+      <!-- Mutable design-system brushes. AppearanceManager updates their colors at runtime. -->
+      <SolidColorBrush x:Key="EfironAppBackgroundBrush" Color="#FFF7F8FA" />
+      <SolidColorBrush x:Key="EfironSurfaceBrush" Color="#FFFFFFFF" />
+      <SolidColorBrush x:Key="EfironElevatedSurfaceBrush" Color="#FFFFFFFF" />
+      <SolidColorBrush x:Key="EfironSubtleSurfaceBrush" Color="#FFF0F3F8" />
+      <SolidColorBrush x:Key="EfironStrokeBrush" Color="#FFD9DFE8" />
+      <SolidColorBrush x:Key="EfironTextPrimaryBrush" Color="#FF111827" />
+      <SolidColorBrush x:Key="EfironTextSecondaryBrush" Color="#FF4B5563" />
+      <SolidColorBrush x:Key="EfironTextTertiaryBrush" Color="#FF6B7280" />
+
+      <SolidColorBrush x:Key="EfironAccentBrush" Color="#FF1769E0" />
+      <SolidColorBrush x:Key="EfironAccentHoverBrush" Color="#FF397FE6" />
+      <SolidColorBrush x:Key="EfironAccentPressedBrush" Color="#FF1252AF" />
+      <SolidColorBrush x:Key="EfironAccentSelectionBrush" Color="#FFE8F0FC" />
+      <SolidColorBrush x:Key="EfironAccentForegroundBrush" Color="#FFFFFFFF" />
+      <SolidColorBrush x:Key="EfironFocusBrush" Color="#FF1769E0" />
+
+      <SolidColorBrush x:Key="EfironFavoriteBrush" Color="#FFF4B400" />
+      <SolidColorBrush x:Key="EfironLiveBrush" Color="#FF009E8F" />
+      <SolidColorBrush x:Key="EfironArchiveBrush" Color="#FF7C3AED" />
+      <SolidColorBrush x:Key="EfironWarningBrush" Color="#FFF59E0B" />
+      <SolidColorBrush x:Key="EfironErrorBrush" Color="#FFD13438" />
+      <SolidColorBrush x:Key="EfironHiddenBrush" Color="#FF7C8798" />
+
+      <Style x:Key="EfironDisplayTitleTextStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Segoe UI Variable Display" />
+        <Setter Property="FontSize" Value="28" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource EfironTextPrimaryBrush}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+      </Style>
+
+      <Style x:Key="EfironPageTitleTextStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Segoe UI Variable Display" />
+        <Setter Property="FontSize" Value="24" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource EfironTextPrimaryBrush}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+      </Style>
+
+      <Style x:Key="EfironSectionTitleTextStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource EfironTextPrimaryBrush}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+      </Style>
+
+      <Style x:Key="EfironChannelTitleTextStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
+        <Setter Property="FontSize" Value="16" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource EfironTextPrimaryBrush}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+      </Style>
+
+      <Style x:Key="EfironProgrammeTitleTextStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource EfironTextPrimaryBrush}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+      </Style>
+
+      <Style x:Key="EfironBodyTextStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Foreground" Value="{StaticResource EfironTextPrimaryBrush}" />
+      </Style>
+
+      <Style x:Key="EfironCaptionTextStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{StaticResource EfironTextSecondaryBrush}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+      </Style>
+
+      <Style x:Key="EfironBadgeTextStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+      </Style>
+
+      <Style x:Key="EfironSurfaceBorderStyle" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource EfironSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource EfironStrokeBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="12" />
+        <Setter Property="Padding" Value="16" />
+      </Style>
+
+      <Style x:Key="EfironCompactSurfaceBorderStyle" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource EfironSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource EfironStrokeBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="12" />
+      </Style>
+
+      <Style x:Key="EfironPrimaryButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="{StaticResource EfironAccentBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource EfironAccentForegroundBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource EfironAccentBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="MinHeight" Value="36" />
+        <Setter Property="Padding" Value="16,8" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+      </Style>
+
+      <Style x:Key="EfironSecondaryButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{StaticResource EfironTextPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource EfironStrokeBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="MinHeight" Value="36" />
+        <Setter Property="Padding" Value="16,8" />
+      </Style>
+
+      <Style x:Key="EfironIconButtonStyle" TargetType="Button">
+        <Setter Property="Width" Value="40" />
+        <Setter Property="Height" Value="40" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="CornerRadius" Value="8" />
+      </Style>
+
+      <Style x:Key="EfironAccentProgressBarStyle" TargetType="ProgressBar">
+        <Setter Property="Foreground" Value="{StaticResource EfironAccentBrush}" />
+        <Setter Property="Height" Value="4" />
+      </Style>
     </ResourceDictionary>
   </Application.Resources>
 </Application>
