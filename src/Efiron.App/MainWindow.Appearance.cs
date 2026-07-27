@@ -257,7 +257,7 @@ public sealed partial class MainWindow
             Child = new TextBlock
             {
                 Text = text,
-                Foreground = new SolidColorBrush(Colors.White),
+                Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
                 Style = (Style)Application.Current.Resources["EfironBadgeTextStyle"],
             },
         };
