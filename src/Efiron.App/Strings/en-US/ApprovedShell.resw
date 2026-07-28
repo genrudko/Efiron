@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="NavigationChannels" xml:space="preserve"><value>Channels</value></data>
+  <data name="ChannelsTitle" xml:space="preserve"><value>Channels</value></data>
+  <data name="ChannelsDescription" xml:space="preserve"><value>Manage numbering, favorites, hidden channels and user metadata separately from daily viewing.</value></data>
+  <data name="ChannelsSearchPlaceholder" xml:space="preserve"><value>Search channels</value></data>
+  <data name="ChannelsCategoryPlaceholder" xml:space="preserve"><value>All categories</value></data>
+  <data name="ChannelsManagementTitle" xml:space="preserve"><value>Selected channel management</value></data>
+  <data name="ChannelsManagementDescription" xml:space="preserve"><value>The existing catalog functions have moved here. The permanent editor panel will be rebuilt in its dedicated approved-concept slice.</value></data>
+  <data name="ChannelsSummaryFormat" xml:space="preserve"><value>Showing {0} of {1}</value></data>
+  <data name="SettingsGeneral" xml:space="preserve"><value>General</value></data>
+  <data name="SettingsGeneralDescription" xml:space="preserve"><value>Application language and general startup preferences.</value></data>
+  <data name="SettingsSources" xml:space="preserve"><value>Sources</value></data>
+  <data name="SettingsSourcesDescription" xml:space="preserve"><value>M3U playlist and XMLTV guide. These technical settings are no longer displayed in Live TV or the guide.</value></data>
+  <data name="SettingsInterface" xml:space="preserve"><value>Interface</value></data>
+  <data name="SettingsInterfaceDescription" xml:space="preserve"><value>Theme, accent color and Efiron component preview.</value></data>
+  <data name="SettingsPlayer" xml:space="preserve"><value>Player</value></data>
+  <data name="SettingsPlayerDescription" xml:space="preserve"><value>Playback preferences and the diagnostic direct-stream launcher.</value></data>
+  <data name="SettingsRemote" xml:space="preserve"><value>TV and remote</value></data>
+  <data name="SettingsRemoteDescription" xml:space="preserve"><value>Keyboard, remote-control navigation and hot actions.</value></data>
+  <data name="SettingsData" xml:space="preserve"><value>Data management</value></data>
+  <data name="SettingsDataDescription" xml:space="preserve"><value>Backups, import, export and reset of user data.</value></data>
+  <data name="SettingsAbout" xml:space="preserve"><value>About</value></data>
+  <data name="SettingsAboutDescription" xml:space="preserve"><value>Efiron is a modern IPTV and OTT client for Windows.</value></data>
+</root>
