@@ -40,7 +40,7 @@ public sealed partial class MainWindow
             "ChannelLibrary");
         _channelLibrarySnapshot = ChannelCustomizationStore.Load(out var invalidStoreRecovered);
 
-        AddChannelLibraryToolbar();
+        CreateChannelLibraryCompatibilityControls();
         SetSelectedNumberingMode();
 
         LoadPlaylistButton.Click += ChannelLibraryLoadPlaylistButton_Click;
@@ -54,91 +54,48 @@ public sealed partial class MainWindow
 
         if (invalidStoreRecovered)
         {
-            PlaylistInfoBar.Severity = InfoBarSeverity.Warning;
-            PlaylistInfoBar.Title = _channelLibraryResources.GetString("StoreRecoveredTitle");
-            PlaylistInfoBar.Message = _channelLibraryResources.GetString("StoreRecoveredMessage");
-            PlaylistInfoBar.IsOpen = true;
+            LiveScreen.ShowMessage(
+                InfoBarSeverity.Warning,
+                _channelLibraryResources.GetString("StoreRecoveredTitle"),
+                _channelLibraryResources.GetString("StoreRecoveredMessage"));
         }
     }
 
-    private void AddChannelLibraryToolbar()
+    private void CreateChannelLibraryCompatibilityControls()
     {
-        if (ChannelSearchTextBox.Parent is not Grid searchGrid ||
-            searchGrid.Parent is not StackPanel filterPanel)
-        {
-            throw new InvalidOperationException("Live TV filter panel was not found.");
-        }
-
-        var toolbar = new Grid { ColumnSpacing = 8 };
-        toolbar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        toolbar.ColumnDefinitions.Add(new ColumnDefinition
-        {
-            Width = new GridLength(1, GridUnitType.Star),
-        });
-        toolbar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        toolbar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        toolbar.Children.Add(new TextBlock
-        {
-            Text = _channelLibraryResources.GetString("NumberingHeader"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Opacity = 0.72,
-        });
-
-        _channelNumberingComboBox = new ComboBox
-        {
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            MinWidth = 132,
-        };
+        _channelNumberingComboBox = new ComboBox { Visibility = Visibility.Collapsed };
         AddNumberingItem(ChannelNumberingMode.ProviderOrder, "NumberingProvider");
         AddNumberingItem(ChannelNumberingMode.Continuous, "NumberingContinuous");
         AddNumberingItem(ChannelNumberingMode.PerCategory, "NumberingPerCategory");
         AddNumberingItem(ChannelNumberingMode.Manual, "NumberingManual");
         _channelNumberingComboBox.SelectionChanged += ChannelNumberingComboBox_SelectionChanged;
-        Grid.SetColumn(_channelNumberingComboBox, 1);
-        toolbar.Children.Add(_channelNumberingComboBox);
 
         _channelFavoriteButton = new Button
         {
-            Content = "☆",
-            Width = 40,
-            Height = 34,
-            Padding = new Thickness(0),
+            Visibility = Visibility.Collapsed,
             IsEnabled = false,
         };
         _channelFavoriteButton.Click += ChannelFavoriteButton_Click;
-        ToolTipService.SetToolTip(
-            _channelFavoriteButton,
-            _channelLibraryResources.GetString("AddFavorite"));
-        Grid.SetColumn(_channelFavoriteButton, 2);
-        toolbar.Children.Add(_channelFavoriteButton);
 
         _channelEditButton = new Button
         {
-            Content = new FontIcon { Glyph = "\uE70F", FontSize = 15 },
-            Width = 40,
-            Height = 34,
-            Padding = new Thickness(0),
+            Visibility = Visibility.Collapsed,
             IsEnabled = false,
         };
         _channelEditButton.Click += ChannelEditButton_Click;
-        ToolTipService.SetToolTip(
-            _channelEditButton,
-            _channelLibraryResources.GetString("EditChannel"));
-        Grid.SetColumn(_channelEditButton, 3);
-        toolbar.Children.Add(_channelEditButton);
 
         _showHiddenChannelsCheckBox = new CheckBox
         {
-            Content = _channelLibraryResources.GetString("ShowHidden"),
+            Visibility = Visibility.Collapsed,
+            IsChecked = false,
         };
         _showHiddenChannelsCheckBox.Checked += ShowHiddenChannelsCheckBox_Changed;
         _showHiddenChannelsCheckBox.Unchecked += ShowHiddenChannelsCheckBox_Changed;
 
-        var libraryControls = new StackPanel { Spacing = 4 };
-        libraryControls.Children.Add(toolbar);
-        libraryControls.Children.Add(_showHiddenChannelsCheckBox);
-        filterPanel.Children.Insert(1, libraryControls);
+        CompatibilityBridge.Children.Add(_channelNumberingComboBox);
+        CompatibilityBridge.Children.Add(_channelFavoriteButton);
+        CompatibilityBridge.Children.Add(_channelEditButton);
+        CompatibilityBridge.Children.Add(_showHiddenChannelsCheckBox);
     }
 
     private void AddNumberingItem(ChannelNumberingMode mode, string resourceKey) =>
@@ -175,7 +132,11 @@ public sealed partial class MainWindow
     {
         await Task.Yield();
         await WaitForButtonOperationAsync(LoadEpgButton);
-        DispatcherQueue.TryEnqueue(RebuildGuideChannelsFromCatalog);
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            RebuildGuideChannelsFromCatalog();
+            ApplyChannelLibraryFilter();
+        });
     }
 
     private void ChannelLibrarySearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -295,13 +256,18 @@ public sealed partial class MainWindow
             IsChecked = current?.IsHidden == true,
         };
 
-        var content = new StackPanel { Spacing = 10 };
-        content.Children.Add(customNameTextBox);
-        content.Children.Add(manualNumberBox);
-        content.Children.Add(customCategoryTextBox);
-        content.Children.Add(favoriteCheckBox);
-        content.Children.Add(hiddenCheckBox);
-
+        var content = new StackPanel
+        {
+            Spacing = 10,
+            Children =
+            {
+                customNameTextBox,
+                manualNumberBox,
+                customCategoryTextBox,
+                favoriteCheckBox,
+                hiddenCheckBox,
+            },
+        };
         var dialog = new ContentDialog
         {
             XamlRoot = ContentRoot.XamlRoot,
@@ -425,6 +391,7 @@ public sealed partial class MainWindow
         GroupFilterComboBox.SelectedIndex = selectedIndex;
         _isUpdatingChannelLibraryControls = false;
         _isUpdatingGroupFilter = false;
+        RefreshLiveCategoryRail();
     }
 
     private void ApplyChannelLibraryFilter(string? preferredStableId = null)
@@ -484,6 +451,7 @@ public sealed partial class MainWindow
                 channel.CategoryName ?? noGroup,
                 hiddenLabel))
             .ToList();
+        EnrichLiveChannelRows(visibleItems);
 
         _isUpdatingChannelLibraryControls = true;
         ChannelListView.ItemsSource = visibleItems;
@@ -506,6 +474,7 @@ public sealed partial class MainWindow
             _channelCatalog.Count(static channel => channel.IsFavorite),
             _channelCatalog.Count(static channel => channel.IsHidden));
         UpdateChannelLibraryCommandState();
+        UpdateLivePresentationSelection();
     }
 
     private void RebuildGuideChannelsFromCatalog()
@@ -559,6 +528,7 @@ public sealed partial class MainWindow
         if (selected is not null)
         {
             SelectedChannelText.Text = selected.NumberedName;
+            LiveScreen.SetSelectedChannelHeader(selected.NumberedName, LiveScreen.NowTitle.Text);
         }
     }
 
@@ -573,10 +543,14 @@ public sealed partial class MainWindow
         _channelFavoriteButton.IsEnabled = selected is not null;
         _channelEditButton.IsEnabled = selected is not null;
         _channelFavoriteButton.Content = selected?.IsFavorite == true ? "★" : "☆";
-        ToolTipService.SetToolTip(
-            _channelFavoriteButton,
-            _channelLibraryResources.GetString(
-                selected?.IsFavorite == true ? "RemoveFavorite" : "AddFavorite"));
+
+        if (_livePresentationResources is not null)
+        {
+            LiveScreen.SetFavoriteAction(
+                selected?.IsFavorite == true,
+                _livePresentationResources.GetString("LiveAddFavorite"),
+                _livePresentationResources.GetString("LiveRemoveFavorite"));
+        }
     }
 
     private ChannelUserOverride? GetChannelOverride(string stableId) =>
@@ -640,18 +614,18 @@ public sealed partial class MainWindow
             return;
         }
 
-        PlaylistInfoBar.Severity = InfoBarSeverity.Warning;
-        PlaylistInfoBar.Title = _channelLibraryResources.GetString("StoreErrorTitle");
-        PlaylistInfoBar.Message = _channelLibraryResources.GetString("StoreErrorMessage");
-        PlaylistInfoBar.IsOpen = true;
+        LiveScreen.ShowMessage(
+            InfoBarSeverity.Warning,
+            _channelLibraryResources.GetString("StoreErrorTitle"),
+            _channelLibraryResources.GetString("StoreErrorMessage"));
     }
 
     private void ShowChannelSelectionMessage()
     {
-        PlaylistInfoBar.Severity = InfoBarSeverity.Informational;
-        PlaylistInfoBar.Title = _channelLibraryResources.GetString("EditChannel");
-        PlaylistInfoBar.Message = _channelLibraryResources.GetString("SelectChannel");
-        PlaylistInfoBar.IsOpen = true;
+        LiveScreen.ShowMessage(
+            InfoBarSeverity.Informational,
+            _channelLibraryResources.GetString("EditChannel"),
+            _channelLibraryResources.GetString("SelectChannel"));
     }
 
     private static string? NormalizeEditorText(string? value) =>
