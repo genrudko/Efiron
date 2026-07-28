@@ -4,6 +4,9 @@
   <resheader name="version"><value>2.0</value></resheader>
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="ShellProductSubtitle.Text" xml:space="preserve"><value>Next-generation television</value></data>
+  <data name="NavigationChannels.Content" xml:space="preserve"><value>Channels</value></data>
+  <data name="NavigationSettings.Content" xml:space="preserve"><value>Settings</value></data>
   <data name="LiveCategoriesTitle.Text" xml:space="preserve"><value>Categories</value></data>
   <data name="LiveChannelSearch.PlaceholderText" xml:space="preserve"><value>Search channels</value></data>
   <data name="LiveSourceSetup.ToolTipService.ToolTip" xml:space="preserve"><value>Configure sources</value></data>
