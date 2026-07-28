@@ -505,8 +505,11 @@ public sealed partial class MainWindow
 
     private void RefreshApprovedChannelsWorkspaceFromLiveList()
     {
+        var visibleItems = ChannelListView.ItemsSource is IEnumerable<ChannelListItem> items
+            ? items.ToList()
+            : [];
         RefreshApprovedChannelsWorkspace(
-            ChannelListView.ItemsSource?.OfType<ChannelListItem>().ToList() ?? [],
+            visibleItems,
             (ChannelListView.SelectedItem as ChannelListItem)?.Channel.StableId);
     }
 
