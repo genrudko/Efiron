@@ -7,7 +7,9 @@ internal static class StartupTimeline
 {
     private static readonly object Sync = new();
     private static readonly Stopwatch Clock = Stopwatch.StartNew();
-    private static readonly string LogPath = CreateLogPath();
+    private static readonly string LogPath = Path.Combine(
+        AppContext.BaseDirectory,
+        "startup-timing.log");
 
     static StartupTimeline()
     {
@@ -35,24 +37,6 @@ internal static class StartupTimeline
             {
             }
         }
-    }
-
-    private static string CreateLogPath()
-    {
-        var directory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "Efiron");
-        try
-        {
-            Directory.CreateDirectory(directory);
-        }
-        catch (Exception exception) when (
-            exception is IOException or UnauthorizedAccessException)
-        {
-            directory = AppContext.BaseDirectory;
-        }
-
-        return Path.Combine(directory, "startup-timing.log");
     }
 
     private static void WriteHeader()
