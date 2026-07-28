@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="LiveCategoriesTitle.Text" xml:space="preserve"><value>Categories</value></data>
+  <data name="LiveChannelSearch.PlaceholderText" xml:space="preserve"><value>Search channels</value></data>
+  <data name="LiveSourceSetup.ToolTipService.ToolTip" xml:space="preserve"><value>Configure sources</value></data>
+  <data name="LiveChannelEmpty.Text" xml:space="preserve"><value>No channels match the selected category or search.</value></data>
+  <data name="LiveWelcomeTitle.Text" xml:space="preserve"><value>Add a playlist</value></data>
+  <data name="LiveWelcomeDescription.Text" xml:space="preserve"><value>Connect an M3U playlist to open channels, guide data and playback.</value></data>
+  <data name="LiveWelcomeAction.Content" xml:space="preserve"><value>Add playlist</value></data>
+  <data name="LivePlayerEmpty.Text" xml:space="preserve"><value>Select a channel on the left to start watching.</value></data>
+  <data name="LivePlayPause.ToolTipService.ToolTip" xml:space="preserve"><value>Play or pause</value></data>
+  <data name="LiveStop.ToolTipService.ToolTip" xml:space="preserve"><value>Stop</value></data>
+  <data name="LiveMute.ToolTipService.ToolTip" xml:space="preserve"><value>Mute or unmute</value></data>
+  <data name="LiveVolume.AutomationProperties.Name" xml:space="preserve"><value>Volume</value></data>
+  <data name="LiveFullscreen.ToolTipService.ToolTip" xml:space="preserve"><value>Fullscreen</value></data>
+  <data name="LiveNowLabel.Text" xml:space="preserve"><value>NOW</value></data>
+  <data name="LiveNextLabel.Text" xml:space="preserve"><value>NEXT</value></data>
+  <data name="LiveActionChannels.ToolTipService.ToolTip" xml:space="preserve"><value>Return focus to the channel list</value></data>
+  <data name="LiveActionChannelsText.Text" xml:space="preserve"><value>Channels</value></data>
+  <data name="LiveActionFavorite.ToolTipService.ToolTip" xml:space="preserve"><value>Add or remove this channel from favorites</value></data>
+  <data name="LiveActionFavoriteText.Text" xml:space="preserve"><value>Add favorite</value></data>
+  <data name="LiveActionProgramme.ToolTipService.ToolTip" xml:space="preserve"><value>Current programme information</value></data>
+  <data name="LiveActionProgrammeText.Text" xml:space="preserve"><value>Programme</value></data>
+  <data name="LiveActionArchive.ToolTipService.ToolTip" xml:space="preserve"><value>Open channel archive</value></data>
+  <data name="LiveActionArchiveText.Text" xml:space="preserve"><value>Archive</value></data>
+  <data name="LiveActionMore.ToolTipService.ToolTip" xml:space="preserve"><value>More actions</value></data>
+  <data name="SourceDialogTitle" xml:space="preserve"><value>Efiron sources</value></data>
+  <data name="SourceDialogDescription" xml:space="preserve"><value>Enter the playlist address. XMLTV may remain empty when the M3U contains its guide URL.</value></data>
+  <data name="SourcePlaylistHeader" xml:space="preserve"><value>M3U playlist</value></data>
+  <data name="SourcePlaylistPlaceholder" xml:space="preserve"><value>https://example.com/playlist.m3u</value></data>
+  <data name="SourceEpgHeader" xml:space="preserve"><value>XMLTV guide</value></data>
+  <data name="SourceEpgPlaceholder" xml:space="preserve"><value>https://example.com/guide.xml</value></data>
+  <data name="SourceDialogApply" xml:space="preserve"><value>Save and refresh</value></data>
+  <data name="SourceDialogCancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="LiveAllChannels" xml:space="preserve"><value>All channels</value></data>
+  <data name="LiveFavorites" xml:space="preserve"><value>Favorites</value></data>
+  <data name="LiveNoCategory" xml:space="preserve"><value>Uncategorized</value></data>
+  <data name="LiveAddFavorite" xml:space="preserve"><value>Add favorite</value></data>
+  <data name="LiveRemoveFavorite" xml:space="preserve"><value>Remove favorite</value></data>
+  <data name="LiveProgrammeUnavailable" xml:space="preserve"><value>Guide data unavailable</value></data>
+  <data name="LiveNoCurrent" xml:space="preserve"><value>No current programme</value></data>
+  <data name="LiveNoNext" xml:space="preserve"><value>No next programme information</value></data>
+  <data name="LiveSourceSavedTitle" xml:space="preserve"><value>Sources are updating</value></data>
+  <data name="LiveSourceSavedMessage" xml:space="preserve"><value>Playlist and guide loading has started.</value></data>
+  <data name="LiveNotImplementedTitle" xml:space="preserve"><value>This section is next</value></data>
+  <data name="LiveNotImplementedMessage" xml:space="preserve"><value>This build validates the new shell and Live TV screen.</value></data>
+</root>
