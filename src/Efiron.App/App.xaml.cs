@@ -1,4 +1,5 @@
 using Efiron.App.Localization;
+using Efiron.App.Startup;
 using Microsoft.UI.Xaml;
 using Microsoft.Windows.Globalization;
 
@@ -12,6 +13,7 @@ public partial class App : Application
 
     public App()
     {
+        StartupTimeline.Mark("application.constructor.start");
         var configuredLanguage = AppLanguageStore.Load();
         if (configuredLanguage is not null)
         {
@@ -19,25 +21,25 @@ public partial class App : Application
         }
 
         InitializeComponent();
+        StartupTimeline.Mark("application.constructor.complete");
     }
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+        StartupTimeline.Mark("application.launch.start");
         TryDeleteStartupErrorFile();
         try
         {
             var mainWindow = new MainWindow();
-            mainWindow.InitializeAppearanceWorkspace();
-            mainWindow.InitializeLiveProgrammeWorkspace();
-            mainWindow.InitializeGuideTimelineWorkspace();
-            mainWindow.InitializeGuideTimelineEmptyStateTracking();
-            mainWindow.InitializeGuideTimelineRefinements();
-            mainWindow.ScheduleChannelLibraryWorkspaceInitialization();
+            StartupTimeline.Mark("window.constructed");
             _window = mainWindow;
             _window.Activate();
+            StartupTimeline.Mark("window.activated");
+            mainWindow.BeginDeferredPresentationInitialization();
         }
         catch (Exception exception)
         {
+            StartupTimeline.Mark("application.launch.failed");
             TryWriteStartupError(exception);
             throw;
         }
