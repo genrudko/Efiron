@@ -1,5 +1,5 @@
+using System.Globalization;
 using Efiron.App.Playlists;
-using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.Windows.ApplicationModel.Resources;
@@ -11,7 +11,6 @@ public sealed partial class MainWindow
     private bool _approvedShellInitializationScheduled;
     private bool _approvedShellInitialized;
     private bool _isSynchronizingChannelsWorkspace;
-    private bool _isSynchronizingSettingsNavigation;
 
     private ResourceLoader _approvedShellResources = null!;
     private NavigationViewItem _channelsNavigationItem = null!;
@@ -20,6 +19,7 @@ public sealed partial class MainWindow
     private TextBox _channelsManagementSearchTextBox = null!;
     private ComboBox _channelsManagementCategoryComboBox = null!;
     private TextBlock _channelsManagementSummaryText = null!;
+    private StackPanel _channelsManagementPanel = null!;
     private NavigationView _settingsNavigation = null!;
     private Grid _settingsContentGrid = null!;
     private StackPanel _settingsGeneralPanel = null!;
@@ -73,22 +73,20 @@ public sealed partial class MainWindow
         CreateApprovedChannelsWorkspace();
         CreateApprovedSettingsWorkspace();
         MoveTechnicalControlsToApprovedSections();
+        SubscribeApprovedShellEvents();
 
-        RootNavigation.SelectionChanged += ApprovedShellRootNavigation_SelectionChanged;
-        Closed += ApprovedShellWindow_Closed;
-
-        RefreshApprovedChannelsWorkspace(
-            ChannelListView.ItemsSource?.OfType<ChannelListItem>().ToList() ?? [],
-            (ChannelListView.SelectedItem as ChannelListItem)?.Channel.StableId);
+        RefreshApprovedChannelsWorkspaceFromLiveList();
     }
 
     private void ConfigureApprovedRootShell()
     {
+        RootNavigation.PaneDisplayMode = NavigationViewPaneDisplayMode.Left;
         RootNavigation.OpenPaneLength = 220;
         RootNavigation.CompactPaneLength = 48;
         RootNavigation.IsPaneOpen = true;
         RootNavigation.AlwaysShowHeader = false;
         RootNavigation.Header = null;
+        ContentRoot.Padding = new Thickness(12);
         StatusNavigationItem.Visibility = Visibility.Collapsed;
 
         _channelsNavigationItem = new NavigationViewItem
@@ -120,13 +118,13 @@ public sealed partial class MainWindow
         header.Children.Add(new TextBlock
         {
             Text = _approvedShellResources.GetString("ChannelsTitle"),
-            Style = (Style)Application.Current.Resources["EfironPageTitleTextStyle"],
+            Style = GetTextStyle("EfironPageTitleTextStyle"),
         });
         header.Children.Add(new TextBlock
         {
             Text = _approvedShellResources.GetString("ChannelsDescription"),
             TextWrapping = TextWrapping.Wrap,
-            Style = (Style)Application.Current.Resources["EfironCaptionTextStyle"],
+            Style = GetTextStyle("EfironCaptionTextStyle"),
         });
         _channelsView.Children.Add(header);
 
@@ -149,7 +147,6 @@ public sealed partial class MainWindow
         {
             Height = new GridLength(1, GridUnitType.Star),
         });
-        listPanel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
         var filterGrid = new Grid { ColumnSpacing = 8 };
         filterGrid.ColumnDefinitions.Add(new ColumnDefinition
@@ -165,8 +162,6 @@ public sealed partial class MainWindow
         {
             PlaceholderText = _approvedShellResources.GetString("ChannelsSearchPlaceholder"),
         };
-        _channelsManagementSearchTextBox.TextChanged +=
-            ChannelsManagementSearchTextBox_TextChanged;
         filterGrid.Children.Add(_channelsManagementSearchTextBox);
 
         _channelsManagementCategoryComboBox = new ComboBox
@@ -174,15 +169,13 @@ public sealed partial class MainWindow
             HorizontalAlignment = HorizontalAlignment.Stretch,
             PlaceholderText = _approvedShellResources.GetString("ChannelsCategoryPlaceholder"),
         };
-        _channelsManagementCategoryComboBox.SelectionChanged +=
-            ChannelsManagementCategoryComboBox_SelectionChanged;
         Grid.SetColumn(_channelsManagementCategoryComboBox, 1);
         filterGrid.Children.Add(_channelsManagementCategoryComboBox);
         listPanel.Children.Add(filterGrid);
 
         _channelsManagementSummaryText = new TextBlock
         {
-            Style = (Style)Application.Current.Resources["EfironCaptionTextStyle"],
+            Style = GetTextStyle("EfironCaptionTextStyle"),
         };
         Grid.SetRow(_channelsManagementSummaryText, 1);
         listPanel.Children.Add(_channelsManagementSummaryText);
@@ -192,40 +185,32 @@ public sealed partial class MainWindow
             ItemTemplate = ChannelListView.ItemTemplate,
             SelectionMode = ListViewSelectionMode.Single,
         };
-        _channelsManagementListView.SelectionChanged +=
-            ChannelsManagementListView_SelectionChanged;
         Grid.SetRow(_channelsManagementListView, 2);
         listPanel.Children.Add(_channelsManagementListView);
 
-        var listSurface = new Border
+        workspace.Children.Add(new Border
         {
-            Style = (Style)Application.Current.Resources["EfironSurfaceBorderStyle"],
+            Style = GetBorderStyle("EfironSurfaceBorderStyle"),
             Child = listPanel,
-        };
-        workspace.Children.Add(listSurface);
+        });
 
-        var managementPanel = new StackPanel
-        {
-            Spacing = 12,
-            Tag = "approved-channel-management-panel",
-        };
-        managementPanel.Children.Add(new TextBlock
+        _channelsManagementPanel = new StackPanel { Spacing = 12 };
+        _channelsManagementPanel.Children.Add(new TextBlock
         {
             Text = _approvedShellResources.GetString("ChannelsManagementTitle"),
-            Style = (Style)Application.Current.Resources["EfironSectionTitleTextStyle"],
+            Style = GetTextStyle("EfironSectionTitleTextStyle"),
         });
-        managementPanel.Children.Add(new TextBlock
+        _channelsManagementPanel.Children.Add(new TextBlock
         {
             Text = _approvedShellResources.GetString("ChannelsManagementDescription"),
             TextWrapping = TextWrapping.Wrap,
-            Style = (Style)Application.Current.Resources["EfironCaptionTextStyle"],
+            Style = GetTextStyle("EfironCaptionTextStyle"),
         });
 
         var managementSurface = new Border
         {
-            Grid.Column = 1,
-            Style = (Style)Application.Current.Resources["EfironSurfaceBorderStyle"],
-            Child = managementPanel,
+            Style = GetBorderStyle("EfironSurfaceBorderStyle"),
+            Child = _channelsManagementPanel,
         };
         Grid.SetColumn(managementSurface, 1);
         workspace.Children.Add(managementSurface);
@@ -248,16 +233,7 @@ public sealed partial class MainWindow
         _settingsDataPanel = CreateSettingsPanel("SettingsData", "SettingsDataDescription");
         _settingsAboutPanel = CreateSettingsPanel("SettingsAbout", "SettingsAboutDescription");
 
-        foreach (var panel in new[]
-                 {
-                     _settingsGeneralPanel,
-                     _settingsSourcesPanel,
-                     _settingsInterfacePanel,
-                     _settingsPlayerPanel,
-                     _settingsRemotePanel,
-                     _settingsDataPanel,
-                     _settingsAboutPanel,
-                 })
+        foreach (var panel in SettingsPanels())
         {
             panel.Visibility = Visibility.Collapsed;
             _settingsContentGrid.Children.Add(new ScrollViewer
@@ -300,11 +276,21 @@ public sealed partial class MainWindow
         AddSettingsNavigationItem("remote", "SettingsRemote", "\uE7F4");
         AddSettingsNavigationItem("data", "SettingsData", "\uE8F1");
         AddSettingsNavigationItem("about", "SettingsAbout", "\uE946");
-        _settingsNavigation.SelectionChanged += SettingsNavigation_SelectionChanged;
 
         SettingsView.Children.Add(_settingsNavigation);
         _settingsNavigation.SelectedItem = _settingsNavigation.MenuItems[0];
         ShowSettingsPanel("general");
+    }
+
+    private IEnumerable<StackPanel> SettingsPanels()
+    {
+        yield return _settingsGeneralPanel;
+        yield return _settingsSourcesPanel;
+        yield return _settingsInterfacePanel;
+        yield return _settingsPlayerPanel;
+        yield return _settingsRemotePanel;
+        yield return _settingsDataPanel;
+        yield return _settingsAboutPanel;
     }
 
     private StackPanel CreateSettingsPanel(string titleKey, string descriptionKey)
@@ -317,26 +303,24 @@ public sealed partial class MainWindow
         panel.Children.Add(new TextBlock
         {
             Text = _approvedShellResources.GetString(titleKey),
-            Style = (Style)Application.Current.Resources["EfironPageTitleTextStyle"],
+            Style = GetTextStyle("EfironPageTitleTextStyle"),
         });
         panel.Children.Add(new TextBlock
         {
             Text = _approvedShellResources.GetString(descriptionKey),
             TextWrapping = TextWrapping.Wrap,
-            Style = (Style)Application.Current.Resources["EfironCaptionTextStyle"],
+            Style = GetTextStyle("EfironCaptionTextStyle"),
         });
         return panel;
     }
 
-    private void AddSettingsNavigationItem(string tag, string resourceKey, string glyph)
-    {
+    private void AddSettingsNavigationItem(string tag, string resourceKey, string glyph) =>
         _settingsNavigation.MenuItems.Add(new NavigationViewItem
         {
             Content = _approvedShellResources.GetString(resourceKey),
             Tag = tag,
             Icon = new FontIcon { Glyph = glyph },
         });
-    }
 
     private void MoveTechnicalControlsToApprovedSections()
     {
@@ -358,7 +342,7 @@ public sealed partial class MainWindow
         liveSidebarGrid.Children.Remove(sourceSection);
         _settingsSourcesPanel.Children.Add(new Border
         {
-            Style = (Style)Application.Current.Resources["EfironSurfaceBorderStyle"],
+            Style = GetBorderStyle("EfironSurfaceBorderStyle"),
             Child = sourceSection,
         });
     }
@@ -388,7 +372,7 @@ public sealed partial class MainWindow
         DirectStreamExpander.Margin = new Thickness(0);
         _settingsPlayerPanel.Children.Add(new Border
         {
-            Style = (Style)Application.Current.Resources["EfironSurfaceBorderStyle"],
+            Style = GetBorderStyle("EfironSurfaceBorderStyle"),
             Child = DirectStreamExpander,
         });
     }
@@ -403,40 +387,34 @@ public sealed partial class MainWindow
         }
 
         filterPanel.Children.Remove(libraryControls);
-        var managementPanel = FindTaggedStackPanel(
-            _channelsView,
-            "approved-channel-management-panel") ??
-            throw new InvalidOperationException("Channel management panel was not found.");
-        managementPanel.Children.Add(libraryControls);
+        _channelsManagementPanel.Children.Add(libraryControls);
     }
 
-    private static StackPanel? FindTaggedStackPanel(DependencyObject root, string tag)
+    private void SubscribeApprovedShellEvents()
     {
-        if (root is StackPanel panel && string.Equals(panel.Tag as string, tag, StringComparison.Ordinal))
-        {
-            return panel;
-        }
-
-        var childCount = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(root);
-        for (var index = 0; index < childCount; index++)
-        {
-            var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(root, index);
-            var result = FindTaggedStackPanel(child, tag);
-            if (result is not null)
-            {
-                return result;
-            }
-        }
-
-        return null;
+        RootNavigation.SelectionChanged += ApprovedShellRootNavigation_SelectionChanged;
+        _settingsNavigation.SelectionChanged += SettingsNavigation_SelectionChanged;
+        _channelsManagementSearchTextBox.TextChanged += ChannelsManagementSearchTextBox_TextChanged;
+        _channelsManagementCategoryComboBox.SelectionChanged +=
+            ChannelsManagementCategoryComboBox_SelectionChanged;
+        _channelsManagementListView.SelectionChanged +=
+            ChannelsManagementListView_SelectionChanged;
+        ChannelListView.SelectionChanged += ApprovedShellChannelListView_SelectionChanged;
+        _channelNumberingComboBox.SelectionChanged += ApprovedChannelControls_Changed;
+        _showHiddenChannelsCheckBox.Checked += ApprovedChannelControls_Changed;
+        _showHiddenChannelsCheckBox.Unchecked += ApprovedChannelControls_Changed;
+        _channelFavoriteButton.Click += ApprovedChannelControls_Changed;
+        Closed += ApprovedShellWindow_Closed;
     }
 
     private void ApprovedShellRootNavigation_SelectionChanged(
         NavigationView sender,
         NavigationViewSelectionChangedEventArgs args)
     {
-        var tag = args.SelectedItemContainer?.Tag as string;
-        var showChannels = string.Equals(tag, "channels", StringComparison.Ordinal);
+        var showChannels = string.Equals(
+            args.SelectedItemContainer?.Tag as string,
+            "channels",
+            StringComparison.Ordinal);
         _channelsView.Visibility = showChannels ? Visibility.Visible : Visibility.Collapsed;
 
         if (!showChannels)
@@ -449,21 +427,17 @@ public sealed partial class MainWindow
         ArchiveView.Visibility = Visibility.Collapsed;
         RecordingsView.Visibility = Visibility.Collapsed;
         SettingsView.Visibility = Visibility.Collapsed;
-        RefreshApprovedChannelsWorkspace(
-            ChannelListView.ItemsSource?.OfType<ChannelListItem>().ToList() ?? [],
-            (ChannelListView.SelectedItem as ChannelListItem)?.Channel.StableId);
+        RefreshApprovedChannelsWorkspaceFromLiveList();
     }
 
     private void SettingsNavigation_SelectionChanged(
         NavigationView sender,
         NavigationViewSelectionChangedEventArgs args)
     {
-        if (_isSynchronizingSettingsNavigation || args.SelectedItemContainer?.Tag is not string tag)
+        if (args.SelectedItemContainer?.Tag is string tag)
         {
-            return;
+            ShowSettingsPanel(tag);
         }
-
-        ShowSettingsPanel(tag);
     }
 
     private void ShowSettingsPanel(string tag)
@@ -485,6 +459,7 @@ public sealed partial class MainWindow
         }
 
         ChannelSearchTextBox.Text = _channelsManagementSearchTextBox.Text;
+        RefreshApprovedChannelsWorkspaceFromLiveList();
     }
 
     private void ChannelsManagementCategoryComboBox_SelectionChanged(
@@ -497,6 +472,7 @@ public sealed partial class MainWindow
         }
 
         GroupFilterComboBox.SelectedIndex = _channelsManagementCategoryComboBox.SelectedIndex;
+        RefreshApprovedChannelsWorkspaceFromLiveList();
     }
 
     private void ChannelsManagementListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -509,6 +485,29 @@ public sealed partial class MainWindow
         _isSynchronizingChannelsWorkspace = true;
         ChannelListView.SelectedItem = _channelsManagementListView.SelectedItem;
         _isSynchronizingChannelsWorkspace = false;
+    }
+
+    private void ApprovedShellChannelListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isSynchronizingChannelsWorkspace)
+        {
+            return;
+        }
+
+        _isSynchronizingChannelsWorkspace = true;
+        SelectApprovedManagementChannel(
+            (ChannelListView.SelectedItem as ChannelListItem)?.Channel.StableId);
+        _isSynchronizingChannelsWorkspace = false;
+    }
+
+    private void ApprovedChannelControls_Changed(object sender, RoutedEventArgs e) =>
+        DispatcherQueue.TryEnqueue(RefreshApprovedChannelsWorkspaceFromLiveList);
+
+    private void RefreshApprovedChannelsWorkspaceFromLiveList()
+    {
+        RefreshApprovedChannelsWorkspace(
+            ChannelListView.ItemsSource?.OfType<ChannelListItem>().ToList() ?? [],
+            (ChannelListView.SelectedItem as ChannelListItem)?.Channel.StableId);
     }
 
     internal void RefreshApprovedChannelsWorkspace(
@@ -526,18 +525,9 @@ public sealed partial class MainWindow
             _channelsManagementSearchTextBox.Text = ChannelSearchTextBox.Text;
             RefreshApprovedChannelCategoryFilter();
             _channelsManagementListView.ItemsSource = visibleItems;
-            var selectedIndex = visibleItems
-                .Select((item, index) => (item, index))
-                .FirstOrDefault(pair => string.Equals(
-                    pair.item.Channel.StableId,
-                    preferredStableId,
-                    StringComparison.Ordinal))
-                .index;
-            _channelsManagementListView.SelectedIndex = visibleItems.Count == 0
-                ? -1
-                : Math.Clamp(selectedIndex, 0, visibleItems.Count - 1);
+            SelectApprovedManagementChannel(preferredStableId);
             _channelsManagementSummaryText.Text = string.Format(
-                System.Globalization.CultureInfo.CurrentCulture,
+                CultureInfo.CurrentCulture,
                 _approvedShellResources.GetString("ChannelsSummaryFormat"),
                 visibleItems.Count,
                 _channelCatalog.Count);
@@ -546,6 +536,24 @@ public sealed partial class MainWindow
         {
             _isSynchronizingChannelsWorkspace = false;
         }
+    }
+
+    private void SelectApprovedManagementChannel(string? stableId)
+    {
+        if (_channelsManagementListView.ItemsSource is not IEnumerable<ChannelListItem> items)
+        {
+            _channelsManagementListView.SelectedIndex = -1;
+            return;
+        }
+
+        var visibleItems = items.ToList();
+        var selectedIndex = visibleItems.FindIndex(item => string.Equals(
+            item.Channel.StableId,
+            stableId,
+            StringComparison.Ordinal));
+        _channelsManagementListView.SelectedIndex = selectedIndex >= 0
+            ? selectedIndex
+            : visibleItems.Count > 0 ? 0 : -1;
     }
 
     private void RefreshApprovedChannelCategoryFilter()
@@ -567,16 +575,25 @@ public sealed partial class MainWindow
                 : Math.Clamp(selectedIndex, 0, _channelsManagementCategoryComboBox.Items.Count - 1);
     }
 
+    private static Style GetTextStyle(string key) =>
+        (Style)Application.Current.Resources[key];
+
+    private static Style GetBorderStyle(string key) =>
+        (Style)Application.Current.Resources[key];
+
     private void ApprovedShellWindow_Closed(object sender, WindowEventArgs args)
     {
         RootNavigation.SelectionChanged -= ApprovedShellRootNavigation_SelectionChanged;
         _settingsNavigation.SelectionChanged -= SettingsNavigation_SelectionChanged;
-        _channelsManagementSearchTextBox.TextChanged -=
-            ChannelsManagementSearchTextBox_TextChanged;
+        _channelsManagementSearchTextBox.TextChanged -= ChannelsManagementSearchTextBox_TextChanged;
         _channelsManagementCategoryComboBox.SelectionChanged -=
             ChannelsManagementCategoryComboBox_SelectionChanged;
-        _channelsManagementListView.SelectionChanged -=
-            ChannelsManagementListView_SelectionChanged;
+        _channelsManagementListView.SelectionChanged -= ChannelsManagementListView_SelectionChanged;
+        ChannelListView.SelectionChanged -= ApprovedShellChannelListView_SelectionChanged;
+        _channelNumberingComboBox.SelectionChanged -= ApprovedChannelControls_Changed;
+        _showHiddenChannelsCheckBox.Checked -= ApprovedChannelControls_Changed;
+        _showHiddenChannelsCheckBox.Unchecked -= ApprovedChannelControls_Changed;
+        _channelFavoriteButton.Click -= ApprovedChannelControls_Changed;
         Closed -= ApprovedShellWindow_Closed;
     }
 }
