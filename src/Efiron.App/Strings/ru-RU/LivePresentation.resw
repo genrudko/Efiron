@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="LiveCategoriesTitle.Text" xml:space="preserve"><value>Категории</value></data>
+  <data name="LiveChannelSearch.PlaceholderText" xml:space="preserve"><value>Поиск каналов</value></data>
+  <data name="LiveSourceSetup.ToolTipService.ToolTip" xml:space="preserve"><value>Настроить источники</value></data>
+  <data name="LiveChannelEmpty.Text" xml:space="preserve"><value>Каналы не найдены. Измените категорию или поисковый запрос.</value></data>
+  <data name="LiveWelcomeTitle.Text" xml:space="preserve"><value>Добавьте плейлист</value></data>
+  <data name="LiveWelcomeDescription.Text" xml:space="preserve"><value>Подключите M3U-плейлист, чтобы открыть каналы, телепрограмму и воспроизведение.</value></data>
+  <data name="LiveWelcomeAction.Content" xml:space="preserve"><value>Добавить плейлист</value></data>
+  <data name="LivePlayerEmpty.Text" xml:space="preserve"><value>Выберите канал слева, чтобы начать просмотр.</value></data>
+  <data name="LivePlayPause.ToolTipService.ToolTip" xml:space="preserve"><value>Воспроизведение / пауза</value></data>
+  <data name="LiveStop.ToolTipService.ToolTip" xml:space="preserve"><value>Остановить</value></data>
+  <data name="LiveMute.ToolTipService.ToolTip" xml:space="preserve"><value>Отключить или включить звук</value></data>
+  <data name="LiveVolume.AutomationProperties.Name" xml:space="preserve"><value>Громкость</value></data>
+  <data name="LiveFullscreen.ToolTipService.ToolTip" xml:space="preserve"><value>Полный экран</value></data>
+  <data name="LiveNowLabel.Text" xml:space="preserve"><value>СЕЙЧАС</value></data>
+  <data name="LiveNextLabel.Text" xml:space="preserve"><value>ДАЛЕЕ</value></data>
+  <data name="LiveActionChannels.ToolTipService.ToolTip" xml:space="preserve"><value>Вернуть фокус в список каналов</value></data>
+  <data name="LiveActionChannelsText.Text" xml:space="preserve"><value>Каналы</value></data>
+  <data name="LiveActionFavorite.ToolTipService.ToolTip" xml:space="preserve"><value>Добавить или удалить канал из избранного</value></data>
+  <data name="LiveActionFavoriteText.Text" xml:space="preserve"><value>В избранное</value></data>
+  <data name="LiveActionProgramme.ToolTipService.ToolTip" xml:space="preserve"><value>Информация о текущей передаче</value></data>
+  <data name="LiveActionProgrammeText.Text" xml:space="preserve"><value>О программе</value></data>
+  <data name="LiveActionArchive.ToolTipService.ToolTip" xml:space="preserve"><value>Открыть архив канала</value></data>
+  <data name="LiveActionArchiveText.Text" xml:space="preserve"><value>Архив</value></data>
+  <data name="LiveActionMore.ToolTipService.ToolTip" xml:space="preserve"><value>Дополнительные действия</value></data>
+  <data name="SourceDialogTitle" xml:space="preserve"><value>Источники Efiron</value></data>
+  <data name="SourceDialogDescription" xml:space="preserve"><value>Укажите адрес плейлиста. XMLTV можно оставить пустым, если ссылка содержится в M3U.</value></data>
+  <data name="SourcePlaylistHeader" xml:space="preserve"><value>Плейлист M3U</value></data>
+  <data name="SourcePlaylistPlaceholder" xml:space="preserve"><value>https://example.com/playlist.m3u</value></data>
+  <data name="SourceEpgHeader" xml:space="preserve"><value>Телепрограмма XMLTV</value></data>
+  <data name="SourceEpgPlaceholder" xml:space="preserve"><value>https://example.com/guide.xml</value></data>
+  <data name="SourceDialogApply" xml:space="preserve"><value>Сохранить и обновить</value></data>
+  <data name="SourceDialogCancel" xml:space="preserve"><value>Отмена</value></data>
+  <data name="LiveAllChannels" xml:space="preserve"><value>Все каналы</value></data>
+  <data name="LiveFavorites" xml:space="preserve"><value>Избранное</value></data>
+  <data name="LiveNoCategory" xml:space="preserve"><value>Без категории</value></data>
+  <data name="LiveAddFavorite" xml:space="preserve"><value>В избранное</value></data>
+  <data name="LiveRemoveFavorite" xml:space="preserve"><value>Убрать из избранного</value></data>
+  <data name="LiveProgrammeUnavailable" xml:space="preserve"><value>Телепрограмма недоступна</value></data>
+  <data name="LiveNoCurrent" xml:space="preserve"><value>Нет текущей передачи</value></data>
+  <data name="LiveNoNext" xml:space="preserve"><value>Следующая передача не указана</value></data>
+  <data name="LiveSourceSavedTitle" xml:space="preserve"><value>Источники обновляются</value></data>
+  <data name="LiveSourceSavedMessage" xml:space="preserve"><value>Загрузка плейлиста и телепрограммы запущена.</value></data>
+  <data name="LiveNotImplementedTitle" xml:space="preserve"><value>Раздел будет следующим</value></data>
+  <data name="LiveNotImplementedMessage" xml:space="preserve"><value>В этой сборке проверяется новая оболочка и экран «Эфир».</value></data>
+</root>
