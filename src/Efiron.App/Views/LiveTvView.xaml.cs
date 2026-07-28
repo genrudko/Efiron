@@ -13,6 +13,8 @@ public sealed partial class LiveTvView : UserControl
     public LiveTvView()
     {
         InitializeComponent();
+        PlayerVideoView.Visibility = Visibility.Collapsed;
+        Loaded += LiveTvView_Loaded;
     }
 
     internal Grid RootGridControl => RootGrid;
@@ -150,5 +152,11 @@ public sealed partial class LiveTvView : UserControl
         ChannelSurface.BorderBrush = stroke;
         NowNextPanel.Background = surface;
         NowNextPanel.BorderBrush = stroke;
+    }
+
+    private void LiveTvView_Loaded(object sender, RoutedEventArgs e)
+    {
+        Loaded -= LiveTvView_Loaded;
+        DispatcherQueue.TryEnqueue(() => PlayerVideoView.Visibility = Visibility.Visible);
     }
 }
