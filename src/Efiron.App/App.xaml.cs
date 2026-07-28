@@ -33,7 +33,6 @@ public partial class App : Application
             mainWindow.InitializeGuideTimelineEmptyStateTracking();
             mainWindow.InitializeGuideTimelineRefinements();
             mainWindow.ScheduleChannelLibraryWorkspaceInitialization();
-            mainWindow.ScheduleApprovedShellPhase2Initialization();
             _window = mainWindow;
             _window.Activate();
         }
