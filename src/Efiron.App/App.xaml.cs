@@ -14,6 +14,9 @@ public partial class App : Application
     public App()
     {
         StartupTimeline.Mark("application.constructor.start");
+        UnhandledException += App_UnhandledException;
+        AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
+
         var configuredLanguage = AppLanguageStore.Load();
         if (configuredLanguage is not null)
         {
@@ -42,6 +45,21 @@ public partial class App : Application
             StartupTimeline.Mark("application.launch.failed");
             TryWriteStartupError(exception);
             throw;
+        }
+    }
+
+    private void App_UnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
+    {
+        StartupTimeline.Mark("application.unhandled-exception");
+        TryWriteStartupError(e.Exception);
+    }
+
+    private static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
+    {
+        StartupTimeline.Mark("appdomain.unhandled-exception");
+        if (e.ExceptionObject is Exception exception)
+        {
+            TryWriteStartupError(exception);
         }
     }
 
