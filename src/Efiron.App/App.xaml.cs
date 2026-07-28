@@ -54,7 +54,9 @@ public partial class App : Application
         TryWriteStartupError(e.Exception);
     }
 
-    private static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
+    private static void CurrentDomain_UnhandledException(
+        object sender,
+        System.UnhandledExceptionEventArgs e)
     {
         StartupTimeline.Mark("appdomain.unhandled-exception");
         if (e.ExceptionObject is Exception exception)
