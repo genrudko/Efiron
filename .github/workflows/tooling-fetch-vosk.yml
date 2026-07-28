@@ -1,9 +1,7 @@
 name: tooling-fetch-vosk
 
 on:
-  push:
-    branches:
-      - live/002-channel-library
+  pull_request:
     paths:
       - .github/workflows/tooling-fetch-vosk.yml
   workflow_dispatch:
