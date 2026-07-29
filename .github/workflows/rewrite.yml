@@ -17,7 +17,7 @@ jobs:
   greenfield:
     name: Greenfield architecture and tests
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 18
 
     steps:
       - name: Checkout
@@ -61,22 +61,91 @@ jobs:
 
           exit $result
 
+      - name: Verify desktop first useful paint
+        id: desktop_startup
+        if: steps.greenfield_tests.outcome == 'success'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $output = "src/Efiron.Desktop/bin/x64/Release/net10.0-windows10.0.22000.0/win-x64"
+          $executable = Join-Path $output "Efiron.exe"
+          $localAppData = [Environment]::GetFolderPath(
+            [Environment+SpecialFolder]::LocalApplicationData)
+          $evidence = Join-Path $localAppData "Efiron/diagnostics/first-useful-paint.json"
+          $process = $null
+
+          Remove-Item -LiteralPath $evidence -Force -ErrorAction SilentlyContinue
+
+          try {
+            $process = Start-Process `
+              -FilePath $executable `
+              -WorkingDirectory $output `
+              -PassThru
+
+            $deadline = [DateTime]::UtcNow.AddSeconds(15)
+            while (-not (Test-Path -LiteralPath $evidence) -and
+                   [DateTime]::UtcNow -lt $deadline) {
+              Start-Sleep -Milliseconds 200
+              $process.Refresh()
+              if ($process.HasExited) {
+                throw "Efiron exited before first useful paint with code $($process.ExitCode)."
+              }
+            }
+
+            if (-not (Test-Path -LiteralPath $evidence)) {
+              throw "Efiron did not report first useful paint within 15 seconds."
+            }
+
+            $startup = Get-Content -LiteralPath $evidence -Raw | ConvertFrom-Json
+            $elapsed = [double]$startup.FirstUsefulPaintMilliseconds
+            if ($elapsed -le 0 -or $elapsed -gt 8000) {
+              throw "Invalid first useful paint measurement: $elapsed ms."
+            }
+
+            @(
+              "Desktop process remained alive."
+              "First useful paint: $elapsed ms"
+              "Evidence: $evidence"
+            ) | Set-Content -LiteralPath rewrite-startup.log -Encoding utf8
+          }
+          catch {
+            $_ | Out-String | Set-Content -LiteralPath rewrite-startup.log -Encoding utf8
+            throw
+          }
+          finally {
+            if ($null -ne $process) {
+              $process.Refresh()
+              if (-not $process.HasExited) {
+                Stop-Process -Id $process.Id -Force
+              }
+            }
+          }
+
       - name: Upload greenfield diagnostics
-        if: steps.greenfield_tests.outcome == 'failure'
+        if: steps.greenfield_tests.outcome == 'failure' || steps.desktop_startup.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: rewrite-test-diagnostics
           path: |
             architecture-test.log
             infrastructure-test.log
+            rewrite-startup.log
             tests/Efiron.Architecture.Tests/TestResults/architecture-tests.trx
             tests/Efiron.Infrastructure.Tests/TestResults/infrastructure-tests.trx
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 7
 
-      - name: Enforce greenfield result
+      - name: Enforce greenfield test result
         if: steps.greenfield_tests.outcome == 'failure'
         shell: pwsh
         run: |
           Write-Error "Greenfield tests failed. See rewrite-test-diagnostics."
+          exit 1
+
+      - name: Enforce desktop startup result
+        if: steps.desktop_startup.outcome == 'failure'
+        shell: pwsh
+        run: |
+          Write-Error "New desktop failed first-useful-paint validation. See rewrite-test-diagnostics."
           exit 1
