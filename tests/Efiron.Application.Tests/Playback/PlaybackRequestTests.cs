@@ -14,9 +14,10 @@ public sealed class PlaybackRequestTests
     [InlineData("udp://@239.0.0.1:1234")]
     public void Constructor_accepts_supported_absolute_sources(string source)
     {
-        var request = new PlaybackRequest(new Uri(source));
+        var expected = new Uri(source);
+        var request = new PlaybackRequest(expected);
 
-        Assert.Equal(source, request.Source.AbsoluteUri);
+        Assert.Equal(expected, request.Source);
     }
 
     [Fact]
