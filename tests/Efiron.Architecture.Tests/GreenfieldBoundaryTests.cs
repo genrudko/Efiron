@@ -1,4 +1,5 @@
 using System.Xml.Linq;
+using Xunit;
 
 namespace Efiron.Architecture.Tests;
 
@@ -90,7 +91,7 @@ public sealed class GreenfieldBoundaryTests
                 (string?)element.Attribute("Include")))
             .ToArray();
 
-        Assert.Equal(["Efiron.Domain"], references);
+        Assert.Equal(new[] { "Efiron.Domain" }, references);
     }
 
     private static IEnumerable<string> EnumerateExistingGreenfieldProjects(
