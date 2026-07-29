@@ -72,10 +72,14 @@ jobs:
           $executable = Join-Path $output "Efiron.exe"
           $localAppData = [Environment]::GetFolderPath(
             [Environment+SpecialFolder]::LocalApplicationData)
-          $evidence = Join-Path $localAppData "Efiron/diagnostics/first-useful-paint.json"
+          $diagnostics = Join-Path $localAppData "Efiron/diagnostics"
+          $evidence = Join-Path $diagnostics "first-useful-paint.json"
+          $crashEvidence = Join-Path $diagnostics "startup-crash.log"
           $process = $null
+          $startedAt = [DateTime]::UtcNow
 
           Remove-Item -LiteralPath $evidence -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath $crashEvidence -Force -ErrorAction SilentlyContinue
 
           try {
             $process = Start-Process `
@@ -110,7 +114,32 @@ jobs:
             ) | Set-Content -LiteralPath rewrite-startup.log -Encoding utf8
           }
           catch {
-            $_ | Out-String | Set-Content -LiteralPath rewrite-startup.log -Encoding utf8
+            $details = @($_ | Out-String)
+
+            if (Test-Path -LiteralPath $crashEvidence) {
+              $details += ""
+              $details += "===== APPLICATION CRASH EVIDENCE ====="
+              $details += Get-Content -LiteralPath $crashEvidence -Raw
+            }
+
+            $events = Get-WinEvent `
+              -FilterHashtable @{ LogName = "Application"; StartTime = $startedAt } `
+              -ErrorAction SilentlyContinue |
+              Where-Object {
+                $_.ProviderName -in @("Application Error", ".NET Runtime", "Windows Error Reporting") -or
+                $_.Message -match "Efiron"
+              } |
+              Select-Object -First 12 |
+              Format-List TimeCreated, ProviderName, Id, LevelDisplayName, Message |
+              Out-String
+
+            if (-not [string]::IsNullOrWhiteSpace($events)) {
+              $details += ""
+              $details += "===== WINDOWS APPLICATION EVENTS ====="
+              $details += $events
+            }
+
+            $details | Set-Content -LiteralPath rewrite-startup.log -Encoding utf8
             throw
           }
           finally {
