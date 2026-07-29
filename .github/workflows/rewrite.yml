@@ -34,32 +34,49 @@ jobs:
       - name: Build greenfield solution
         run: dotnet build Efiron.Greenfield.sln -c Release --no-restore
 
-      - name: Run architecture tests
-        id: architecture_tests
+      - name: Run greenfield tests
+        id: greenfield_tests
         continue-on-error: true
         shell: pwsh
         run: |
+          $result = 0
+
           dotnet test tests/Efiron.Architecture.Tests/Efiron.Architecture.Tests.csproj `
             -c Release `
-            --no-restore `
+            --no-build `
             --logger "trx;LogFileName=architecture-tests.trx" `
             --verbosity normal *> architecture-test.log
-          exit $LASTEXITCODE
+          if ($LASTEXITCODE -ne 0) {
+            $result = 1
+          }
 
-      - name: Upload architecture diagnostics
-        if: steps.architecture_tests.outcome == 'failure'
+          dotnet test tests/Efiron.Infrastructure.Tests/Efiron.Infrastructure.Tests.csproj `
+            -c Release `
+            --no-build `
+            --logger "trx;LogFileName=infrastructure-tests.trx" `
+            --verbosity normal *> infrastructure-test.log
+          if ($LASTEXITCODE -ne 0) {
+            $result = 1
+          }
+
+          exit $result
+
+      - name: Upload greenfield diagnostics
+        if: steps.greenfield_tests.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
-          name: rewrite-architecture-diagnostics
+          name: rewrite-test-diagnostics
           path: |
             architecture-test.log
+            infrastructure-test.log
             tests/Efiron.Architecture.Tests/TestResults/architecture-tests.trx
+            tests/Efiron.Infrastructure.Tests/TestResults/infrastructure-tests.trx
           if-no-files-found: error
           retention-days: 7
 
-      - name: Enforce architecture result
-        if: steps.architecture_tests.outcome == 'failure'
+      - name: Enforce greenfield result
+        if: steps.greenfield_tests.outcome == 'failure'
         shell: pwsh
         run: |
-          Write-Error "Greenfield architecture tests failed. See rewrite-architecture-diagnostics."
+          Write-Error "Greenfield tests failed. See rewrite-test-diagnostics."
           exit 1
