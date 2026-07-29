@@ -17,7 +17,7 @@ jobs:
   greenfield:
     name: Greenfield architecture and tests
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 22
 
     steps:
       - name: Checkout
@@ -70,7 +70,69 @@ jobs:
 
           exit $result
 
-      - name: Verify desktop first useful paint
+      - name: Prepare deterministic Live fixture
+        if: steps.greenfield_tests.outcome == 'success'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $fixture = Join-Path $env:RUNNER_TEMP "efiron-live-fixture"
+          $playlist = Join-Path $fixture "playlist.m3u"
+          $guide = Join-Path $fixture "guide.xml"
+          $localAppData = [Environment]::GetFolderPath(
+            [Environment+SpecialFolder]::LocalApplicationData)
+          $efironData = Join-Path $localAppData "Efiron"
+          $configuration = Join-Path $efironData "sources.json"
+
+          Remove-Item -LiteralPath $fixture -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath $efironData -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $fixture -Force | Out-Null
+          New-Item -ItemType Directory -Path $efironData -Force | Out-Null
+
+          @'
+          #EXTM3U
+          #EXTINF:-1 tvg-id="ci.news" tvg-name="CI News" group-title="News",CI News
+          https://media.invalid/news.m3u8
+          #EXTINF:-1 tvg-name="CI Cinema" group-title="Cinema",CI Cinema
+          https://media.invalid/cinema.m3u8
+          '@ | Set-Content -LiteralPath $playlist -Encoding utf8
+
+          $now = [DateTimeOffset]::UtcNow
+          $currentStart = $now.AddMinutes(-20).ToString("yyyyMMddHHmmss +0000")
+          $currentStop = $now.AddMinutes(40).ToString("yyyyMMddHHmmss +0000")
+          $nextStop = $now.AddMinutes(100).ToString("yyyyMMddHHmmss +0000")
+          @"
+          <tv>
+            <channel id="ci.news"><display-name>CI News</display-name></channel>
+            <channel id="ci.cinema"><display-name>CI Cinema</display-name></channel>
+            <programme channel="ci.news" start="$currentStart" stop="$currentStop">
+              <title>CI News Now</title>
+            </programme>
+            <programme channel="ci.news" start="$currentStop" stop="$nextStop">
+              <title>CI News Next</title>
+            </programme>
+            <programme channel="ci.cinema" start="$currentStart" stop="$currentStop">
+              <title>CI Movie Now</title>
+            </programme>
+            <programme channel="ci.cinema" start="$currentStop" stop="$nextStop">
+              <title>CI Movie Next</title>
+            </programme>
+          </tv>
+          "@ | Set-Content -LiteralPath $guide -Encoding utf8
+
+          @{
+            playlist = @{
+              location = $playlist
+              isEnabled = $true
+            }
+            programmeGuide = @{
+              location = $guide
+              isEnabled = $true
+            }
+          } |
+            ConvertTo-Json -Depth 4 |
+            Set-Content -LiteralPath $configuration -Encoding utf8
+
+      - name: Verify desktop Live vertical slice
         id: desktop_startup
         if: steps.greenfield_tests.outcome == 'success'
         continue-on-error: true
@@ -82,12 +144,14 @@ jobs:
           $localAppData = [Environment]::GetFolderPath(
             [Environment+SpecialFolder]::LocalApplicationData)
           $diagnostics = Join-Path $localAppData "Efiron/diagnostics"
-          $evidence = Join-Path $diagnostics "first-useful-paint.json"
+          $firstPaintEvidence = Join-Path $diagnostics "first-useful-paint.json"
+          $liveEvidence = Join-Path $diagnostics "live-vertical-slice.json"
           $crashEvidence = Join-Path $diagnostics "startup-crash.log"
           $process = $null
           $startedAt = [DateTime]::UtcNow
 
-          Remove-Item -LiteralPath $evidence -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath $firstPaintEvidence -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath $liveEvidence -Force -ErrorAction SilentlyContinue
           Remove-Item -LiteralPath $crashEvidence -Force -ErrorAction SilentlyContinue
 
           try {
@@ -96,9 +160,9 @@ jobs:
               -WorkingDirectory $output `
               -PassThru
 
-            $deadline = [DateTime]::UtcNow.AddSeconds(15)
-            while (-not (Test-Path -LiteralPath $evidence) -and
-                   [DateTime]::UtcNow -lt $deadline) {
+            $firstPaintDeadline = [DateTime]::UtcNow.AddSeconds(15)
+            while (-not (Test-Path -LiteralPath $firstPaintEvidence) -and
+                   [DateTime]::UtcNow -lt $firstPaintDeadline) {
               Start-Sleep -Milliseconds 200
               $process.Refresh()
               if ($process.HasExited) {
@@ -106,20 +170,58 @@ jobs:
               }
             }
 
-            if (-not (Test-Path -LiteralPath $evidence)) {
+            if (-not (Test-Path -LiteralPath $firstPaintEvidence)) {
               throw "Efiron did not report first useful paint within 15 seconds."
             }
 
-            $startup = Get-Content -LiteralPath $evidence -Raw | ConvertFrom-Json
+            $startup = Get-Content -LiteralPath $firstPaintEvidence -Raw | ConvertFrom-Json
             $elapsed = [double]$startup.FirstUsefulPaintMilliseconds
             if ($elapsed -le 0 -or $elapsed -gt 8000) {
               throw "Invalid first useful paint measurement: $elapsed ms."
             }
 
+            $liveDeadline = [DateTime]::UtcNow.AddSeconds(25)
+            while (-not (Test-Path -LiteralPath $liveEvidence) -and
+                   [DateTime]::UtcNow -lt $liveDeadline) {
+              Start-Sleep -Milliseconds 250
+              $process.Refresh()
+              if ($process.HasExited) {
+                throw "Efiron exited before the Live workspace became ready with code $($process.ExitCode)."
+              }
+            }
+
+            if (-not (Test-Path -LiteralPath $liveEvidence)) {
+              throw "Efiron did not report the Live vertical slice within 25 seconds."
+            }
+
+            $live = Get-Content -LiteralPath $liveEvidence -Raw | ConvertFrom-Json
+            if ([int]$live.ChannelCount -ne 2) {
+              throw "Expected two fixture channels, got $($live.ChannelCount)."
+            }
+            if ([int]$live.CategoryCount -ne 2) {
+              throw "Expected two fixture categories, got $($live.CategoryCount)."
+            }
+            if ([int]$live.ProgrammeGuideMatchCount -ne 2) {
+              throw "Expected two XMLTV matches, got $($live.ProgrammeGuideMatchCount)."
+            }
+            if (-not [bool]$live.LiveWorkspaceVisible) {
+              throw "Live workspace evidence did not confirm visibility."
+            }
+
+            Start-Sleep -Seconds 5
+            $process.Refresh()
+            if ($process.HasExited) {
+              throw "Efiron exited after the Live workspace and VideoView were shown with code $($process.ExitCode)."
+            }
+
             @(
-              "Desktop process remained alive."
+              "Desktop process remained alive with the Live workspace visible."
               "First useful paint: $elapsed ms"
-              "Evidence: $evidence"
+              "Fixture channels: $($live.ChannelCount)"
+              "Fixture categories: $($live.CategoryCount)"
+              "XMLTV matches: $($live.ProgrammeGuideMatchCount)"
+              "First paint evidence: $firstPaintEvidence"
+              "Live evidence: $liveEvidence"
             ) | Set-Content -LiteralPath rewrite-startup.log -Encoding utf8
           }
           catch {
@@ -187,5 +289,5 @@ jobs:
         if: steps.desktop_startup.outcome == 'failure'
         shell: pwsh
         run: |
-          Write-Error "New desktop failed first-useful-paint validation. See rewrite-test-diagnostics."
+          Write-Error "New desktop failed Live vertical-slice validation. See rewrite-test-diagnostics."
           exit 1
