@@ -1,0 +1,83 @@
+<Application
+    x:Class="Efiron.Desktop.App"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Default">
+          <SolidColorBrush x:Key="EfironWindowBrush" Color="#0A0F17" />
+          <SolidColorBrush x:Key="EfironNavigationBrush" Color="#0F1621" />
+          <SolidColorBrush x:Key="EfironSurfaceBrush" Color="#141D2A" />
+          <SolidColorBrush x:Key="EfironSurfaceRaisedBrush" Color="#192536" />
+          <SolidColorBrush x:Key="EfironStrokeBrush" Color="#2A394C" />
+          <SolidColorBrush x:Key="EfironTextBrush" Color="#F6F8FB" />
+          <SolidColorBrush x:Key="EfironTextSecondaryBrush" Color="#AEB9C8" />
+          <SolidColorBrush x:Key="EfironTextTertiaryBrush" Color="#748196" />
+          <SolidColorBrush x:Key="EfironAccentBrush" Color="#2586FF" />
+          <SolidColorBrush x:Key="EfironAccentHoverBrush" Color="#3C94FF" />
+          <SolidColorBrush x:Key="EfironAccentSubtleBrush" Color="#292586FF" />
+          <SolidColorBrush x:Key="EfironSuccessBrush" Color="#36C78B" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Light">
+          <SolidColorBrush x:Key="EfironWindowBrush" Color="#F4F7FB" />
+          <SolidColorBrush x:Key="EfironNavigationBrush" Color="#FFFFFF" />
+          <SolidColorBrush x:Key="EfironSurfaceBrush" Color="#FFFFFF" />
+          <SolidColorBrush x:Key="EfironSurfaceRaisedBrush" Color="#F7F9FC" />
+          <SolidColorBrush x:Key="EfironStrokeBrush" Color="#D6DEE9" />
+          <SolidColorBrush x:Key="EfironTextBrush" Color="#121A25" />
+          <SolidColorBrush x:Key="EfironTextSecondaryBrush" Color="#4E5C6E" />
+          <SolidColorBrush x:Key="EfironTextTertiaryBrush" Color="#7B8797" />
+          <SolidColorBrush x:Key="EfironAccentBrush" Color="#126FDB" />
+          <SolidColorBrush x:Key="EfironAccentHoverBrush" Color="#2580E8" />
+          <SolidColorBrush x:Key="EfironAccentSubtleBrush" Color="#21126FDB" />
+          <SolidColorBrush x:Key="EfironSuccessBrush" Color="#12865A" />
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+
+      <Style x:Key="EfironPageTitleStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Segoe UI Variable Display" />
+        <Setter Property="FontSize" Value="30" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{ThemeResource EfironTextBrush}" />
+      </Style>
+
+      <Style x:Key="EfironSectionTitleStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Segoe UI Variable Display" />
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{ThemeResource EfironTextBrush}" />
+      </Style>
+
+      <Style x:Key="EfironBodyStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Foreground" Value="{ThemeResource EfironTextSecondaryBrush}" />
+      </Style>
+
+      <Style x:Key="EfironCaptionStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Segoe UI Variable Text" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{ThemeResource EfironTextTertiaryBrush}" />
+      </Style>
+
+      <Style x:Key="EfironCardStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource EfironSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource EfironStrokeBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="14" />
+        <Setter Property="Padding" Value="22" />
+      </Style>
+
+      <Style x:Key="EfironPrimaryButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="{ThemeResource EfironAccentBrush}" />
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="MinHeight" Value="40" />
+        <Setter Property="Padding" Value="20,9" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+      </Style>
+    </ResourceDictionary>
+  </Application.Resources>
+</Application>
