@@ -26,7 +26,11 @@ public sealed partial class LiveTvView
             Environment.GetEnvironmentVariable(
                 PlaybackSequenceEnvironmentVariable),
             "1",
-            StringComparison.Ordinal);
+            StringComparison.Ordinal) ||
+        string.Equals(
+            Environment.GetEnvironmentVariable("GITHUB_ACTIONS"),
+            "true",
+            StringComparison.OrdinalIgnoreCase);
 
     protected override void OnApplyTemplate()
     {
@@ -154,14 +158,6 @@ public sealed partial class LiveTvView
 
         if (PlaybackDiagnosticsEnabled &&
             e.Snapshot.State == PlaybackState.Playing &&
-            !_playbackEvidenceWritten)
-        {
-            _playbackEvidenceWritten = true;
-            _ = RecordPlaybackEvidenceAsync(e.Snapshot);
-        }
-
-        if (PlaybackDiagnosticsEnabled &&
-            e.Snapshot.State == PlaybackState.Playing &&
             !_controlSequenceStarted)
         {
             _controlSequenceStarted = true;
@@ -221,7 +217,7 @@ public sealed partial class LiveTvView
 
             _playbackSession.SetVolume(37);
             await WaitForSnapshotAsync(
-                snapshot => snapshot.Volume == 37,
+                static snapshot => snapshot.Volume == 37,
                 TimeSpan.FromSeconds(5));
             volumeSet = true;
 
@@ -233,7 +229,7 @@ public sealed partial class LiveTvView
 
             _playbackSession.SetMuted(false);
             await WaitForSnapshotAsync(
-                snapshot => !snapshot.IsMuted && snapshot.Volume == 37,
+                static snapshot => !snapshot.IsMuted && snapshot.Volume == 37,
                 TimeSpan.FromSeconds(5));
             unmuted = true;
 
@@ -277,7 +273,7 @@ public sealed partial class LiveTvView
                 _playbackSession?.Snapshot);
         }
 
-        await RecordPlaybackControlEvidenceAsync(new PlaybackControlEvidence(
+        var evidence = new PlaybackControlEvidence(
             FirstChannelStableId: firstChannelStableId,
             SecondChannelStableId: secondChannelStableId,
             Paused: paused,
@@ -288,7 +284,22 @@ public sealed partial class LiveTvView
             Stopped: stopped,
             SwitchedToSecondChannel: switched,
             Error: error,
-            RecordedAtUtc: DateTimeOffset.UtcNow));
+            RecordedAtUtc: DateTimeOffset.UtcNow);
+        await RecordPlaybackControlEvidenceAsync(evidence);
+
+        if (error is null &&
+            paused &&
+            resumed &&
+            volumeSet &&
+            muted &&
+            unmuted &&
+            stopped &&
+            switched &&
+            !_playbackEvidenceWritten)
+        {
+            _playbackEvidenceWritten = true;
+            await RecordPlaybackEvidenceAsync(initialPlayingSnapshot);
+        }
     }
 
     private async Task<PlaybackSnapshot> WaitForSnapshotAsync(
