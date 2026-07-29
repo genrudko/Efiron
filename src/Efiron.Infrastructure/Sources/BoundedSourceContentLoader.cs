@@ -53,7 +53,7 @@ public sealed class BoundedSourceContentLoader(HttpClient httpClient) : ISourceC
             source,
             content,
             new Uri(path),
-            contentType: null,
+            ContentType: null,
             DateTimeOffset.UtcNow);
     }
 
