@@ -46,6 +46,8 @@ public sealed partial class LiveTvView : UserControl
 
     public event EventHandler<FavoriteChangedEventArgs>? FavoriteChanged;
 
+    public event EventHandler<PlaybackSnapshotChangedEventArgs>? PlaybackSnapshotChanged;
+
     public void SetCatalog(
         LiveCatalogSnapshot catalog,
         IReadOnlySet<string> favoriteStableIds)
@@ -53,6 +55,7 @@ public sealed partial class LiveTvView : UserControl
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(favoriteStableIds);
 
+        var preferredStableId = _selectedItem?.Snapshot.Channel.StableId;
         _allItems.Clear();
         var now = DateTimeOffset.Now;
         var noProgramme = _resources.GetString("LiveNoProgrammeMessage");
@@ -70,6 +73,14 @@ public sealed partial class LiveTvView : UserControl
                 nextFormat));
         }
 
+        _selectedItem = !string.IsNullOrWhiteSpace(preferredStableId)
+            ? _allItems.FirstOrDefault(item => string.Equals(
+                item.Snapshot.Channel.StableId,
+                preferredStableId,
+                StringComparison.Ordinal))
+            : null;
+        _selectedItem ??= _allItems.FirstOrDefault();
+
         PopulateCategories();
         ApplyFilters();
         LiveSummaryText.Text = string.Format(
@@ -78,16 +89,32 @@ public sealed partial class LiveTvView : UserControl
             catalog.Channels.Count,
             catalog.Categories.Count,
             catalog.MatchedChannelCount);
+        UpdateSelectedProgramme(_selectedItem);
 
         if (_selectedItem is not null)
         {
-            _selectedItem = _allItems.FirstOrDefault(item =>
-                string.Equals(
-                    item.Snapshot.Channel.StableId,
-                    _selectedItem.Snapshot.Channel.StableId,
-                    StringComparison.Ordinal));
-            UpdateSelectedProgramme(_selectedItem);
+            SelectedChannelText.Text = _selectedItem.Name;
+            SelectedProgrammeText.Text = _selectedItem.CurrentProgramme;
+            ChannelListView.SelectedItem = _selectedItem;
         }
+    }
+
+    public async Task ActivateAsync()
+    {
+        _selectedItem ??= _allItems.FirstOrDefault();
+        if (_selectedItem is null)
+        {
+            return;
+        }
+
+        var snapshot = _playbackSession?.Snapshot;
+        if (snapshot?.Source == _selectedItem.Snapshot.Channel.StreamUri &&
+            snapshot.State is PlaybackState.Opening or PlaybackState.Playing or PlaybackState.Paused)
+        {
+            return;
+        }
+
+        await SelectChannelAsync(_selectedItem);
     }
 
     public void SetFullscreen(bool isFullscreen)
@@ -241,7 +268,7 @@ public sealed partial class LiveTvView : UserControl
             _pendingPlaybackRequest = null;
         }
         catch (Exception exception) when (
-            exception is InvalidOperationException or NotSupportedException)
+            exception is not OperationCanceledException)
         {
             UpdatePlaybackStatus(
                 PlaybackState.Failed,
@@ -295,22 +322,35 @@ public sealed partial class LiveTvView : UserControl
             return;
         }
 
-        _playbackSession = new LibVlcPlaybackSession(e);
-        _playbackSession.SnapshotChanged += PlaybackSession_SnapshotChanged;
-        VideoView.MediaPlayer = _playbackSession.MediaPlayer;
-
-        if (_pendingPlaybackRequest is not null)
+        try
         {
-            var request = _pendingPlaybackRequest;
-            _pendingPlaybackRequest = null;
-            await _playbackSession.PlayAsync(request);
+            _playbackSession = new LibVlcPlaybackSession(e);
+            _playbackSession.SnapshotChanged += PlaybackSession_SnapshotChanged;
+            VideoView.MediaPlayer = _playbackSession.MediaPlayer;
+
+            if (_pendingPlaybackRequest is not null)
+            {
+                var request = _pendingPlaybackRequest;
+                _pendingPlaybackRequest = null;
+                await _playbackSession.PlayAsync(request);
+            }
+        }
+        catch (Exception exception) when (
+            exception is not OperationCanceledException)
+        {
+            UpdatePlaybackStatus(
+                PlaybackState.Failed,
+                _resources.GetString("PlaybackStatusFailedMessage"));
         }
     }
 
     private void PlaybackSession_SnapshotChanged(
         object? sender,
-        PlaybackSnapshotChangedEventArgs e) =>
+        PlaybackSnapshotChangedEventArgs e)
+    {
+        PlaybackSnapshotChanged?.Invoke(this, e);
         DispatcherQueue.TryEnqueue(() => ApplyPlaybackSnapshot(e.Snapshot));
+    }
 
     private void ApplyPlaybackSnapshot(PlaybackSnapshot snapshot)
     {
