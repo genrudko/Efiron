@@ -2,15 +2,21 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Net;
 using System.Text.Json;
+using System.Xml;
+using Efiron.Application.Channels;
 using Efiron.Application.Live;
 using Efiron.Application.ProgrammeGuide;
 using Efiron.Application.Sources;
+using Efiron.Desktop.Views;
+using Efiron.Infrastructure.Channels;
 using Efiron.Infrastructure.Playlists;
 using Efiron.Infrastructure.ProgrammeGuide;
 using Efiron.Infrastructure.Sources;
 using Microsoft.UI;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.Windows.ApplicationModel.Resources;
 
@@ -23,10 +29,15 @@ public sealed partial class MainWindow : Window
     private readonly CancellationTokenSource _lifetime = new();
     private readonly ResourceLoader _resources;
     private readonly SourceConfigurationService _sourceConfigurationService;
+    private readonly IFavoriteChannelStore _favoriteChannelStore;
     private readonly LiveCatalogRefreshService _liveCatalogRefreshService;
     private readonly HttpClient _httpClient;
+    private readonly HashSet<string> _favoriteStableIds = new(StringComparer.Ordinal);
     private readonly string _configurationPath;
     private readonly string _readinessPath;
+
+    private LiveCatalogSnapshot? _catalog;
+    private bool _isFullscreen;
 
     public MainWindow()
     {
@@ -35,17 +46,18 @@ public sealed partial class MainWindow : Window
         _resources = new ResourceLoader(
             ResourceLoader.GetDefaultResourceFilePath(),
             "Resources");
-        _configurationPath = Path.Combine(
+        var localDataDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "Efiron",
-            "sources.json");
+            "Efiron");
+        _configurationPath = Path.Combine(localDataDirectory, "sources.json");
         _readinessPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "Efiron",
+            localDataDirectory,
             "diagnostics",
             "first-useful-paint.json");
         _sourceConfigurationService = new SourceConfigurationService(
             new JsonSourceConfigurationStore(_configurationPath));
+        _favoriteChannelStore = new JsonFavoriteChannelStore(
+            Path.Combine(localDataDirectory, "favorites.json"));
         _httpClient = new HttpClient(new HttpClientHandler
         {
             AutomaticDecompression =
@@ -67,6 +79,10 @@ public sealed partial class MainWindow : Window
         SetTitleBar(TitleBarDragRegion);
 
         ConfigurationPathText.Text = _configurationPath;
+        LiveTvWorkspace.BackRequested += LiveTvWorkspace_BackRequested;
+        LiveTvWorkspace.FullscreenToggleRequested +=
+            LiveTvWorkspace_FullscreenToggleRequested;
+        LiveTvWorkspace.FavoriteChanged += LiveTvWorkspace_FavoriteChanged;
         WindowRoot.Loaded += WindowRoot_Loaded;
         Closed += MainWindow_Closed;
     }
@@ -75,12 +91,36 @@ public sealed partial class MainWindow : Window
     {
         WindowRoot.Loaded -= WindowRoot_Loaded;
         await RecordFirstUsefulPaintAsync();
+        await LoadFavoritesAsync();
         await LoadConfigurationAsync();
+    }
+
+    private async Task LoadFavoritesAsync()
+    {
+        try
+        {
+            var favoriteStableIds = await _favoriteChannelStore.LoadAsync(
+                _lifetime.Token);
+            _favoriteStableIds.Clear();
+            _favoriteStableIds.UnionWith(favoriteStableIds);
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception) when (
+            exception is InvalidDataException or IOException or UnauthorizedAccessException)
+        {
+            _favoriteStableIds.Clear();
+        }
     }
 
     private async Task LoadConfigurationAsync()
     {
         SetBusy(true);
+        UpdateStatus(
+            _resources.GetString("StatusLoadingMessage"),
+            ColorHelper.FromArgb(255, 37, 134, 255));
+
         try
         {
             var configuration = await _sourceConfigurationService.LoadAsync(
@@ -181,6 +221,7 @@ public sealed partial class MainWindow : Window
         SourceConfiguration configuration,
         bool showSuccessMessage)
     {
+        ClearCatalog();
         UpdateRefreshingStatus();
 
         try
@@ -189,6 +230,9 @@ public sealed partial class MainWindow : Window
                 configuration,
                 DateTimeOffset.Now,
                 _lifetime.Token);
+            _catalog = catalog;
+            LiveTvWorkspace.SetCatalog(catalog, _favoriteStableIds);
+            OpenLiveButton.IsEnabled = catalog.Channels.Count > 0;
             UpdateLoadedStatus(catalog.Channels.Count);
 
             if (showSuccessMessage)
@@ -252,7 +296,8 @@ public sealed partial class MainWindow : Window
                 "RefreshErrorTitle",
                 "RefreshAccessMessage");
         }
-        catch (InvalidDataException)
+        catch (Exception exception) when (
+            exception is InvalidDataException or XmlException)
         {
             UpdateConfiguredStatus();
             ShowMessage(
@@ -278,6 +323,16 @@ public sealed partial class MainWindow : Window
         }
 
         return false;
+    }
+
+    private void ClearCatalog()
+    {
+        _catalog = null;
+        OpenLiveButton.IsEnabled = false;
+        if (LiveTvWorkspace.Visibility == Visibility.Visible)
+        {
+            ShowSourcesWorkspace();
+        }
     }
 
     private void SetBusy(bool isBusy)
@@ -343,6 +398,129 @@ public sealed partial class MainWindow : Window
         PageMessage.IsOpen = true;
     }
 
+    private void OpenLiveButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_catalog is null || _catalog.Channels.Count == 0)
+        {
+            return;
+        }
+
+        SourcesWorkspace.Visibility = Visibility.Collapsed;
+        LiveTvWorkspace.Visibility = Visibility.Visible;
+        WindowContextTitle.Text = _resources.GetString("WindowContextLiveMessage");
+    }
+
+    private void ShowSourcesWorkspace()
+    {
+        if (_isFullscreen)
+        {
+            SetFullscreen(false);
+        }
+
+        LiveTvWorkspace.Visibility = Visibility.Collapsed;
+        SourcesWorkspace.Visibility = Visibility.Visible;
+        WindowContextTitle.Text = _resources.GetString("WindowContextSourcesMessage");
+    }
+
+    private void LiveTvWorkspace_BackRequested(object? sender, EventArgs e) =>
+        ShowSourcesWorkspace();
+
+    private void LiveTvWorkspace_FullscreenToggleRequested(
+        object? sender,
+        EventArgs e)
+    {
+        if (LiveTvWorkspace.Visibility == Visibility.Visible)
+        {
+            SetFullscreen(!_isFullscreen);
+        }
+    }
+
+    private async void LiveTvWorkspace_FavoriteChanged(
+        object? sender,
+        FavoriteChangedEventArgs e)
+    {
+        var changed = e.IsFavorite
+            ? _favoriteStableIds.Add(e.StableId)
+            : _favoriteStableIds.Remove(e.StableId);
+        if (!changed)
+        {
+            return;
+        }
+
+        try
+        {
+            await _favoriteChannelStore.SaveAsync(
+                _favoriteStableIds,
+                _lifetime.Token);
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException)
+        {
+            if (e.IsFavorite)
+            {
+                _favoriteStableIds.Remove(e.StableId);
+            }
+            else
+            {
+                _favoriteStableIds.Add(e.StableId);
+            }
+
+            if (_catalog is not null)
+            {
+                LiveTvWorkspace.SetCatalog(_catalog, _favoriteStableIds);
+            }
+        }
+    }
+
+    private void SetFullscreen(bool isFullscreen)
+    {
+        if (_isFullscreen == isFullscreen)
+        {
+            return;
+        }
+
+        _isFullscreen = isFullscreen;
+        AppWindow.SetPresenter(isFullscreen
+            ? AppWindowPresenterKind.FullScreen
+            : AppWindowPresenterKind.Default);
+        TitleBarDragRegion.Visibility = isFullscreen
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        WindowRoot.RowDefinitions[0].Height = isFullscreen
+            ? new GridLength(0)
+            : new GridLength(44);
+        LiveTvWorkspace.SetFullscreen(isFullscreen);
+    }
+
+    private void FullscreenKeyboardAccelerator_Invoked(
+        KeyboardAccelerator sender,
+        KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (LiveTvWorkspace.Visibility != Visibility.Visible)
+        {
+            return;
+        }
+
+        SetFullscreen(!_isFullscreen);
+        args.Handled = true;
+    }
+
+    private void ExitFullscreenKeyboardAccelerator_Invoked(
+        KeyboardAccelerator sender,
+        KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (!_isFullscreen)
+        {
+            return;
+        }
+
+        SetFullscreen(false);
+        args.Handled = true;
+    }
+
     private async Task RecordFirstUsefulPaintAsync()
     {
         try
@@ -371,6 +549,11 @@ public sealed partial class MainWindow : Window
     private void MainWindow_Closed(object sender, WindowEventArgs args)
     {
         Closed -= MainWindow_Closed;
+        LiveTvWorkspace.BackRequested -= LiveTvWorkspace_BackRequested;
+        LiveTvWorkspace.FullscreenToggleRequested -=
+            LiveTvWorkspace_FullscreenToggleRequested;
+        LiveTvWorkspace.FavoriteChanged -= LiveTvWorkspace_FavoriteChanged;
+        LiveTvWorkspace.DisposePlayback();
         _lifetime.Cancel();
         _httpClient.Dispose();
         _lifetime.Dispose();
