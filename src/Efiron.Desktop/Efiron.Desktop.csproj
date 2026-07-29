@@ -19,6 +19,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="LibVLCSharp.WinUI" />
     <PackageReference Include="Microsoft.WindowsAppSDK" />
   </ItemGroup>
 
@@ -26,6 +27,7 @@
     <ProjectReference Include="..\Efiron.Application\Efiron.Application.csproj" />
     <ProjectReference Include="..\Efiron.Domain\Efiron.Domain.csproj" />
     <ProjectReference Include="..\Efiron.Infrastructure\Efiron.Infrastructure.csproj" />
+    <ProjectReference Include="..\Efiron.Playback\Efiron.Playback.csproj" />
   </ItemGroup>
 
   <ItemGroup>
