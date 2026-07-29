@@ -16,8 +16,9 @@ public sealed class JsonSourceConfigurationStoreTests : IDisposable
     public async Task Load_returns_empty_configuration_when_file_is_absent()
     {
         var store = CreateStore();
+        var cancellationToken = TestContext.Current.CancellationToken;
 
-        var configuration = await store.LoadAsync(CancellationToken.None);
+        var configuration = await store.LoadAsync(cancellationToken);
 
         Assert.Equal(SourceConfiguration.Empty, configuration);
     }
@@ -27,6 +28,7 @@ public sealed class JsonSourceConfigurationStoreTests : IDisposable
     {
         var path = GetConfigurationPath();
         var store = new JsonSourceConfigurationStore(path);
+        var cancellationToken = TestContext.Current.CancellationToken;
         var expected = new SourceConfiguration(
             SourceDefinition.Create(
                 SourceKind.Playlist,
@@ -35,8 +37,8 @@ public sealed class JsonSourceConfigurationStoreTests : IDisposable
                 SourceKind.ProgrammeGuide,
                 "https://provider.example/guide.xml.gz"));
 
-        await store.SaveAsync(expected, CancellationToken.None);
-        var actual = await store.LoadAsync(CancellationToken.None);
+        await store.SaveAsync(expected, cancellationToken);
+        var actual = await store.LoadAsync(cancellationToken);
 
         Assert.Equal(expected, actual);
         Assert.True(File.Exists(path));
@@ -50,12 +52,13 @@ public sealed class JsonSourceConfigurationStoreTests : IDisposable
     public async Task Load_rejects_malformed_json()
     {
         var path = GetConfigurationPath();
+        var cancellationToken = TestContext.Current.CancellationToken;
         Directory.CreateDirectory(_directory);
-        await File.WriteAllTextAsync(path, "{not-json");
+        await File.WriteAllTextAsync(path, "{not-json", cancellationToken);
         var store = new JsonSourceConfigurationStore(path);
 
         await Assert.ThrowsAsync<InvalidDataException>(async () =>
-            await store.LoadAsync(CancellationToken.None));
+            await store.LoadAsync(cancellationToken));
     }
 
     public void Dispose()
