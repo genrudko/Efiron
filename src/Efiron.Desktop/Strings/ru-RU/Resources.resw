@@ -17,15 +17,12 @@
   <resheader name="version"><value>2.0</value></resheader>
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
-  <data name="WindowTitle" xml:space="preserve"><value>Efiron — источники</value></data>
-  <data name="WindowContextTitle.Text" xml:space="preserve"><value>Первичная настройка</value></data>
-  <data name="ShellProductSubtitle.Text" xml:space="preserve"><value>Новый Efiron</value></data>
-  <data name="ShellProductDescription.Text" xml:space="preserve"><value>Чистая архитектура без старого интерфейса</value></data>
-  <data name="NavigationSettings.Text" xml:space="preserve"><value>НАСТРОЙКИ</value></data>
-  <data name="NavigationSources.Text" xml:space="preserve"><value>Источники</value></data>
-  <data name="NavigationSourcesDescription.Text" xml:space="preserve"><value>Плейлист и телепрограмма</value></data>
-  <data name="GreenfieldBadge.Text" xml:space="preserve"><value>● GREENFIELD</value></data>
-  <data name="GreenfieldCaption.Text" xml:space="preserve"><value>Этот интерфейс не использует старый MainWindow или скрытые legacy-контролы.</value></data>
+
+  <data name="WindowTitle" xml:space="preserve"><value>Efiron</value></data>
+  <data name="WindowContextTitle.Text" xml:space="preserve"><value>Источники</value></data>
+  <data name="WindowContextSourcesMessage" xml:space="preserve"><value>Источники</value></data>
+  <data name="WindowContextLiveMessage" xml:space="preserve"><value>Эфир</value></data>
+
   <data name="SourcesTitle.Text" xml:space="preserve"><value>Источники телевидения</value></data>
   <data name="SourcesDescription.Text" xml:space="preserve"><value>Подключите плейлист каналов и телепрограмму. После сохранения Efiron сразу проверит источники и сформирует рабочий каталог.</value></data>
   <data name="ConfigurationStatusLoading.Text" xml:space="preserve"><value>Проверяем настройки…</value></data>
@@ -40,9 +37,12 @@
   <data name="GuideLocation.PlaceholderText" xml:space="preserve"><value>https://provider.example/guide.xml.gz</value></data>
   <data name="GuideHelp.Text" xml:space="preserve"><value>Телепрограмма необязательна. При её наличии Efiron сопоставит каналы и подготовит текущую и следующую передачи.</value></data>
   <data name="StorageTitle.Text" xml:space="preserve"><value>Локальное хранение</value></data>
-  <data name="StorageDescription.Text" xml:space="preserve"><value>Источники записываются атомарно в отдельный файл конфигурации. Пароли и токены не выводятся в журнал.</value></data>
+  <data name="StorageDescription.Text" xml:space="preserve"><value>Источники и пользовательские настройки записываются атомарно в профиль Windows.</value></data>
   <data name="SaveSourcesButton.Content" xml:space="preserve"><value>Сохранить и проверить</value></data>
-  <data name="NextStepCaption.Text" xml:space="preserve"><value>Каталог каналов, категории и Now/Next уже формируются новым application layer. Следующий внутренний срез — полноценный экран «Эфир» и воспроизведение. Эта сборка ещё не является кандидатом на пользовательскую приёмку.</value></data>
+  <data name="OpenLiveButton.Content" xml:space="preserve"><value>Открыть эфир</value></data>
+  <data name="NextStepCaption.Text" xml:space="preserve"><value>После успешной проверки становится доступен новый экран «Эфир»: категории, поиск, избранное, Now/Next и управление воспроизведением.</value></data>
+
+  <data name="StatusLoadingMessage" xml:space="preserve"><value>Проверяем настройки…</value></data>
   <data name="StatusRefreshingMessage" xml:space="preserve"><value>Загружаем источники…</value></data>
   <data name="StatusConfiguredMessage" xml:space="preserve"><value>Сохранено, требуется обновление</value></data>
   <data name="StatusMissingMessage" xml:space="preserve"><value>Плейлист не настроен</value></data>
@@ -65,4 +65,32 @@
   <data name="RefreshInvalidMessage" xml:space="preserve"><value>Источник имеет неподдерживаемый формат, повреждён или превышает безопасный размер.</value></data>
   <data name="RefreshUnsupportedMessage" xml:space="preserve"><value>Поддерживаются только HTTP/HTTPS URL, file-URI и локальные пути.</value></data>
   <data name="RefreshIoMessage" xml:space="preserve"><value>Источник временно недоступен из-за ошибки чтения.</value></data>
+
+  <data name="LiveTitle.Text" xml:space="preserve"><value>Эфир</value></data>
+  <data name="LiveChannelSearch.PlaceholderText" xml:space="preserve"><value>Канал или передача</value></data>
+  <data name="LiveCategoryFilter.Header" xml:space="preserve"><value>Категория</value></data>
+  <data name="LiveFavoritesOnly.Content" xml:space="preserve"><value>★ Избранное</value></data>
+  <data name="LiveChannelEmpty.Text" xml:space="preserve"><value>Нет каналов, соответствующих выбранным фильтрам.</value></data>
+  <data name="LivePlayerEmpty.Text" xml:space="preserve"><value>Выберите канал слева, чтобы начать просмотр.</value></data>
+  <data name="LiveNoChannelSelected.Text" xml:space="preserve"><value>Канал не выбран</value></data>
+  <data name="LiveNowLabel.Text" xml:space="preserve"><value>СЕЙЧАС</value></data>
+  <data name="LiveNextLabel.Text" xml:space="preserve"><value>ДАЛЕЕ</value></data>
+  <data name="LiveProgrammeUnavailable.Text" xml:space="preserve"><value>Нет данных телепрограммы</value></data>
+  <data name="PlaybackStatusReady.Text" xml:space="preserve"><value>Плеер готов</value></data>
+
+  <data name="LiveSummaryFormat" xml:space="preserve"><value>{0} каналов · {1} категорий · XMLTV: {2}</value></data>
+  <data name="LiveNoProgrammeMessage" xml:space="preserve"><value>Нет данных телепрограммы</value></data>
+  <data name="LiveNextProgrammeFormat" xml:space="preserve"><value>Далее {0} · {1}</value></data>
+  <data name="LiveAllCategoriesMessage" xml:space="preserve"><value>Все категории</value></data>
+  <data name="LiveProgrammeUnavailableMessage" xml:space="preserve"><value>Нет данных телепрограммы</value></data>
+
+  <data name="PlaybackStatusReadyMessage" xml:space="preserve"><value>Плеер готов</value></data>
+  <data name="PlaybackStatusPreparingMessage" xml:space="preserve"><value>Подготавливаем плеер…</value></data>
+  <data name="PlaybackStatusOpeningMessage" xml:space="preserve"><value>Открываем поток…</value></data>
+  <data name="PlaybackStatusPlayingMessage" xml:space="preserve"><value>В эфире</value></data>
+  <data name="PlaybackStatusPausedMessage" xml:space="preserve"><value>Пауза</value></data>
+  <data name="PlaybackStatusStoppedMessage" xml:space="preserve"><value>Остановлено</value></data>
+  <data name="PlaybackStatusEndedMessage" xml:space="preserve"><value>Поток завершён</value></data>
+  <data name="PlaybackStatusFailedMessage" xml:space="preserve"><value>Ошибка воспроизведения</value></data>
+  <data name="PlaybackStatusDisposedMessage" xml:space="preserve"><value>Плеер закрыт</value></data>
 </root>
