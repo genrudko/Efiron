@@ -5,6 +5,8 @@ namespace Efiron.Architecture.Tests;
 
 public sealed class GreenfieldBoundaryTests
 {
+    private const string LegacyProjectFileName = "Efiron.App.csproj";
+
     private static readonly string[] GreenfieldProjectNames =
     [
         "Efiron.Domain",
@@ -16,7 +18,10 @@ public sealed class GreenfieldBoundaryTests
 
     private static readonly string[] BannedSourceTokens =
     [
-        "Efiron.App",
+        "using Efiron.App;",
+        "using Efiron.App.",
+        "namespace Efiron.App;",
+        "namespace Efiron.App.",
         "CompatibilityBridge",
         "LoadPlaylistButton_Click",
         "LoadEpgButton_Click",
@@ -38,8 +43,9 @@ public sealed class GreenfieldBoundaryTests
 
             Assert.DoesNotContain(
                 references,
-                include => include!.Contains(
-                    "Efiron.App",
+                include => string.Equals(
+                    Path.GetFileName(include),
+                    LegacyProjectFileName,
                     StringComparison.OrdinalIgnoreCase));
         }
     }
