@@ -17,7 +17,7 @@ jobs:
   greenfield:
     name: Greenfield architecture and tests
     runs-on: windows-latest
-    timeout-minutes: 18
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -46,6 +46,15 @@ jobs:
             --no-build `
             --logger "trx;LogFileName=architecture-tests.trx" `
             --verbosity normal *> architecture-test.log
+          if ($LASTEXITCODE -ne 0) {
+            $result = 1
+          }
+
+          dotnet test tests/Efiron.Application.Tests/Efiron.Application.Tests.csproj `
+            -c Release `
+            --no-build `
+            --logger "trx;LogFileName=application-tests.trx" `
+            --verbosity normal *> application-test.log
           if ($LASTEXITCODE -ne 0) {
             $result = 1
           }
@@ -158,9 +167,11 @@ jobs:
           name: rewrite-test-diagnostics
           path: |
             architecture-test.log
+            application-test.log
             infrastructure-test.log
             rewrite-startup.log
             tests/Efiron.Architecture.Tests/TestResults/architecture-tests.trx
+            tests/Efiron.Application.Tests/TestResults/application-tests.trx
             tests/Efiron.Infrastructure.Tests/TestResults/infrastructure-tests.trx
           if-no-files-found: warn
           retention-days: 7
