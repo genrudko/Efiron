@@ -27,33 +27,42 @@
   <data name="GreenfieldBadge.Text" xml:space="preserve"><value>● GREENFIELD</value></data>
   <data name="GreenfieldCaption.Text" xml:space="preserve"><value>This interface does not use the legacy MainWindow or hidden legacy controls.</value></data>
   <data name="SourcesTitle.Text" xml:space="preserve"><value>Television sources</value></data>
-  <data name="SourcesDescription.Text" xml:space="preserve"><value>Connect your channel playlist and TV guide. Settings are stored locally and restored on later launches.</value></data>
+  <data name="SourcesDescription.Text" xml:space="preserve"><value>Connect your channel playlist and TV guide. After saving, Efiron validates the sources and builds a working catalog immediately.</value></data>
   <data name="ConfigurationStatusLoading.Text" xml:space="preserve"><value>Checking settings…</value></data>
   <data name="PlaylistCardTitle.Text" xml:space="preserve"><value>Channel playlist</value></data>
   <data name="PlaylistCardDescription.Text" xml:space="preserve"><value>M3U or M3U8 supplied by your IPTV provider</value></data>
   <data name="PlaylistLocation.Header" xml:space="preserve"><value>Playlist location</value></data>
   <data name="PlaylistLocation.PlaceholderText" xml:space="preserve"><value>https://provider.example/playlist.m3u</value></data>
-  <data name="PlaylistHelp.Text" xml:space="preserve"><value>URLs and local paths are supported. Availability checks and content loading are part of the next internal slice.</value></data>
+  <data name="PlaylistHelp.Text" xml:space="preserve"><value>HTTP/HTTPS URLs, file URIs and local paths are supported. Size and content are validated before a catalog is built.</value></data>
   <data name="GuideCardTitle.Text" xml:space="preserve"><value>TV guide</value></data>
   <data name="GuideCardDescription.Text" xml:space="preserve"><value>XMLTV or XMLTV.GZ programme data</value></data>
   <data name="GuideLocation.Header" xml:space="preserve"><value>TV guide location</value></data>
   <data name="GuideLocation.PlaceholderText" xml:space="preserve"><value>https://provider.example/guide.xml.gz</value></data>
-  <data name="GuideHelp.Text" xml:space="preserve"><value>The guide is optional for the first save, but is required for Now/Next and EPG.</value></data>
+  <data name="GuideHelp.Text" xml:space="preserve"><value>The guide is optional. When present, Efiron matches channels and prepares current and next programmes.</value></data>
   <data name="StorageTitle.Text" xml:space="preserve"><value>Local storage</value></data>
   <data name="StorageDescription.Text" xml:space="preserve"><value>Sources are written atomically to a dedicated configuration file. Passwords and tokens are not written to logs.</value></data>
-  <data name="SaveSourcesButton.Content" xml:space="preserve"><value>Save sources</value></data>
-  <data name="NextStepCaption.Text" xml:space="preserve"><value>Next internal slice: source availability checks, M3U/XMLTV loading and working channel state. This build is not a user acceptance candidate yet.</value></data>
-  <data name="StatusLoadingMessage" xml:space="preserve"><value>Checking settings…</value></data>
-  <data name="StatusReadyMessage" xml:space="preserve"><value>Playlist configured</value></data>
+  <data name="SaveSourcesButton.Content" xml:space="preserve"><value>Save and validate</value></data>
+  <data name="NextStepCaption.Text" xml:space="preserve"><value>The new application layer now builds channels, categories and Now/Next data. The next internal slice is the complete Live screen and playback. This build is not a user acceptance candidate yet.</value></data>
+  <data name="StatusRefreshingMessage" xml:space="preserve"><value>Loading sources…</value></data>
+  <data name="StatusConfiguredMessage" xml:space="preserve"><value>Saved; refresh required</value></data>
   <data name="StatusMissingMessage" xml:space="preserve"><value>Playlist not configured</value></data>
+  <data name="StatusLoadedFormat" xml:space="preserve"><value>Channels loaded: {0}</value></data>
   <data name="LoadErrorTitle" xml:space="preserve"><value>Settings could not be read</value></data>
   <data name="LoadInvalidMessage" xml:space="preserve"><value>The source file is damaged. Enter the locations again and save them.</value></data>
   <data name="LoadIoMessage" xml:space="preserve"><value>The source file is temporarily unavailable. Check access to your local Windows profile.</value></data>
   <data name="ValidationTitle" xml:space="preserve"><value>A playlist is required</value></data>
   <data name="PlaylistRequiredMessage" xml:space="preserve"><value>Enter a URL or local path to an M3U playlist.</value></data>
-  <data name="SavedTitle" xml:space="preserve"><value>Sources saved</value></data>
-  <data name="SavedMessage" xml:space="preserve"><value>The configuration was stored locally and will be restored on the next launch.</value></data>
   <data name="SaveErrorTitle" xml:space="preserve"><value>Sources could not be saved</value></data>
   <data name="SaveAccessMessage" xml:space="preserve"><value>Windows denied access to the local data directory.</value></data>
   <data name="SaveIoMessage" xml:space="preserve"><value>A write error occurred. The current configuration was not partially replaced.</value></data>
+  <data name="RefreshSuccessTitle" xml:space="preserve"><value>Sources are ready</value></data>
+  <data name="RefreshSuccessFormat" xml:space="preserve"><value>Channels: {0}; categories: {1}; XMLTV matches: {2}; warnings: {3}.</value></data>
+  <data name="RefreshErrorTitle" xml:space="preserve"><value>Sources were saved but could not be loaded</value></data>
+  <data name="RefreshTimeoutMessage" xml:space="preserve"><value>The provider did not respond in time. Configuration remains saved and will be retried on the next launch.</value></data>
+  <data name="RefreshNetworkMessage" xml:space="preserve"><value>Source data could not be retrieved. Check the address and network connection.</value></data>
+  <data name="RefreshFileMessage" xml:space="preserve"><value>The local source file was not found.</value></data>
+  <data name="RefreshAccessMessage" xml:space="preserve"><value>Access to the local source file was denied.</value></data>
+  <data name="RefreshInvalidMessage" xml:space="preserve"><value>The source is malformed, unsupported or exceeds the safe size limit.</value></data>
+  <data name="RefreshUnsupportedMessage" xml:space="preserve"><value>Only HTTP/HTTPS URLs, file URIs and local paths are supported.</value></data>
+  <data name="RefreshIoMessage" xml:space="preserve"><value>The source is temporarily unavailable because of a read error.</value></data>
 </root>
