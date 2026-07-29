@@ -1,0 +1,65 @@
+name: rewrite
+
+on:
+  pull_request:
+  push:
+    branches:
+      - rewrite/001-greenfield-desktop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  greenfield:
+    name: Greenfield architecture and tests
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.302
+
+      - name: Restore greenfield solution
+        run: dotnet restore Efiron.Greenfield.sln
+
+      - name: Build greenfield solution
+        run: dotnet build Efiron.Greenfield.sln -c Release --no-restore
+
+      - name: Run architecture tests
+        id: architecture_tests
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          dotnet test tests/Efiron.Architecture.Tests/Efiron.Architecture.Tests.csproj `
+            -c Release `
+            --no-restore `
+            --logger "trx;LogFileName=architecture-tests.trx" `
+            --verbosity normal *> architecture-test.log
+          exit $LASTEXITCODE
+
+      - name: Upload architecture diagnostics
+        if: steps.architecture_tests.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rewrite-architecture-diagnostics
+          path: |
+            architecture-test.log
+            tests/Efiron.Architecture.Tests/TestResults/architecture-tests.trx
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Enforce architecture result
+        if: steps.architecture_tests.outcome == 'failure'
+        shell: pwsh
+        run: |
+          Write-Error "Greenfield architecture tests failed. See rewrite-architecture-diagnostics."
+          exit 1
