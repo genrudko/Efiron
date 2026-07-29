@@ -43,6 +43,12 @@ public sealed class BoundedSourceContentLoader(HttpClient httpClient) : ISourceC
             maximumBytes,
             cancellationToken);
 
+        if (content.Length == 0)
+        {
+            throw new InvalidDataException(
+                $"Source file '{path}' is empty.");
+        }
+
         return new LoadedSourceContent(
             source,
             content,
@@ -74,8 +80,8 @@ public sealed class BoundedSourceContentLoader(HttpClient httpClient) : ISourceC
 
         response.EnsureSuccessStatusCode();
 
-        if (response.Content.Headers.ContentLength is > 0 and var contentLength &&
-            contentLength > maximumBytes)
+        var contentLength = response.Content.Headers.ContentLength;
+        if (contentLength.HasValue && contentLength.Value > maximumBytes)
         {
             throw new InvalidDataException(
                 $"Source '{uri}' exceeds the {maximumBytes} byte payload limit.");
