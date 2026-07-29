@@ -10,12 +10,23 @@ namespace Efiron.Desktop.Views;
 
 public sealed partial class LiveTvView
 {
+    private const string PlaybackSequenceEnvironmentVariable =
+        "EFIRON_CI_PLAYBACK_SEQUENCE";
+
     private readonly SemaphoreSlim _playbackTraceGate = new(1, 1);
 
     private long _visibilityCallbackToken;
     private bool _playbackEvidenceWritten;
     private bool _playbackEvidenceHooksAttached;
     private bool _visibleActivationQueued;
+    private bool _controlSequenceStarted;
+
+    private static bool PlaybackDiagnosticsEnabled =>
+        string.Equals(
+            Environment.GetEnvironmentVariable(
+                PlaybackSequenceEnvironmentVariable),
+            "1",
+            StringComparison.Ordinal);
 
     protected override void OnApplyTemplate()
     {
@@ -141,11 +152,178 @@ public sealed partial class LiveTvView
             "snapshot",
             e.Snapshot);
 
-        if (e.Snapshot.State == PlaybackState.Playing &&
+        if (PlaybackDiagnosticsEnabled &&
+            e.Snapshot.State == PlaybackState.Playing &&
             !_playbackEvidenceWritten)
         {
             _playbackEvidenceWritten = true;
             _ = RecordPlaybackEvidenceAsync(e.Snapshot);
+        }
+
+        if (PlaybackDiagnosticsEnabled &&
+            e.Snapshot.State == PlaybackState.Playing &&
+            !_controlSequenceStarted)
+        {
+            _controlSequenceStarted = true;
+            DispatcherQueue.TryEnqueue(async () =>
+            {
+                await RunPlaybackControlSequenceAsync(e.Snapshot);
+            });
+        }
+    }
+
+    private async Task RunPlaybackControlSequenceAsync(
+        PlaybackSnapshot initialPlayingSnapshot)
+    {
+        var firstChannelStableId = initialPlayingSnapshot.ChannelStableId;
+        var secondChannelStableId = string.Empty;
+        var paused = false;
+        var resumed = false;
+        var volumeSet = false;
+        var muted = false;
+        var unmuted = false;
+        var stopped = false;
+        var switched = false;
+        string? error = null;
+
+        try
+        {
+            if (_playbackSession is null ||
+                string.IsNullOrWhiteSpace(firstChannelStableId))
+            {
+                throw new InvalidOperationException(
+                    "The playback session or first channel identity is unavailable.");
+            }
+
+            await TracePlaybackStageAsync(
+                "control-sequence-start",
+                _playbackSession.Snapshot);
+
+            _playbackSession.Pause();
+            await WaitForSnapshotAsync(
+                snapshot => snapshot.State == PlaybackState.Paused &&
+                    string.Equals(
+                        snapshot.ChannelStableId,
+                        firstChannelStableId,
+                        StringComparison.Ordinal),
+                TimeSpan.FromSeconds(10));
+            paused = true;
+
+            _playbackSession.Resume();
+            await WaitForSnapshotAsync(
+                snapshot => snapshot.State == PlaybackState.Playing &&
+                    string.Equals(
+                        snapshot.ChannelStableId,
+                        firstChannelStableId,
+                        StringComparison.Ordinal),
+                TimeSpan.FromSeconds(10));
+            resumed = true;
+
+            _playbackSession.SetVolume(37);
+            await WaitForSnapshotAsync(
+                snapshot => snapshot.Volume == 37,
+                TimeSpan.FromSeconds(5));
+            volumeSet = true;
+
+            _playbackSession.SetMuted(true);
+            await WaitForSnapshotAsync(
+                static snapshot => snapshot.IsMuted,
+                TimeSpan.FromSeconds(5));
+            muted = true;
+
+            _playbackSession.SetMuted(false);
+            await WaitForSnapshotAsync(
+                snapshot => !snapshot.IsMuted && snapshot.Volume == 37,
+                TimeSpan.FromSeconds(5));
+            unmuted = true;
+
+            _playbackSession.Stop();
+            await WaitForSnapshotAsync(
+                static snapshot => snapshot.State == PlaybackState.Stopped,
+                TimeSpan.FromSeconds(5));
+            stopped = true;
+
+            var secondItem = _allItems.FirstOrDefault(item =>
+                !string.Equals(
+                    item.Snapshot.Channel.StableId,
+                    firstChannelStableId,
+                    StringComparison.Ordinal));
+            if (secondItem is null)
+            {
+                throw new InvalidOperationException(
+                    "A second channel is required for the switch validation.");
+            }
+
+            secondChannelStableId = secondItem.Snapshot.Channel.StableId;
+            await SelectChannelAsync(secondItem);
+            await WaitForSnapshotAsync(
+                snapshot => snapshot.State == PlaybackState.Playing &&
+                    string.Equals(
+                        snapshot.ChannelStableId,
+                        secondChannelStableId,
+                        StringComparison.Ordinal),
+                TimeSpan.FromSeconds(15));
+            switched = true;
+
+            await TracePlaybackStageAsync(
+                "control-sequence-complete",
+                _playbackSession.Snapshot);
+        }
+        catch (Exception exception)
+        {
+            error = $"{exception.GetType().FullName}: {exception.Message}";
+            await TracePlaybackStageAsync(
+                $"control-sequence-failed error={error}",
+                _playbackSession?.Snapshot);
+        }
+
+        await RecordPlaybackControlEvidenceAsync(new PlaybackControlEvidence(
+            FirstChannelStableId: firstChannelStableId,
+            SecondChannelStableId: secondChannelStableId,
+            Paused: paused,
+            Resumed: resumed,
+            VolumeSetTo37: volumeSet,
+            Muted: muted,
+            Unmuted: unmuted,
+            Stopped: stopped,
+            SwitchedToSecondChannel: switched,
+            Error: error,
+            RecordedAtUtc: DateTimeOffset.UtcNow));
+    }
+
+    private async Task<PlaybackSnapshot> WaitForSnapshotAsync(
+        Func<PlaybackSnapshot, bool> predicate,
+        TimeSpan timeout)
+    {
+        ArgumentNullException.ThrowIfNull(predicate);
+
+        var current = _playbackSession?.Snapshot;
+        if (current is not null && predicate(current))
+        {
+            return current;
+        }
+
+        var completion = new TaskCompletionSource<PlaybackSnapshot>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        void Handler(
+            object? sender,
+            PlaybackSnapshotChangedEventArgs eventArgs)
+        {
+            if (predicate(eventArgs.Snapshot))
+            {
+                completion.TrySetResult(eventArgs.Snapshot);
+            }
+        }
+
+        PlaybackSnapshotChanged += Handler;
+        try
+        {
+            return await completion.Task.WaitAsync(timeout);
+        }
+        finally
+        {
+            PlaybackSnapshotChanged -= Handler;
         }
     }
 
@@ -153,6 +331,11 @@ public sealed partial class LiveTvView
         string stage,
         PlaybackSnapshot? snapshot)
     {
+        if (!PlaybackDiagnosticsEnabled)
+        {
+            return;
+        }
+
         try
         {
             var path = GetDiagnosticsPath("startup-crash.log");
@@ -227,6 +410,25 @@ public sealed partial class LiveTvView
         }
     }
 
+    private async Task RecordPlaybackControlEvidenceAsync(
+        PlaybackControlEvidence evidence)
+    {
+        try
+        {
+            var path = GetDiagnosticsPath("playback-controls.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            await File.WriteAllTextAsync(
+                path,
+                JsonSerializer.Serialize(evidence));
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
+
     private static string GetDiagnosticsPath(string fileName) =>
         Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -259,5 +461,18 @@ public sealed partial class LiveTvView
         string? DisplayName,
         int Volume,
         bool IsMuted,
+        DateTimeOffset RecordedAtUtc);
+
+    private sealed record PlaybackControlEvidence(
+        string? FirstChannelStableId,
+        string SecondChannelStableId,
+        bool Paused,
+        bool Resumed,
+        bool VolumeSetTo37,
+        bool Muted,
+        bool Unmuted,
+        bool Stopped,
+        bool SwitchedToSecondChannel,
+        string? Error,
         DateTimeOffset RecordedAtUtc);
 }
