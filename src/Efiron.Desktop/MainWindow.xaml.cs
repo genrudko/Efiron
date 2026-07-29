@@ -157,7 +157,7 @@ public sealed partial class MainWindow : Window
         if (isBusy)
         {
             ConfigurationStatusText.Text = _resources.GetString(
-                "ConfigurationStatusLoading");
+                "StatusLoadingMessage");
         }
     }
 
@@ -165,8 +165,8 @@ public sealed partial class MainWindow : Window
     {
         ConfigurationStatusText.Text = _resources.GetString(
             isConfigured
-                ? "ConfigurationStatusReady"
-                : "ConfigurationStatusMissing");
+                ? "StatusReadyMessage"
+                : "StatusMissingMessage");
         ConfigurationStatusDot.Fill = new SolidColorBrush(
             isConfigured
                 ? ColorHelper.FromArgb(255, 54, 199, 139)
