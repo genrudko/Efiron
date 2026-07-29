@@ -5,30 +5,10 @@
     <xsd:element name="root" msdata:IsDataSet="true">
       <xsd:complexType>
         <xsd:choice maxOccurs="unbounded">
-          <xsd:element name="metadata">
-            <xsd:complexType>
-              <xsd:sequence><xsd:element name="value" type="xsd:string" minOccurs="0" /></xsd:sequence>
-              <xsd:attribute name="name" use="required" type="xsd:string" />
-              <xsd:attribute name="type" type="xsd:string" />
-              <xsd:attribute name="mimetype" type="xsd:string" />
-              <xsd:attribute ref="xml:space" />
-            </xsd:complexType>
-          </xsd:element>
-          <xsd:element name="assembly">
-            <xsd:complexType><xsd:attribute name="alias" type="xsd:string" /><xsd:attribute name="name" type="xsd:string" /></xsd:complexType>
-          </xsd:element>
-          <xsd:element name="data">
-            <xsd:complexType>
-              <xsd:sequence><xsd:element name="value" type="xsd:string" minOccurs="0" /><xsd:element name="comment" type="xsd:string" minOccurs="0" /></xsd:sequence>
-              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
-              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
-              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
-              <xsd:attribute ref="xml:space" />
-            </xsd:complexType>
-          </xsd:element>
-          <xsd:element name="resheader">
-            <xsd:complexType><xsd:sequence><xsd:element name="value" type="xsd:string" minOccurs="0" /></xsd:sequence><xsd:attribute name="name" type="xsd:string" use="required" /></xsd:complexType>
-          </xsd:element>
+          <xsd:element name="metadata"><xsd:complexType><xsd:sequence><xsd:element name="value" type="xsd:string" minOccurs="0" /></xsd:sequence><xsd:attribute name="name" use="required" type="xsd:string" /><xsd:attribute name="type" type="xsd:string" /><xsd:attribute name="mimetype" type="xsd:string" /><xsd:attribute ref="xml:space" /></xsd:complexType></xsd:element>
+          <xsd:element name="assembly"><xsd:complexType><xsd:attribute name="alias" type="xsd:string" /><xsd:attribute name="name" type="xsd:string" /></xsd:complexType></xsd:element>
+          <xsd:element name="data"><xsd:complexType><xsd:sequence><xsd:element name="value" type="xsd:string" minOccurs="0" /><xsd:element name="comment" type="xsd:string" minOccurs="0" /></xsd:sequence><xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" /><xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" /><xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" /><xsd:attribute ref="xml:space" /></xsd:complexType></xsd:element>
+          <xsd:element name="resheader"><xsd:complexType><xsd:sequence><xsd:element name="value" type="xsd:string" minOccurs="0" /></xsd:sequence><xsd:attribute name="name" type="xsd:string" use="required" /></xsd:complexType></xsd:element>
         </xsd:choice>
       </xsd:complexType>
     </xsd:element>
@@ -37,7 +17,6 @@
   <resheader name="version"><value>2.0</value></resheader>
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
-
   <data name="WindowTitle" xml:space="preserve"><value>Efiron — источники</value></data>
   <data name="WindowContextTitle.Text" xml:space="preserve"><value>Первичная настройка</value></data>
   <data name="ShellProductSubtitle.Text" xml:space="preserve"><value>Новый Efiron</value></data>
@@ -64,10 +43,9 @@
   <data name="StorageDescription.Text" xml:space="preserve"><value>Источники записываются атомарно в отдельный файл конфигурации. Пароли и токены не выводятся в журнал.</value></data>
   <data name="SaveSourcesButton.Content" xml:space="preserve"><value>Сохранить источники</value></data>
   <data name="NextStepCaption.Text" xml:space="preserve"><value>Следующий внутренний срез: проверка доступности источников, загрузка M3U/XMLTV и формирование рабочего состояния каналов. Эта сборка ещё не является кандидатом на пользовательскую приёмку.</value></data>
-
-  <data name="ConfigurationStatusLoading" xml:space="preserve"><value>Проверяем настройки…</value></data>
-  <data name="ConfigurationStatusReady" xml:space="preserve"><value>Плейлист настроен</value></data>
-  <data name="ConfigurationStatusMissing" xml:space="preserve"><value>Плейлист не настроен</value></data>
+  <data name="StatusLoadingMessage" xml:space="preserve"><value>Проверяем настройки…</value></data>
+  <data name="StatusReadyMessage" xml:space="preserve"><value>Плейлист настроен</value></data>
+  <data name="StatusMissingMessage" xml:space="preserve"><value>Плейлист не настроен</value></data>
   <data name="LoadErrorTitle" xml:space="preserve"><value>Не удалось прочитать настройки</value></data>
   <data name="LoadInvalidMessage" xml:space="preserve"><value>Файл источников повреждён. Введите адреса заново и сохраните их.</value></data>
   <data name="LoadIoMessage" xml:space="preserve"><value>Файл источников временно недоступен. Проверьте доступ к локальному профилю Windows.</value></data>
