@@ -35,6 +35,7 @@ public sealed partial class MainWindow : Window
     private readonly HashSet<string> _favoriteStableIds = new(StringComparer.Ordinal);
     private readonly string _configurationPath;
     private readonly string _readinessPath;
+    private readonly string _liveReadinessPath;
 
     private LiveCatalogSnapshot? _catalog;
     private bool _isFullscreen;
@@ -50,10 +51,13 @@ public sealed partial class MainWindow : Window
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "Efiron");
         _configurationPath = Path.Combine(localDataDirectory, "sources.json");
+        var diagnosticsDirectory = Path.Combine(localDataDirectory, "diagnostics");
         _readinessPath = Path.Combine(
-            localDataDirectory,
-            "diagnostics",
+            diagnosticsDirectory,
             "first-useful-paint.json");
+        _liveReadinessPath = Path.Combine(
+            diagnosticsDirectory,
+            "live-vertical-slice.json");
         _sourceConfigurationService = new SourceConfigurationService(
             new JsonSourceConfigurationStore(_configurationPath));
         _favoriteChannelStore = new JsonFavoriteChannelStore(
@@ -250,6 +254,11 @@ public sealed partial class MainWindow : Window
                     message);
             }
 
+            if (catalog.Channels.Count > 0)
+            {
+                await ShowLiveWorkspaceAsync();
+            }
+
             return true;
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
@@ -398,7 +407,12 @@ public sealed partial class MainWindow : Window
         PageMessage.IsOpen = true;
     }
 
-    private void OpenLiveButton_Click(object sender, RoutedEventArgs e)
+    private async void OpenLiveButton_Click(object sender, RoutedEventArgs e)
+    {
+        await ShowLiveWorkspaceAsync();
+    }
+
+    private async Task ShowLiveWorkspaceAsync()
     {
         if (_catalog is null || _catalog.Channels.Count == 0)
         {
@@ -408,6 +422,15 @@ public sealed partial class MainWindow : Window
         SourcesWorkspace.Visibility = Visibility.Collapsed;
         LiveTvWorkspace.Visibility = Visibility.Visible;
         WindowContextTitle.Text = _resources.GetString("WindowContextLiveMessage");
+
+        try
+        {
+            await Task.Delay(250, _lifetime.Token);
+            await RecordLiveReadinessAsync(_catalog);
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+        }
     }
 
     private void ShowSourcesWorkspace()
@@ -546,6 +569,34 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private async Task RecordLiveReadinessAsync(LiveCatalogSnapshot catalog)
+    {
+        try
+        {
+            var directory = Path.GetDirectoryName(_liveReadinessPath)!;
+            Directory.CreateDirectory(directory);
+            var evidence = new LiveReadinessEvidence(
+                catalog.Channels.Count,
+                catalog.Categories.Count,
+                catalog.MatchedChannelCount,
+                LiveTvWorkspace.Visibility == Visibility.Visible,
+                DateTimeOffset.UtcNow);
+            await File.WriteAllTextAsync(
+                _liveReadinessPath,
+                JsonSerializer.Serialize(evidence),
+                _lifetime.Token);
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
+
     private void MainWindow_Closed(object sender, WindowEventArgs args)
     {
         Closed -= MainWindow_Closed;
@@ -561,5 +612,12 @@ public sealed partial class MainWindow : Window
 
     private sealed record StartupEvidence(
         double FirstUsefulPaintMilliseconds,
+        DateTimeOffset RecordedAtUtc);
+
+    private sealed record LiveReadinessEvidence(
+        int ChannelCount,
+        int CategoryCount,
+        int ProgrammeGuideMatchCount,
+        bool LiveWorkspaceVisible,
         DateTimeOffset RecordedAtUtc);
 }
