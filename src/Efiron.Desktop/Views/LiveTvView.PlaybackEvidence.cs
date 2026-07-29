@@ -126,7 +126,7 @@ public sealed partial class LiveTvView
     {
         try
         {
-            var path = GetDiagnosticsPath("playback-trace.log");
+            var path = GetDiagnosticsPath("startup-crash.log");
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             var line = new StringBuilder()
                 .Append(DateTimeOffset.UtcNow.ToString("O"))
