@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence><xsd:element name="value" type="xsd:string" minOccurs="0" /></xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType><xsd:attribute name="alias" type="xsd:string" /><xsd:attribute name="name" type="xsd:string" /></xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence><xsd:element name="value" type="xsd:string" minOccurs="0" /><xsd:element name="comment" type="xsd:string" minOccurs="0" /></xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType><xsd:sequence><xsd:element name="value" type="xsd:string" minOccurs="0" /></xsd:sequence><xsd:attribute name="name" type="xsd:string" use="required" /></xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+
+  <data name="WindowTitle" xml:space="preserve"><value>Efiron — Sources</value></data>
+  <data name="WindowContextTitle.Text" xml:space="preserve"><value>Initial setup</value></data>
+  <data name="ShellProductSubtitle.Text" xml:space="preserve"><value>New Efiron</value></data>
+  <data name="ShellProductDescription.Text" xml:space="preserve"><value>Clean architecture without the legacy interface</value></data>
+  <data name="NavigationSettings.Text" xml:space="preserve"><value>SETTINGS</value></data>
+  <data name="NavigationSources.Text" xml:space="preserve"><value>Sources</value></data>
+  <data name="NavigationSourcesDescription.Text" xml:space="preserve"><value>Playlist and TV guide</value></data>
+  <data name="GreenfieldBadge.Text" xml:space="preserve"><value>● GREENFIELD</value></data>
+  <data name="GreenfieldCaption.Text" xml:space="preserve"><value>This interface does not use the legacy MainWindow or hidden legacy controls.</value></data>
+  <data name="SourcesTitle.Text" xml:space="preserve"><value>Television sources</value></data>
+  <data name="SourcesDescription.Text" xml:space="preserve"><value>Connect your channel playlist and TV guide. Settings are stored locally and restored on later launches.</value></data>
+  <data name="ConfigurationStatusLoading.Text" xml:space="preserve"><value>Checking settings…</value></data>
+  <data name="PlaylistCardTitle.Text" xml:space="preserve"><value>Channel playlist</value></data>
+  <data name="PlaylistCardDescription.Text" xml:space="preserve"><value>M3U or M3U8 supplied by your IPTV provider</value></data>
+  <data name="PlaylistLocation.Header" xml:space="preserve"><value>Playlist location</value></data>
+  <data name="PlaylistLocation.PlaceholderText" xml:space="preserve"><value>https://provider.example/playlist.m3u</value></data>
+  <data name="PlaylistHelp.Text" xml:space="preserve"><value>URLs and local paths are supported. Availability checks and content loading are part of the next internal slice.</value></data>
+  <data name="GuideCardTitle.Text" xml:space="preserve"><value>TV guide</value></data>
+  <data name="GuideCardDescription.Text" xml:space="preserve"><value>XMLTV or XMLTV.GZ programme data</value></data>
+  <data name="GuideLocation.Header" xml:space="preserve"><value>TV guide location</value></data>
+  <data name="GuideLocation.PlaceholderText" xml:space="preserve"><value>https://provider.example/guide.xml.gz</value></data>
+  <data name="GuideHelp.Text" xml:space="preserve"><value>The guide is optional for the first save, but is required for Now/Next and EPG.</value></data>
+  <data name="StorageTitle.Text" xml:space="preserve"><value>Local storage</value></data>
+  <data name="StorageDescription.Text" xml:space="preserve"><value>Sources are written atomically to a dedicated configuration file. Passwords and tokens are not written to logs.</value></data>
+  <data name="SaveSourcesButton.Content" xml:space="preserve"><value>Save sources</value></data>
+  <data name="NextStepCaption.Text" xml:space="preserve"><value>Next internal slice: source availability checks, M3U/XMLTV loading and working channel state. This build is not a user acceptance candidate yet.</value></data>
+
+  <data name="ConfigurationStatusLoading" xml:space="preserve"><value>Checking settings…</value></data>
+  <data name="ConfigurationStatusReady" xml:space="preserve"><value>Playlist configured</value></data>
+  <data name="ConfigurationStatusMissing" xml:space="preserve"><value>Playlist not configured</value></data>
+  <data name="LoadErrorTitle" xml:space="preserve"><value>Settings could not be read</value></data>
+  <data name="LoadInvalidMessage" xml:space="preserve"><value>The source file is damaged. Enter the locations again and save them.</value></data>
+  <data name="LoadIoMessage" xml:space="preserve"><value>The source file is temporarily unavailable. Check access to your local Windows profile.</value></data>
+  <data name="ValidationTitle" xml:space="preserve"><value>A playlist is required</value></data>
+  <data name="PlaylistRequiredMessage" xml:space="preserve"><value>Enter a URL or local path to an M3U playlist.</value></data>
+  <data name="SavedTitle" xml:space="preserve"><value>Sources saved</value></data>
+  <data name="SavedMessage" xml:space="preserve"><value>The configuration was stored locally and will be restored on the next launch.</value></data>
+  <data name="SaveErrorTitle" xml:space="preserve"><value>Sources could not be saved</value></data>
+  <data name="SaveAccessMessage" xml:space="preserve"><value>Windows denied access to the local data directory.</value></data>
+  <data name="SaveIoMessage" xml:space="preserve"><value>A write error occurred. The current configuration was not partially replaced.</value></data>
+</root>
