@@ -48,7 +48,7 @@ public sealed class XmlTvProgrammeGuideParserTests
         Assert.Equal("Новости", programme.Title);
         Assert.Equal("Вечерний выпуск", programme.Subtitle);
         Assert.Equal("Главные события дня.", programme.Description);
-        Assert.Equal(["Информация", "Новости"], programme.Categories);
+        Assert.Equal(["Новости", "Информация"], programme.Categories);
         Assert.Empty(result.Warnings);
     }
 
