@@ -4,6 +4,7 @@ using Efiron.Application.Playback;
 using Efiron.Domain.Playback;
 using LibVLCSharp.Platforms.Windows;
 using Microsoft.UI.Xaml;
+using Windows.Foundation;
 
 namespace Efiron.Desktop.Views;
 
@@ -14,11 +15,35 @@ public sealed partial class LiveTvView
     private long _visibilityCallbackToken;
     private bool _playbackEvidenceWritten;
     private bool _playbackEvidenceHooksAttached;
+    private bool _visibleActivationQueued;
 
     protected override void OnApplyTemplate()
     {
         base.OnApplyTemplate();
+        EnsurePlaybackEvidenceHooks();
 
+        _ = TracePlaybackStageAsync(
+            $"template-applied visibility={Visibility}",
+            snapshot: null);
+
+        QueueVisibleActivation("template-visible");
+    }
+
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        EnsurePlaybackEvidenceHooks();
+        var measured = base.MeasureOverride(availableSize);
+
+        _ = TracePlaybackStageAsync(
+            $"measure visibility={Visibility} available={availableSize.Width}x{availableSize.Height}",
+            _playbackSession?.Snapshot);
+        QueueVisibleActivation("measure-visible");
+
+        return measured;
+    }
+
+    private void EnsurePlaybackEvidenceHooks()
+    {
         if (_playbackEvidenceHooksAttached)
         {
             return;
@@ -32,14 +57,22 @@ public sealed partial class LiveTvView
             VisibilityProperty,
             LiveTvView_VisibilityChanged);
         Unloaded += LiveTvView_Unloaded;
+    }
 
-        _ = TracePlaybackStageAsync(
-            $"template-applied visibility={Visibility}",
-            snapshot: null);
-
-        if (Visibility == Visibility.Visible)
+    private void QueueVisibleActivation(string trigger)
+    {
+        if (Visibility != Visibility.Visible || _visibleActivationQueued)
         {
-            _ = ActivateAndTraceAsync("template-visible");
+            return;
+        }
+
+        _visibleActivationQueued = true;
+        if (!DispatcherQueue.TryEnqueue(async () =>
+            {
+                await ActivateAndTraceAsync(trigger);
+            }))
+        {
+            _visibleActivationQueued = false;
         }
     }
 
@@ -48,11 +81,7 @@ public sealed partial class LiveTvView
         _ = TracePlaybackStageAsync(
             $"loaded visibility={Visibility}",
             snapshot: null);
-
-        if (Visibility == Visibility.Visible)
-        {
-            _ = ActivateAndTraceAsync("loaded-visible");
-        }
+        QueueVisibleActivation("loaded-visible");
     }
 
     private async void PlaybackEvidence_VideoViewInitialized(
@@ -62,11 +91,7 @@ public sealed partial class LiveTvView
         await TracePlaybackStageAsync(
             $"video-view-initialized visibility={Visibility}",
             snapshot: null);
-
-        if (Visibility == Visibility.Visible)
-        {
-            await ActivateAndTraceAsync("video-view-initialized");
-        }
+        QueueVisibleActivation("video-view-initialized");
     }
 
     private void LiveTvView_VisibilityChanged(
@@ -77,10 +102,13 @@ public sealed partial class LiveTvView
             $"visibility-changed visibility={Visibility}",
             snapshot: null);
 
-        if (Visibility == Visibility.Visible)
+        if (Visibility != Visibility.Visible)
         {
-            _ = ActivateAndTraceAsync("visibility-visible");
+            _visibleActivationQueued = false;
+            return;
         }
+
+        QueueVisibleActivation("visibility-visible");
     }
 
     private async Task ActivateAndTraceAsync(string trigger)
@@ -98,6 +126,7 @@ public sealed partial class LiveTvView
         }
         catch (Exception exception)
         {
+            _visibleActivationQueued = false;
             await TracePlaybackStageAsync(
                 $"activate-failed trigger={trigger} type={exception.GetType().FullName} message={exception.Message}",
                 _playbackSession?.Snapshot);
@@ -220,6 +249,7 @@ public sealed partial class LiveTvView
         Loaded -= LiveTvView_Loaded;
         Unloaded -= LiveTvView_Unloaded;
         _playbackEvidenceHooksAttached = false;
+        _visibleActivationQueued = false;
     }
 
     private sealed record PlaybackEvidence(
