@@ -1,6 +1,12 @@
 using System.Diagnostics;
+using System.Globalization;
+using System.Net;
 using System.Text.Json;
+using Efiron.Application.Live;
+using Efiron.Application.ProgrammeGuide;
 using Efiron.Application.Sources;
+using Efiron.Infrastructure.Playlists;
+using Efiron.Infrastructure.ProgrammeGuide;
 using Efiron.Infrastructure.Sources;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
@@ -17,6 +23,8 @@ public sealed partial class MainWindow : Window
     private readonly CancellationTokenSource _lifetime = new();
     private readonly ResourceLoader _resources;
     private readonly SourceConfigurationService _sourceConfigurationService;
+    private readonly LiveCatalogRefreshService _liveCatalogRefreshService;
+    private readonly HttpClient _httpClient;
     private readonly string _configurationPath;
     private readonly string _readinessPath;
 
@@ -38,6 +46,21 @@ public sealed partial class MainWindow : Window
             "first-useful-paint.json");
         _sourceConfigurationService = new SourceConfigurationService(
             new JsonSourceConfigurationStore(_configurationPath));
+        _httpClient = new HttpClient(new HttpClientHandler
+        {
+            AutomaticDecompression =
+                DecompressionMethods.GZip |
+                DecompressionMethods.Deflate |
+                DecompressionMethods.Brotli,
+        })
+        {
+            Timeout = TimeSpan.FromSeconds(45),
+        };
+        _liveCatalogRefreshService = new LiveCatalogRefreshService(
+            new BoundedSourceContentLoader(_httpClient),
+            new M3uPlaylistParser(),
+            new XmlTvProgrammeGuideParser(),
+            new ProgrammeGuideChannelMatcher());
 
         AppWindow.Title = _resources.GetString("WindowTitle");
         ExtendsContentIntoTitleBar = true;
@@ -64,14 +87,25 @@ public sealed partial class MainWindow : Window
                 _lifetime.Token);
             PlaylistLocationTextBox.Text = configuration.Playlist?.Location ?? string.Empty;
             GuideLocationTextBox.Text = configuration.ProgrammeGuide?.Location ?? string.Empty;
-            UpdateConfigurationStatus(configuration.IsReadyForLiveTv);
+
+            if (configuration.IsReadyForLiveTv)
+            {
+                UpdateConfiguredStatus();
+                await RefreshCatalogAsync(
+                    configuration,
+                    showSuccessMessage: false);
+            }
+            else
+            {
+                UpdateMissingStatus();
+            }
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
         {
         }
         catch (InvalidDataException)
         {
-            UpdateConfigurationStatus(isConfigured: false);
+            UpdateMissingStatus();
             ShowMessage(
                 InfoBarSeverity.Error,
                 "LoadErrorTitle",
@@ -79,7 +113,7 @@ public sealed partial class MainWindow : Window
         }
         catch (IOException)
         {
-            UpdateConfigurationStatus(isConfigured: false);
+            UpdateMissingStatus();
             ShowMessage(
                 InfoBarSeverity.Error,
                 "LoadErrorTitle",
@@ -115,11 +149,10 @@ public sealed partial class MainWindow : Window
                 _lifetime.Token);
             PlaylistLocationTextBox.Text = configuration.Playlist?.Location ?? string.Empty;
             GuideLocationTextBox.Text = configuration.ProgrammeGuide?.Location ?? string.Empty;
-            UpdateConfigurationStatus(configuration.IsReadyForLiveTv);
-            ShowMessage(
-                InfoBarSeverity.Success,
-                "SavedTitle",
-                "SavedMessage");
+            UpdateConfiguredStatus();
+            await RefreshCatalogAsync(
+                configuration,
+                showSuccessMessage: true);
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
         {
@@ -144,6 +177,109 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private async Task<bool> RefreshCatalogAsync(
+        SourceConfiguration configuration,
+        bool showSuccessMessage)
+    {
+        UpdateRefreshingStatus();
+
+        try
+        {
+            var catalog = await _liveCatalogRefreshService.RefreshAsync(
+                configuration,
+                DateTimeOffset.Now,
+                _lifetime.Token);
+            UpdateLoadedStatus(catalog.Channels.Count);
+
+            if (showSuccessMessage)
+            {
+                var message = string.Format(
+                    CultureInfo.CurrentCulture,
+                    _resources.GetString("RefreshSuccessFormat"),
+                    catalog.Channels.Count,
+                    catalog.Categories.Count,
+                    catalog.MatchedChannelCount,
+                    catalog.PlaylistWarnings.Count + catalog.ProgrammeGuideWarnings.Count);
+                ShowMessageText(
+                    InfoBarSeverity.Success,
+                    _resources.GetString("RefreshSuccessTitle"),
+                    message);
+            }
+
+            return true;
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+            return false;
+        }
+        catch (OperationCanceledException)
+        {
+            UpdateConfiguredStatus();
+            ShowMessage(
+                InfoBarSeverity.Error,
+                "RefreshErrorTitle",
+                "RefreshTimeoutMessage");
+        }
+        catch (HttpRequestException)
+        {
+            UpdateConfiguredStatus();
+            ShowMessage(
+                InfoBarSeverity.Error,
+                "RefreshErrorTitle",
+                "RefreshNetworkMessage");
+        }
+        catch (FileNotFoundException)
+        {
+            UpdateConfiguredStatus();
+            ShowMessage(
+                InfoBarSeverity.Error,
+                "RefreshErrorTitle",
+                "RefreshFileMessage");
+        }
+        catch (DirectoryNotFoundException)
+        {
+            UpdateConfiguredStatus();
+            ShowMessage(
+                InfoBarSeverity.Error,
+                "RefreshErrorTitle",
+                "RefreshFileMessage");
+        }
+        catch (UnauthorizedAccessException)
+        {
+            UpdateConfiguredStatus();
+            ShowMessage(
+                InfoBarSeverity.Error,
+                "RefreshErrorTitle",
+                "RefreshAccessMessage");
+        }
+        catch (InvalidDataException)
+        {
+            UpdateConfiguredStatus();
+            ShowMessage(
+                InfoBarSeverity.Error,
+                "RefreshErrorTitle",
+                "RefreshInvalidMessage");
+        }
+        catch (NotSupportedException)
+        {
+            UpdateConfiguredStatus();
+            ShowMessage(
+                InfoBarSeverity.Error,
+                "RefreshErrorTitle",
+                "RefreshUnsupportedMessage");
+        }
+        catch (IOException)
+        {
+            UpdateConfiguredStatus();
+            ShowMessage(
+                InfoBarSeverity.Error,
+                "RefreshErrorTitle",
+                "RefreshIoMessage");
+        }
+
+        return false;
+    }
+
     private void SetBusy(bool isBusy)
     {
         SaveSourcesButton.IsEnabled = !isBusy;
@@ -153,34 +289,57 @@ public sealed partial class MainWindow : Window
         SaveProgressRing.Visibility = isBusy
             ? Visibility.Visible
             : Visibility.Collapsed;
-
-        if (isBusy)
-        {
-            ConfigurationStatusText.Text = _resources.GetString(
-                "StatusLoadingMessage");
-        }
     }
 
-    private void UpdateConfigurationStatus(bool isConfigured)
+    private void UpdateRefreshingStatus() =>
+        UpdateStatus(
+            _resources.GetString("StatusRefreshingMessage"),
+            ColorHelper.FromArgb(255, 37, 134, 255));
+
+    private void UpdateConfiguredStatus() =>
+        UpdateStatus(
+            _resources.GetString("StatusConfiguredMessage"),
+            ColorHelper.FromArgb(255, 231, 168, 63));
+
+    private void UpdateMissingStatus() =>
+        UpdateStatus(
+            _resources.GetString("StatusMissingMessage"),
+            ColorHelper.FromArgb(255, 116, 129, 150));
+
+    private void UpdateLoadedStatus(int channelCount)
     {
-        ConfigurationStatusText.Text = _resources.GetString(
-            isConfigured
-                ? "StatusReadyMessage"
-                : "StatusMissingMessage");
-        ConfigurationStatusDot.Fill = new SolidColorBrush(
-            isConfigured
-                ? ColorHelper.FromArgb(255, 54, 199, 139)
-                : ColorHelper.FromArgb(255, 116, 129, 150));
+        var text = string.Format(
+            CultureInfo.CurrentCulture,
+            _resources.GetString("StatusLoadedFormat"),
+            channelCount);
+        UpdateStatus(
+            text,
+            ColorHelper.FromArgb(255, 54, 199, 139));
+    }
+
+    private void UpdateStatus(string text, Windows.UI.Color color)
+    {
+        ConfigurationStatusText.Text = text;
+        ConfigurationStatusDot.Fill = new SolidColorBrush(color);
     }
 
     private void ShowMessage(
         InfoBarSeverity severity,
         string titleKey,
-        string messageKey)
+        string messageKey) =>
+        ShowMessageText(
+            severity,
+            _resources.GetString(titleKey),
+            _resources.GetString(messageKey));
+
+    private void ShowMessageText(
+        InfoBarSeverity severity,
+        string title,
+        string message)
     {
         PageMessage.Severity = severity;
-        PageMessage.Title = _resources.GetString(titleKey);
-        PageMessage.Message = _resources.GetString(messageKey);
+        PageMessage.Title = title;
+        PageMessage.Message = message;
         PageMessage.IsOpen = true;
     }
 
@@ -213,6 +372,7 @@ public sealed partial class MainWindow : Window
     {
         Closed -= MainWindow_Closed;
         _lifetime.Cancel();
+        _httpClient.Dispose();
         _lifetime.Dispose();
     }
 
