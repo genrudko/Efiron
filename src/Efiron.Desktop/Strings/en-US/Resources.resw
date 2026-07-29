@@ -17,15 +17,12 @@
   <resheader name="version"><value>2.0</value></resheader>
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
-  <data name="WindowTitle" xml:space="preserve"><value>Efiron — Sources</value></data>
-  <data name="WindowContextTitle.Text" xml:space="preserve"><value>Initial setup</value></data>
-  <data name="ShellProductSubtitle.Text" xml:space="preserve"><value>New Efiron</value></data>
-  <data name="ShellProductDescription.Text" xml:space="preserve"><value>Clean architecture without the legacy interface</value></data>
-  <data name="NavigationSettings.Text" xml:space="preserve"><value>SETTINGS</value></data>
-  <data name="NavigationSources.Text" xml:space="preserve"><value>Sources</value></data>
-  <data name="NavigationSourcesDescription.Text" xml:space="preserve"><value>Playlist and TV guide</value></data>
-  <data name="GreenfieldBadge.Text" xml:space="preserve"><value>● GREENFIELD</value></data>
-  <data name="GreenfieldCaption.Text" xml:space="preserve"><value>This interface does not use the legacy MainWindow or hidden legacy controls.</value></data>
+
+  <data name="WindowTitle" xml:space="preserve"><value>Efiron</value></data>
+  <data name="WindowContextTitle.Text" xml:space="preserve"><value>Sources</value></data>
+  <data name="WindowContextSourcesMessage" xml:space="preserve"><value>Sources</value></data>
+  <data name="WindowContextLiveMessage" xml:space="preserve"><value>Live TV</value></data>
+
   <data name="SourcesTitle.Text" xml:space="preserve"><value>Television sources</value></data>
   <data name="SourcesDescription.Text" xml:space="preserve"><value>Connect your channel playlist and TV guide. After saving, Efiron validates the sources and builds a working catalog immediately.</value></data>
   <data name="ConfigurationStatusLoading.Text" xml:space="preserve"><value>Checking settings…</value></data>
@@ -40,9 +37,12 @@
   <data name="GuideLocation.PlaceholderText" xml:space="preserve"><value>https://provider.example/guide.xml.gz</value></data>
   <data name="GuideHelp.Text" xml:space="preserve"><value>The guide is optional. When present, Efiron matches channels and prepares current and next programmes.</value></data>
   <data name="StorageTitle.Text" xml:space="preserve"><value>Local storage</value></data>
-  <data name="StorageDescription.Text" xml:space="preserve"><value>Sources are written atomically to a dedicated configuration file. Passwords and tokens are not written to logs.</value></data>
+  <data name="StorageDescription.Text" xml:space="preserve"><value>Sources and user preferences are written atomically to the Windows profile.</value></data>
   <data name="SaveSourcesButton.Content" xml:space="preserve"><value>Save and validate</value></data>
-  <data name="NextStepCaption.Text" xml:space="preserve"><value>The new application layer now builds channels, categories and Now/Next data. The next internal slice is the complete Live screen and playback. This build is not a user acceptance candidate yet.</value></data>
+  <data name="OpenLiveButton.Content" xml:space="preserve"><value>Open Live TV</value></data>
+  <data name="NextStepCaption.Text" xml:space="preserve"><value>After validation, the new Live TV screen becomes available with categories, search, favorites, Now/Next and playback controls.</value></data>
+
+  <data name="StatusLoadingMessage" xml:space="preserve"><value>Checking settings…</value></data>
   <data name="StatusRefreshingMessage" xml:space="preserve"><value>Loading sources…</value></data>
   <data name="StatusConfiguredMessage" xml:space="preserve"><value>Saved; refresh required</value></data>
   <data name="StatusMissingMessage" xml:space="preserve"><value>Playlist not configured</value></data>
@@ -65,4 +65,32 @@
   <data name="RefreshInvalidMessage" xml:space="preserve"><value>The source is malformed, unsupported or exceeds the safe size limit.</value></data>
   <data name="RefreshUnsupportedMessage" xml:space="preserve"><value>Only HTTP/HTTPS URLs, file URIs and local paths are supported.</value></data>
   <data name="RefreshIoMessage" xml:space="preserve"><value>The source is temporarily unavailable because of a read error.</value></data>
+
+  <data name="LiveTitle.Text" xml:space="preserve"><value>Live TV</value></data>
+  <data name="LiveChannelSearch.PlaceholderText" xml:space="preserve"><value>Channel or programme</value></data>
+  <data name="LiveCategoryFilter.Header" xml:space="preserve"><value>Category</value></data>
+  <data name="LiveFavoritesOnly.Content" xml:space="preserve"><value>★ Favorites</value></data>
+  <data name="LiveChannelEmpty.Text" xml:space="preserve"><value>No channels match the selected filters.</value></data>
+  <data name="LivePlayerEmpty.Text" xml:space="preserve"><value>Select a channel on the left to start watching.</value></data>
+  <data name="LiveNoChannelSelected.Text" xml:space="preserve"><value>No channel selected</value></data>
+  <data name="LiveNowLabel.Text" xml:space="preserve"><value>NOW</value></data>
+  <data name="LiveNextLabel.Text" xml:space="preserve"><value>NEXT</value></data>
+  <data name="LiveProgrammeUnavailable.Text" xml:space="preserve"><value>No programme data</value></data>
+  <data name="PlaybackStatusReady.Text" xml:space="preserve"><value>Player ready</value></data>
+
+  <data name="LiveSummaryFormat" xml:space="preserve"><value>{0} channels · {1} categories · XMLTV: {2}</value></data>
+  <data name="LiveNoProgrammeMessage" xml:space="preserve"><value>No programme data</value></data>
+  <data name="LiveNextProgrammeFormat" xml:space="preserve"><value>Next {0} · {1}</value></data>
+  <data name="LiveAllCategoriesMessage" xml:space="preserve"><value>All categories</value></data>
+  <data name="LiveProgrammeUnavailableMessage" xml:space="preserve"><value>No programme data</value></data>
+
+  <data name="PlaybackStatusReadyMessage" xml:space="preserve"><value>Player ready</value></data>
+  <data name="PlaybackStatusPreparingMessage" xml:space="preserve"><value>Preparing player…</value></data>
+  <data name="PlaybackStatusOpeningMessage" xml:space="preserve"><value>Opening stream…</value></data>
+  <data name="PlaybackStatusPlayingMessage" xml:space="preserve"><value>Live</value></data>
+  <data name="PlaybackStatusPausedMessage" xml:space="preserve"><value>Paused</value></data>
+  <data name="PlaybackStatusStoppedMessage" xml:space="preserve"><value>Stopped</value></data>
+  <data name="PlaybackStatusEndedMessage" xml:space="preserve"><value>Stream ended</value></data>
+  <data name="PlaybackStatusFailedMessage" xml:space="preserve"><value>Playback error</value></data>
+  <data name="PlaybackStatusDisposedMessage" xml:space="preserve"><value>Player closed</value></data>
 </root>
