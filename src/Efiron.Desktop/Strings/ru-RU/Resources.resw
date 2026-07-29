@@ -27,33 +27,42 @@
   <data name="GreenfieldBadge.Text" xml:space="preserve"><value>● GREENFIELD</value></data>
   <data name="GreenfieldCaption.Text" xml:space="preserve"><value>Этот интерфейс не использует старый MainWindow или скрытые legacy-контролы.</value></data>
   <data name="SourcesTitle.Text" xml:space="preserve"><value>Источники телевидения</value></data>
-  <data name="SourcesDescription.Text" xml:space="preserve"><value>Подключите плейлист каналов и телепрограмму. Настройки сохраняются локально и будут использоваться при следующих запусках.</value></data>
+  <data name="SourcesDescription.Text" xml:space="preserve"><value>Подключите плейлист каналов и телепрограмму. После сохранения Efiron сразу проверит источники и сформирует рабочий каталог.</value></data>
   <data name="ConfigurationStatusLoading.Text" xml:space="preserve"><value>Проверяем настройки…</value></data>
   <data name="PlaylistCardTitle.Text" xml:space="preserve"><value>Плейлист каналов</value></data>
   <data name="PlaylistCardDescription.Text" xml:space="preserve"><value>M3U или M3U8 от вашего IPTV-провайдера</value></data>
   <data name="PlaylistLocation.Header" xml:space="preserve"><value>Адрес плейлиста</value></data>
   <data name="PlaylistLocation.PlaceholderText" xml:space="preserve"><value>https://provider.example/playlist.m3u</value></data>
-  <data name="PlaylistHelp.Text" xml:space="preserve"><value>Поддерживаются URL и локальные пути. Проверка и загрузка содержимого появятся на следующем внутреннем этапе.</value></data>
+  <data name="PlaylistHelp.Text" xml:space="preserve"><value>Поддерживаются HTTP/HTTPS URL, file-URI и локальные пути. Размер и содержимое проверяются до построения каталога.</value></data>
   <data name="GuideCardTitle.Text" xml:space="preserve"><value>Телепрограмма</value></data>
   <data name="GuideCardDescription.Text" xml:space="preserve"><value>XMLTV или XMLTV.GZ с программой передач</value></data>
   <data name="GuideLocation.Header" xml:space="preserve"><value>Адрес телепрограммы</value></data>
   <data name="GuideLocation.PlaceholderText" xml:space="preserve"><value>https://provider.example/guide.xml.gz</value></data>
-  <data name="GuideHelp.Text" xml:space="preserve"><value>Телепрограмма необязательна для первого сохранения, но нужна для Now/Next и EPG.</value></data>
+  <data name="GuideHelp.Text" xml:space="preserve"><value>Телепрограмма необязательна. При её наличии Efiron сопоставит каналы и подготовит текущую и следующую передачи.</value></data>
   <data name="StorageTitle.Text" xml:space="preserve"><value>Локальное хранение</value></data>
   <data name="StorageDescription.Text" xml:space="preserve"><value>Источники записываются атомарно в отдельный файл конфигурации. Пароли и токены не выводятся в журнал.</value></data>
-  <data name="SaveSourcesButton.Content" xml:space="preserve"><value>Сохранить источники</value></data>
-  <data name="NextStepCaption.Text" xml:space="preserve"><value>Следующий внутренний срез: проверка доступности источников, загрузка M3U/XMLTV и формирование рабочего состояния каналов. Эта сборка ещё не является кандидатом на пользовательскую приёмку.</value></data>
-  <data name="StatusLoadingMessage" xml:space="preserve"><value>Проверяем настройки…</value></data>
-  <data name="StatusReadyMessage" xml:space="preserve"><value>Плейлист настроен</value></data>
+  <data name="SaveSourcesButton.Content" xml:space="preserve"><value>Сохранить и проверить</value></data>
+  <data name="NextStepCaption.Text" xml:space="preserve"><value>Каталог каналов, категории и Now/Next уже формируются новым application layer. Следующий внутренний срез — полноценный экран «Эфир» и воспроизведение. Эта сборка ещё не является кандидатом на пользовательскую приёмку.</value></data>
+  <data name="StatusRefreshingMessage" xml:space="preserve"><value>Загружаем источники…</value></data>
+  <data name="StatusConfiguredMessage" xml:space="preserve"><value>Сохранено, требуется обновление</value></data>
   <data name="StatusMissingMessage" xml:space="preserve"><value>Плейлист не настроен</value></data>
+  <data name="StatusLoadedFormat" xml:space="preserve"><value>Загружено каналов: {0}</value></data>
   <data name="LoadErrorTitle" xml:space="preserve"><value>Не удалось прочитать настройки</value></data>
   <data name="LoadInvalidMessage" xml:space="preserve"><value>Файл источников повреждён. Введите адреса заново и сохраните их.</value></data>
   <data name="LoadIoMessage" xml:space="preserve"><value>Файл источников временно недоступен. Проверьте доступ к локальному профилю Windows.</value></data>
   <data name="ValidationTitle" xml:space="preserve"><value>Нужен плейлист</value></data>
   <data name="PlaylistRequiredMessage" xml:space="preserve"><value>Укажите URL или локальный путь к M3U-плейлисту.</value></data>
-  <data name="SavedTitle" xml:space="preserve"><value>Источники сохранены</value></data>
-  <data name="SavedMessage" xml:space="preserve"><value>Конфигурация записана локально и будет восстановлена при следующем запуске.</value></data>
   <data name="SaveErrorTitle" xml:space="preserve"><value>Не удалось сохранить источники</value></data>
   <data name="SaveAccessMessage" xml:space="preserve"><value>Windows запретила запись в каталог локальных данных.</value></data>
   <data name="SaveIoMessage" xml:space="preserve"><value>Произошла ошибка записи. Текущая конфигурация не была заменена частично.</value></data>
+  <data name="RefreshSuccessTitle" xml:space="preserve"><value>Источники готовы</value></data>
+  <data name="RefreshSuccessFormat" xml:space="preserve"><value>Каналов: {0}; категорий: {1}; сопоставлено с XMLTV: {2}; предупреждений: {3}.</value></data>
+  <data name="RefreshErrorTitle" xml:space="preserve"><value>Источники сохранены, но не загружены</value></data>
+  <data name="RefreshTimeoutMessage" xml:space="preserve"><value>Провайдер не ответил за отведённое время. Конфигурация сохранена; повторная загрузка будет выполнена при следующем запуске.</value></data>
+  <data name="RefreshNetworkMessage" xml:space="preserve"><value>Не удалось получить данные по сети. Проверьте адрес источника и подключение.</value></data>
+  <data name="RefreshFileMessage" xml:space="preserve"><value>Локальный файл источника не найден.</value></data>
+  <data name="RefreshAccessMessage" xml:space="preserve"><value>Нет прав на чтение указанного локального файла.</value></data>
+  <data name="RefreshInvalidMessage" xml:space="preserve"><value>Источник имеет неподдерживаемый формат, повреждён или превышает безопасный размер.</value></data>
+  <data name="RefreshUnsupportedMessage" xml:space="preserve"><value>Поддерживаются только HTTP/HTTPS URL, file-URI и локальные пути.</value></data>
+  <data name="RefreshIoMessage" xml:space="preserve"><value>Источник временно недоступен из-за ошибки чтения.</value></data>
 </root>
