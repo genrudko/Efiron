@@ -308,12 +308,6 @@ public sealed partial class LiveTvView
     {
         ArgumentNullException.ThrowIfNull(predicate);
 
-        var current = _playbackSession?.Snapshot;
-        if (current is not null && predicate(current))
-        {
-            return current;
-        }
-
         var completion = new TaskCompletionSource<PlaybackSnapshot>(
             TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -330,6 +324,12 @@ public sealed partial class LiveTvView
         PlaybackSnapshotChanged += Handler;
         try
         {
+            var current = _playbackSession?.Snapshot;
+            if (current is not null && predicate(current))
+            {
+                completion.TrySetResult(current);
+            }
+
             return await completion.Task.WaitAsync(timeout);
         }
         finally
