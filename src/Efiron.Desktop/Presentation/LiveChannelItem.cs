@@ -28,6 +28,12 @@ public sealed class LiveChannelItem : INotifyPropertyChanged
         Category = snapshot.Channel.Category ?? string.Empty;
         CurrentProgramme = snapshot.CurrentProgramme?.Title ?? noProgrammeText;
         CurrentDescription = snapshot.CurrentProgramme?.Description ?? string.Empty;
+        CurrentStartTime = snapshot.CurrentProgramme?.Start
+            .ToLocalTime()
+            .ToString("HH:mm", CultureInfo.CurrentCulture) ?? string.Empty;
+        CurrentProgrammeLine = string.IsNullOrWhiteSpace(CurrentStartTime)
+            ? CurrentProgramme
+            : $"{CurrentStartTime}  {CurrentProgramme}";
         CurrentTime = FormatTimeRange(
             snapshot.CurrentProgramme?.Start,
             snapshot.CurrentProgramme?.Stop);
@@ -64,6 +70,10 @@ public sealed class LiveChannelItem : INotifyPropertyChanged
     public string CurrentProgramme { get; }
 
     public string CurrentDescription { get; }
+
+    public string CurrentStartTime { get; }
+
+    public string CurrentProgrammeLine { get; }
 
     public string CurrentTime { get; }
 
