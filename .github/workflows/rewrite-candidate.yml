@@ -112,6 +112,7 @@ jobs:
           EFIRON_CI_PLAYBACK_SEQUENCE: "1"
           EFIRON_CI_APPEARANCE_VERIFICATION: "1"
           EFIRON_CI_LAYOUT_VERIFICATION: "1"
+          EFIRON_CI_PRESENTATION_CAPTURE: "1"
         run: |
           $ErrorActionPreference = "Stop"
           $output = "src/Efiron.Desktop/bin/x64/Release/net10.0-windows10.0.22000.0/win-x64"
@@ -124,9 +125,12 @@ jobs:
           $layoutPath = Join-Path $diagnostics "layout-runtime.json"
           $playingPath = Join-Path $diagnostics "playback-playing.json"
           $controlsPath = Join-Path $diagnostics "playback-controls.json"
+          $previewPath = Join-Path $diagnostics "poster-preview.png"
+          $previewErrorPath = Join-Path $diagnostics "poster-preview-error.log"
           $crashPath = Join-Path $diagnostics "startup-crash.log"
-          $required = @($appearancePath,$layoutPath,$playingPath,$controlsPath)
+          $required = @($appearancePath,$layoutPath,$playingPath,$controlsPath,$previewPath)
           Remove-Item $required -Force -ErrorAction SilentlyContinue
+          Remove-Item $previewErrorPath -Force -ErrorAction SilentlyContinue
           $process = $null; $server = $null
 
           try {
@@ -138,7 +142,7 @@ jobs:
             if ($server.HasExited) { throw "Candidate media server exited." }
 
             $process = Start-Process $exe -WorkingDirectory $output -PassThru
-            $deadline = [DateTime]::UtcNow.AddSeconds(60)
+            $deadline = [DateTime]::UtcNow.AddSeconds(65)
             while ([DateTime]::UtcNow -lt $deadline) {
               $process.Refresh()
               if ($process.HasExited) { throw "Efiron exited with code $($process.ExitCode)." }
@@ -202,6 +206,20 @@ jobs:
               throw "Playback control evidence is incomplete."
             }
 
+            Add-Type -AssemblyName System.Drawing
+            $previewFile = Get-Item -LiteralPath $previewPath
+            if ($previewFile.Length -lt 10000) {
+              throw "Rendered preview is unexpectedly small: $($previewFile.Length) bytes."
+            }
+            $image = [System.Drawing.Image]::FromFile($previewPath)
+            try {
+              if ($image.Width -lt 800 -or $image.Height -lt 500) {
+                throw "Rendered preview dimensions are too small: $($image.Width)x$($image.Height)."
+              }
+              $previewSize = "$($image.Width)x$($image.Height)"
+            }
+            finally { $image.Dispose() }
+
             Start-Sleep -Seconds 4
             $process.Refresh()
             if ($process.HasExited) { throw "Efiron exited after candidate evidence." }
@@ -212,14 +230,21 @@ jobs:
               "Accent: $($appearance.Accent) $($appearance.AccentColor)"
               "Layouts: $($names -join ', ')"
               "Playback: $($playing.State)"
+              "Rendered preview: $previewSize, $($previewFile.Length) bytes"
             ) | Set-Content rewrite-candidate.log -Encoding utf8
+            Copy-Item -LiteralPath $previewPath -Destination rewrite-poster-preview.png -Force
           }
           catch {
             $details = @($_ | Out-String)
-            foreach ($path in @($crashPath) + $required) {
+            foreach ($path in @($crashPath,$previewErrorPath) + $required) {
               if (Test-Path $path) {
                 $details += "===== $path ====="
-                $details += Get-Content $path -Raw
+                if ($path.EndsWith(".png")) {
+                  $details += "PNG size: $((Get-Item $path).Length) bytes"
+                }
+                else {
+                  $details += Get-Content $path -Raw
+                }
               }
             }
             $details | Set-Content rewrite-candidate.log -Encoding utf8
@@ -261,6 +286,17 @@ jobs:
         with:
           name: rewrite-candidate-diagnostics
           path: rewrite-candidate.log
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload rendered poster preview
+        if: steps.runtime.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: efiron-poster-preview
+          path: |
+            rewrite-poster-preview.png
+            rewrite-candidate.log
           if-no-files-found: error
           retention-days: 7
 
