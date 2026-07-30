@@ -25,6 +25,7 @@ public sealed partial class MainWindow
         ProgrammeGuideWorkspace.Visibility = Visibility.Visible;
         WindowContextTitle.Text = _resources.GetString(
             "WindowContextProgrammeMessage");
+        _ = CaptureEpgEvidenceAsync();
     }
 
     private async void ProgrammeGuideWorkspace_PlayChannelRequested(
