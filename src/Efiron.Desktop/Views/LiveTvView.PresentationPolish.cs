@@ -19,6 +19,7 @@ public sealed partial class LiveTvView
         _presentationPolishEnabled = true;
         PlaybackSnapshotChanged += PresentationPolish_PlaybackSnapshotChanged;
         LiveRoot.SizeChanged += PresentationPolish_LiveRootSizeChanged;
+        LiveRoot.LayoutUpdated += PresentationPolish_LiveRootLayoutUpdated;
         ApplyCompactChannelWidth(LiveRoot.ActualWidth);
     }
 
@@ -47,11 +48,16 @@ public sealed partial class LiveTvView
         SizeChangedEventArgs e) =>
         ApplyCompactChannelWidth(e.NewSize.Width);
 
+    private void PresentationPolish_LiveRootLayoutUpdated(
+        object? sender,
+        object e) =>
+        ApplyCompactChannelWidth(LiveRoot.ActualWidth);
+
     private void ApplyCompactChannelWidth(double width)
     {
         if (!_isFullscreen && width is >= 620 and < 760)
         {
-            ChannelBrowserColumn.Width = new GridLength(280);
+            ChannelBrowserColumn.Width = new GridLength(292);
         }
     }
 }
