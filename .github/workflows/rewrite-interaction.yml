@@ -105,7 +105,7 @@ jobs:
           @{ version = 1; theme = 1; accent = 1 } |
             ConvertTo-Json | Set-Content (Join-Path $data "appearance.json") -Encoding utf8
 
-      - name: Verify category filtering and light overlay contrast
+      - name: Verify stable category filtering and light overlay contrast
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -160,6 +160,12 @@ jobs:
             if ([int]$evidence.VisibleCategoryCount -ne [int]$evidence.ExpectedCategoryCount) {
               throw "Category filter mismatch: expected $($evidence.ExpectedCategoryCount), visible $($evidence.VisibleCategoryCount)."
             }
+            if (-not [bool]$evidence.StableSelection) {
+              throw "Category selection did not survive layout synchronization: rail=$($evidence.RailSelectedIndex), combo=$($evidence.ComboSelectedIndex)."
+            }
+            if (-not [bool]$evidence.StableContents) {
+              throw "Visible channel contents do not match the selected category after layout stabilization."
+            }
             if (-not [bool]$evidence.AllOverlayGlyphsReadable) {
               throw "Overlay glyph palette is not readable in Light theme: $($evidence.OverlayGlyphColors -join ', ')."
             }
@@ -167,7 +173,7 @@ jobs:
               throw "Efiron exited after interaction evidence."
             }
 
-            Write-Host "Category filter and Light overlay contrast verified."
+            Write-Host "Stable category filter and Light overlay contrast verified."
             Get-Content $evidencePath -Raw
           }
           finally {
