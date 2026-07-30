@@ -24,7 +24,7 @@ public sealed partial class ProgrammeGuideView
 
         var channelButton = new Button
         {
-            Padding = new Thickness(12, 0),
+            Padding = new Thickness(12, 0, 12, 0),
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
             VerticalContentAlignment = VerticalAlignment.Stretch,
             Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
