@@ -80,11 +80,17 @@ jobs:
           http://127.0.0.1:18768/channel.wav
           '@ | Set-Content (Join-Path $fixture "playlist.m3u") -Encoding utf8
 
-          $now = [DateTimeOffset]::UtcNow
-          $start = $now.AddMinutes(-30).ToString("yyyyMMddHHmmss +0000")
-          $middle = $now.AddMinutes(30).ToString("yyyyMMddHHmmss +0000")
-          $next = $now.AddMinutes(90).ToString("yyyyMMddHHmmss +0000")
-          $later = $now.AddMinutes(150).ToString("yyyyMMddHHmmss +0000")
+          $now = [DateTimeOffset]::Now
+          $dayStart = [DateTimeOffset]::new(
+            $now.Year,$now.Month,$now.Day,0,0,0,$now.Offset)
+          $latestStart = $dayStart.AddDays(1).AddHours(-3)
+          $fixtureStart = $now.AddMinutes(-30)
+          if ($fixtureStart -lt $dayStart) { $fixtureStart = $dayStart }
+          if ($fixtureStart -gt $latestStart) { $fixtureStart = $latestStart }
+          $start = $fixtureStart.ToString("yyyyMMddHHmmss zzz").Replace(":", "")
+          $middle = $fixtureStart.AddHours(1).ToString("yyyyMMddHHmmss zzz").Replace(":", "")
+          $next = $fixtureStart.AddHours(2).ToString("yyyyMMddHHmmss zzz").Replace(":", "")
+          $later = $fixtureStart.AddHours(3).ToString("yyyyMMddHHmmss zzz").Replace(":", "")
           @"
           <tv>
             <channel id="news.one"><display-name>News One</display-name></channel>
