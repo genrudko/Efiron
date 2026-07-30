@@ -56,12 +56,14 @@ jobs:
             -Height 144 `
             -FramesPerSecond 10 `
             -FrameCount 300
+          $videoUri = [Uri]::new($videoPath).AbsoluteUri
 
-          @'
+          @"
           #EXTM3U
           #EXTINF:-1 tvg-id="fullscreen.one" group-title="Fullscreen",Fullscreen One
-          http://127.0.0.1:18770/channel.avi
-          '@ | Set-Content (Join-Path $fixture "playlist.m3u") -Encoding utf8
+          #EXTVLCOPT:input-repeat=1000
+          $videoUri
+          "@ | Set-Content (Join-Path $fixture "playlist.m3u") -Encoding utf8
 
           $now = [DateTimeOffset]::UtcNow
           $start = $now.AddMinutes(-30).ToString("yyyyMMddHHmmss +0000")
