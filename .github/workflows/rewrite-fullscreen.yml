@@ -167,6 +167,7 @@ jobs:
             Add-Type -AssemblyName System.Windows.Forms
             $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
             $desktopPath = Join-Path $diagnostics "fullscreen-desktop.png"
+            $desktopEvidencePath = Join-Path $diagnostics "fullscreen-desktop-runtime.json"
             $bitmap = [System.Drawing.Bitmap]::new(
               $bounds.Width,
               $bounds.Height,
@@ -222,14 +223,13 @@ jobs:
                 CropGeometry = [string]$evidence.Surface.VideoCropGeometry
               }
               $desktopEvidence | ConvertTo-Json |
-                Set-Content (Join-Path $diagnostics "fullscreen-desktop-runtime.json") -Encoding utf8
+                Set-Content $desktopEvidencePath -Encoding utf8
             }
             finally {
               $graphics.Dispose()
               $bitmap.Dispose()
             }
 
-            Add-Type -AssemblyName System.Drawing
             $image = [System.Drawing.Image]::FromFile($previewPath)
             try {
               if ($image.Width -lt 800 -or $image.Height -lt 500) {
@@ -239,12 +239,12 @@ jobs:
             finally { $image.Dispose() }
 
             New-Item -ItemType Directory -Path fullscreen-artifacts -Force | Out-Null
-            Copy-Item `
-              $evidencePath,` 
-              $previewPath,` 
-              $desktopPath,` 
-              (Join-Path $diagnostics "fullscreen-desktop-runtime.json") `
-              fullscreen-artifacts/ -Force
+            $artifactFiles = @(
+              $evidencePath,
+              $previewPath,
+              $desktopPath,
+              $desktopEvidencePath)
+            Copy-Item -Path $artifactFiles -Destination fullscreen-artifacts/ -Force
             Get-Content $evidencePath -Raw
           }
           finally {
