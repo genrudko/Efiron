@@ -30,10 +30,6 @@
       <Setter Property="CornerRadius" Value="8" />
       <Setter Property="MinWidth" Value="4" />
     </Style>
-
-    <Style x:Key="EpgCanvasContainerStyle" TargetType="ContentPresenter">
-      <Setter Property="Canvas.Left" Value="{Binding Left}" />
-    </Style>
   </UserControl.Resources>
 
   <Grid
@@ -197,7 +193,7 @@
                   <Border Background="{ThemeResource EfironAccentQuietBrush}" CornerRadius="9">
                     <TextBlock Text="{x:Bind Initials}" Foreground="{ThemeResource EfironAccentBrush}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
                   </Border>
-                  <Image Source="{x:Bind LogoUrl, Mode=OneWay}" Stretch="Uniform" />
+                  <Image Source="{x:Bind LogoUrl}" Stretch="Uniform" />
                 </Grid>
                 <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="2">
                   <TextBlock Text="{x:Bind Name}" Foreground="{ThemeResource EfironTextBrush}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
@@ -227,10 +223,11 @@
                 <DataTemplate x:DataType="presentation:EpgChannelRowItem">
                   <Grid Height="72" Width="{x:Bind TimelineWidth}" Background="{ThemeResource EfironSurfaceBrush}" BorderBrush="{ThemeResource EfironStrokeSubtleBrush}" BorderThickness="0,0,0,1">
                     <ItemsControl
-                        ItemsSource="{x:Bind Programmes}"
-                        ItemContainerStyle="{StaticResource EpgCanvasContainerStyle}">
+                        Width="{x:Bind TimelineWidth}"
+                        Height="72"
+                        ItemsSource="{x:Bind Programmes}">
                       <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate><Canvas /></ItemsPanelTemplate>
+                        <ItemsPanelTemplate><presentation:EpgTimelinePanel /></ItemsPanelTemplate>
                       </ItemsControl.ItemsPanel>
                       <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="presentation:EpgProgrammeBlockItem">
