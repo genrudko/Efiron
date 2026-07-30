@@ -24,8 +24,10 @@ public sealed class LiveChannelItem : INotifyPropertyChanged
         Snapshot = snapshot;
         Name = snapshot.Channel.Name;
         Initials = CreateInitials(Name);
+        LogoUrl = snapshot.Channel.LogoUri?.AbsoluteUri;
         Category = snapshot.Channel.Category ?? string.Empty;
         CurrentProgramme = snapshot.CurrentProgramme?.Title ?? noProgrammeText;
+        CurrentDescription = snapshot.CurrentProgramme?.Description ?? string.Empty;
         CurrentTime = FormatTimeRange(
             snapshot.CurrentProgramme?.Start,
             snapshot.CurrentProgramme?.Stop);
@@ -36,6 +38,11 @@ public sealed class LiveChannelItem : INotifyPropertyChanged
                 nextFormat,
                 snapshot.NextProgramme.Start.ToLocalTime().ToString("HH:mm", CultureInfo.CurrentCulture),
                 snapshot.NextProgramme.Title);
+        NextProgrammeTitle = snapshot.NextProgramme?.Title ?? noProgrammeText;
+        NextDescription = snapshot.NextProgramme?.Description ?? string.Empty;
+        NextTime = FormatTimeRange(
+            snapshot.NextProgramme?.Start,
+            snapshot.NextProgramme?.Stop);
         Progress = CalculateProgress(snapshot, now);
         _isFavorite = isFavorite;
     }
@@ -50,13 +57,23 @@ public sealed class LiveChannelItem : INotifyPropertyChanged
 
     public string Initials { get; }
 
+    public string? LogoUrl { get; }
+
     public string Category { get; }
 
     public string CurrentProgramme { get; }
 
+    public string CurrentDescription { get; }
+
     public string CurrentTime { get; }
 
     public string NextProgramme { get; }
+
+    public string NextProgrammeTitle { get; }
+
+    public string NextDescription { get; }
+
+    public string NextTime { get; }
 
     public double Progress { get; }
 
@@ -94,7 +111,7 @@ public sealed class LiveChannelItem : INotifyPropertyChanged
 
     public string FavoriteGlyph => IsFavorite ? "★" : "☆";
 
-    public string PlayingIndicator => IsPlaying ? "●" : string.Empty;
+    public string PlayingIndicator => IsPlaying ? "▮▮▮" : string.Empty;
 
     private static string CreateInitials(string name)
     {
