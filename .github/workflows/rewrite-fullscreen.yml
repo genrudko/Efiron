@@ -38,7 +38,7 @@ jobs:
           dotnet restore Efiron.Greenfield.sln
           dotnet build Efiron.Greenfield.sln -c Release --no-restore
 
-      - name: Prepare ultrawide MJPEG live fixture
+      - name: Prepare canonical ultrawide H264 fixture
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -49,54 +49,22 @@ jobs:
           Remove-Item $fixture,$data -Recurse -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Path $fixture,$data -Force | Out-Null
 
-          Add-Type -AssemblyName System.Drawing
-          $framePath = Join-Path $fixture "frame.jpg"
-          $bitmap = [System.Drawing.Bitmap]::new(1680,720)
-          $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-          try {
-            $graphics.Clear([System.Drawing.Color]::FromArgb(52,101,164))
-            $red = [System.Drawing.SolidBrush]::new(
-              [System.Drawing.Color]::FromArgb(224,49,49))
-            $green = [System.Drawing.SolidBrush]::new(
-              [System.Drawing.Color]::FromArgb(18,184,134))
-            $white = [System.Drawing.SolidBrush]::new(
-              [System.Drawing.Color]::White)
-            try {
-              $graphics.FillRectangle($red,0,0,1680,110)
-              $graphics.FillRectangle($green,0,610,1680,110)
-              $font = [System.Drawing.Font]::new(
-                "Arial",48,[System.Drawing.FontStyle]::Bold)
-              try {
-                $graphics.DrawString(
-                  "EFIRON FULLSCREEN VIDEO",$font,$white,470,315)
-              }
-              finally { $font.Dispose() }
-            }
-            finally {
-              $red.Dispose()
-              $green.Dispose()
-              $white.Dispose()
-            }
-            $bitmap.Save(
-              $framePath,
-              [System.Drawing.Imaging.ImageFormat]::Jpeg)
-          }
-          finally {
-            $graphics.Dispose()
-            $bitmap.Dispose()
-          }
-          if (-not (Test-Path $framePath) -or
-              (Get-Item $framePath).Length -lt 10000) {
-            throw "Fullscreen JPEG frame was not created."
+          $fixtureBase64 = Get-Content `
+            "tests/fixtures/fullscreen-21x9-h264.mp4.b64" `
+            -Raw
+          $videoPath = Join-Path $fixture "fullscreen.mp4"
+          [IO.File]::WriteAllBytes(
+            $videoPath,
+            [Convert]::FromBase64String($fixtureBase64.Trim()))
+          if (-not (Test-Path $videoPath) -or
+              (Get-Item $videoPath).Length -lt 2500) {
+            throw "Canonical fullscreen MP4 was not decoded."
           }
 
           @'
           #EXTM3U
           #EXTINF:-1 tvg-id="fullscreen.one" group-title="Fullscreen",Fullscreen One
-          #EXTVLCOPT:demux=mjpeg
-          #EXTVLCOPT:mjpeg-fps=10
-          #EXTVLCOPT:network-caching=150
-          http://127.0.0.1:18770/stream.mpjpeg
+          http://127.0.0.1:18770/fullscreen.mp4
           '@ | Set-Content (Join-Path $fixture "playlist.m3u") -Encoding utf8
 
           $now = [DateTimeOffset]::UtcNow
@@ -129,34 +97,14 @@ jobs:
           $localAppData = [Environment]::GetFolderPath(
             [Environment+SpecialFolder]::LocalApplicationData)
           $diagnostics = Join-Path $localAppData "Efiron/diagnostics"
-          $python = (Get-Command python -ErrorAction Stop).Source
-          $serverScript = (Resolve-Path "./scripts/serve-mjpeg.py").Path
-          $framePath = Join-Path $fixture "frame.jpg"
-          $mjpegServer = Start-Process $python -ArgumentList @(
-            $serverScript,
-            "--frame",$framePath,
-            "--host","127.0.0.1",
-            "--port","18770",
-            "--fps","10") -WindowStyle Hidden -PassThru
-          try {
-            Start-Sleep -Seconds 2
-            if ($mjpegServer.HasExited) {
-              throw "MJPEG live server exited before validation."
-            }
 
-            & ./scripts/verify-fullscreen-runtime.ps1 `
-              -OutputDirectory $output `
-              -FixtureDirectory $fixture `
-              -DiagnosticsDirectory $diagnostics `
-              -ArtifactDirectory "fullscreen-artifacts" `
-              -HeadSha "${{ github.event.pull_request.head.sha || github.sha }}" `
-              -Port 18771
-          }
-          finally {
-            if ($mjpegServer -and -not $mjpegServer.HasExited) {
-              Stop-Process -Id $mjpegServer.Id -Force
-            }
-          }
+          & ./scripts/verify-fullscreen-runtime.ps1 `
+            -OutputDirectory $output `
+            -FixtureDirectory $fixture `
+            -DiagnosticsDirectory $diagnostics `
+            -ArtifactDirectory "fullscreen-artifacts" `
+            -HeadSha "${{ github.event.pull_request.head.sha || github.sha }}" `
+            -Port 18770
 
       - name: Upload fullscreen evidence
         if: always()
