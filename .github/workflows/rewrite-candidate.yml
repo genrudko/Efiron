@@ -165,20 +165,62 @@ jobs:
             }
 
             $appearance = Get-Content $appearancePath -Raw | ConvertFrom-Json
-            $layout = Get-Content $layoutPath -Raw | ConvertFrom-Json
-            $playing = Get-Content $playingPath -Raw | ConvertFrom-Json
-            $controls = Get-Content $controlsPath -Raw | ConvertFrom-Json
-            if ($appearance.Theme -ne "Dark" -or $appearance.Accent -ne "Violet") {
+            if ($appearance.StoredTheme -ne "Dark" -or
+                $appearance.RequestedTheme -ne "Dark" -or
+                $appearance.ActualTheme -ne "Dark" -or
+                $appearance.Accent -ne "Violet" -or
+                [string]::IsNullOrWhiteSpace([string]$appearance.AccentColor)) {
               throw "Unexpected appearance evidence."
             }
-            if (-not $layout.Wide.Valid -or -not $layout.Medium.Valid -or -not $layout.Compact.Valid) {
-              throw "Responsive layout evidence is invalid."
+
+            $layout = Get-Content $layoutPath -Raw | ConvertFrom-Json
+            $names = @($layout.Layouts | ForEach-Object Layout)
+            foreach ($name in @("Wide","Medium","Compact")) {
+              if ($name -notin $names) { throw "Layout evidence does not contain $name." }
             }
+            $wide = $layout.Layouts | Where-Object Layout -eq "Wide" | Select-Object -First 1
+            $medium = $layout.Layouts | Where-Object Layout -eq "Medium" | Select-Object -First 1
+            $compact = $layout.Layouts | Where-Object Layout -eq "Compact" | Select-Object -First 1
+            if ($wide.CategoryColumn -ne 0 -or
+                $wide.ChannelColumn -ne 1 -or $wide.ChannelRow -ne 0 -or
+                $wide.PlayerColumn -ne 2 -or $wide.PlayerRow -ne 0 -or
+                [bool]$wide.ProgrammeStacked -or
+                -not [bool]$wide.CategoryRailVisible) {
+              throw "Wide poster layout evidence is invalid."
+            }
+            if ($medium.CategoryColumn -ne 0 -or
+                $medium.ChannelColumn -ne 1 -or $medium.ChannelRow -ne 0 -or
+                $medium.PlayerColumn -ne 2 -or $medium.PlayerRow -ne 0 -or
+                -not [bool]$medium.ProgrammeStacked -or
+                -not [bool]$medium.CategoryRailVisible) {
+              throw "Medium poster layout evidence is invalid."
+            }
+            if ($compact.ChannelColumn -ne 0 -or $compact.ChannelRow -ne 0 -or
+                $compact.PlayerColumn -ne 1 -or $compact.PlayerRow -ne 0 -or
+                -not [bool]$compact.ProgrammeStacked -or
+                [bool]$compact.CategoryRailVisible) {
+              throw "Compact poster layout evidence is invalid."
+            }
+
+            $playing = Get-Content $playingPath -Raw | ConvertFrom-Json
             if ($playing.State -ne "Playing" -or [string]::IsNullOrWhiteSpace($playing.Source)) {
               throw "Playback did not reach Playing."
             }
-            if (-not $controls.ControlSequenceCompleted -or $controls.State -ne "Playing") {
-              throw "Playback control sequence did not complete."
+
+            $controls = Get-Content $controlsPath -Raw | ConvertFrom-Json
+            $playbackStateInvalid =
+              -not [bool]$controls.Paused -or
+              -not [bool]$controls.Resumed -or
+              -not [bool]$controls.VolumeSetTo37 -or
+              -not [bool]$controls.Muted -or
+              -not [bool]$controls.Unmuted -or
+              -not [bool]$controls.Stopped -or
+              -not [bool]$controls.SwitchedToSecondChannel
+            if ($playbackStateInvalid) {
+              throw "Playback control evidence is incomplete."
+            }
+            if ([string]::IsNullOrWhiteSpace([string]$controls.Error) -eq $false) {
+              throw "Playback control evidence contains an error: $($controls.Error)"
             }
 
             Add-Type -AssemblyName System.Drawing
