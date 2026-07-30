@@ -25,12 +25,14 @@ internal sealed class AppearanceController(
             GetThemeDictionary("Default"),
             palette.Dark,
             palette.DarkHover,
-            palette.DarkSubtle);
+            palette.DarkSubtle,
+            WithAlpha(palette.Dark, 0x15));
         ApplyPalette(
             GetThemeDictionary("Light"),
             palette.Light,
             palette.LightHover,
-            palette.LightSubtle);
+            palette.LightSubtle,
+            WithAlpha(palette.Light, 0x10));
     }
 
     private ResourceDictionary GetThemeDictionary(string key)
@@ -48,11 +50,13 @@ internal sealed class AppearanceController(
         ResourceDictionary dictionary,
         Color accent,
         Color hover,
-        Color subtle)
+        Color subtle,
+        Color quiet)
     {
         SetBrush(dictionary, "EfironAccentBrush", accent);
         SetBrush(dictionary, "EfironAccentHoverBrush", hover);
         SetBrush(dictionary, "EfironAccentSubtleBrush", subtle);
+        SetBrush(dictionary, "EfironAccentQuietBrush", quiet);
 
         SetBrush(dictionary, "AccentFillColorDefaultBrush", accent);
         SetBrush(dictionary, "AccentFillColorSecondaryBrush", hover);
