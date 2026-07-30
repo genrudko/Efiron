@@ -17,12 +17,24 @@ public sealed partial class LiveTvView
     private bool? _appliedFullscreen;
     private bool _initialFocusApplied;
     private bool _layoutEvidenceStarted;
+    private bool _categoryRailSyncing;
+
+    public void FocusSearch() =>
+        ChannelSearchTextBox.Focus(FocusState.Programmatic);
+
+    private void LiveRoot_PresentationLoaded(object sender, RoutedEventArgs e)
+    {
+        SyncCategoryRail();
+        ApplyResponsiveLayout(LiveRoot.ActualWidth, force: true);
+    }
 
     private void LiveRoot_SizeChanged(object sender, SizeChangedEventArgs e) =>
         ApplyResponsiveLayout(e.NewSize.Width, force: false);
 
     private void LiveRoot_LayoutUpdated(object? sender, object e)
     {
+        SyncCategoryRail();
+
         if (_appliedFullscreen != _isFullscreen)
         {
             ApplyResponsiveLayout(LiveRoot.ActualWidth, force: true);
@@ -48,11 +60,61 @@ public sealed partial class LiveTvView
         }
     }
 
+    private void SyncCategoryRail()
+    {
+        if (_categoryRailSyncing ||
+            CategoryRailListView.Items.Count == CategoryComboBox.Items.Count)
+        {
+            return;
+        }
+
+        _categoryRailSyncing = true;
+        try
+        {
+            CategoryRailListView.Items.Clear();
+            foreach (var item in CategoryComboBox.Items)
+            {
+                CategoryRailListView.Items.Add(
+                    item is ComboBoxItem comboBoxItem
+                        ? comboBoxItem.Content?.ToString() ?? string.Empty
+                        : item?.ToString() ?? string.Empty);
+            }
+
+            CategoryRailListView.SelectedIndex = Math.Max(
+                0,
+                CategoryComboBox.SelectedIndex);
+        }
+        finally
+        {
+            _categoryRailSyncing = false;
+        }
+    }
+
+    private void CategoryRailListView_SelectionChanged(
+        object sender,
+        SelectionChangedEventArgs e)
+    {
+        if (_categoryRailSyncing || CategoryRailListView.SelectedIndex < 0)
+        {
+            return;
+        }
+
+        _categoryRailSyncing = true;
+        try
+        {
+            CategoryComboBox.SelectedIndex = CategoryRailListView.SelectedIndex;
+        }
+        finally
+        {
+            _categoryRailSyncing = false;
+        }
+    }
+
     private void ApplyResponsiveLayout(double width, bool force)
     {
-        var layout = width >= 1200
+        var layout = width >= 1180
             ? LiveLayoutKind.Wide
-            : width >= 840
+            : width >= 880
                 ? LiveLayoutKind.Medium
                 : LiveLayoutKind.Compact;
 
@@ -66,9 +128,11 @@ public sealed partial class LiveTvView
 
         if (_isFullscreen)
         {
+            CategoryRailCard.Visibility = Visibility.Collapsed;
             ChannelBrowserCard.Visibility = Visibility.Collapsed;
             ProgrammeCard.Visibility = Visibility.Collapsed;
             PlaybackStatusBadge.Visibility = Visibility.Collapsed;
+            CategoryRailColumn.Width = new GridLength(0);
             ChannelBrowserColumn.Width = new GridLength(0);
             PlayerColumn.Width = new GridLength(1, GridUnitType.Star);
             LivePrimaryRow.Height = new GridLength(1, GridUnitType.Star);
@@ -76,67 +140,80 @@ public sealed partial class LiveTvView
             LiveContentGrid.ColumnSpacing = 0;
             LiveContentGrid.RowSpacing = 0;
             Grid.SetColumn(PlayerWorkspace, 0);
-            Grid.SetColumnSpan(PlayerWorkspace, 2);
+            Grid.SetColumnSpan(PlayerWorkspace, 3);
             Grid.SetRow(PlayerWorkspace, 0);
             PlayerSurfaceBorder.MinHeight = 0;
-            PlayerControlsBorder.Margin = new Thickness(12, 0, 12, 12);
+            LiveRoot.RowDefinitions[2].Height = new GridLength(0);
             ApplyControlDensity(compact: width < 720, medium: false);
             return;
         }
 
+        CategoryRailCard.Visibility = layout == LiveLayoutKind.Compact
+            ? Visibility.Collapsed
+            : Visibility.Visible;
         ChannelBrowserCard.Visibility = Visibility.Visible;
         ProgrammeCard.Visibility = Visibility.Visible;
         PlaybackStatusBadge.Visibility = Visibility.Visible;
-        LiveContentGrid.ColumnSpacing = layout == LiveLayoutKind.Compact ? 0 : 18;
-        LiveContentGrid.RowSpacing = layout == LiveLayoutKind.Compact ? 12 : 14;
         Grid.SetColumnSpan(PlayerWorkspace, 1);
-        PlayerControlsBorder.Margin = new Thickness(0);
+        Grid.SetColumnSpan(ChannelBrowserCard, 1);
+        LiveRoot.RowDefinitions[2].Height = GridLength.Auto;
 
         switch (layout)
         {
             case LiveLayoutKind.Wide:
-                LiveRoot.Padding = new Thickness(30, 24, 30, 30);
-                ChannelBrowserColumn.Width = new GridLength(390);
+                LiveRoot.Padding = new Thickness(18, 14, 18, 14);
+                CategoryRailColumn.Width = new GridLength(164);
+                ChannelBrowserColumn.Width = new GridLength(330);
                 PlayerColumn.Width = new GridLength(1, GridUnitType.Star);
                 LivePrimaryRow.Height = new GridLength(1, GridUnitType.Star);
                 LiveSecondaryRow.Height = new GridLength(0);
-                Grid.SetColumn(ChannelBrowserCard, 0);
+                LiveContentGrid.ColumnSpacing = 10;
+                Grid.SetColumn(CategoryRailCard, 0);
+                Grid.SetRow(CategoryRailCard, 0);
+                Grid.SetColumn(ChannelBrowserCard, 1);
                 Grid.SetRow(ChannelBrowserCard, 0);
-                Grid.SetColumn(PlayerWorkspace, 1);
+                Grid.SetColumn(PlayerWorkspace, 2);
                 Grid.SetRow(PlayerWorkspace, 0);
-                PlayerSurfaceBorder.MinHeight = 360;
+                PlayerSurfaceBorder.MinHeight = 350;
                 SetProgrammeLayout(stacked: false);
                 ApplyControlDensity(compact: false, medium: false);
                 LiveSummaryText.Visibility = Visibility.Visible;
                 break;
 
             case LiveLayoutKind.Medium:
-                LiveRoot.Padding = new Thickness(20, 18, 20, 22);
-                ChannelBrowserColumn.Width = new GridLength(320);
+                LiveRoot.Padding = new Thickness(14, 12, 14, 12);
+                CategoryRailColumn.Width = new GridLength(132);
+                ChannelBrowserColumn.Width = new GridLength(286);
                 PlayerColumn.Width = new GridLength(1, GridUnitType.Star);
                 LivePrimaryRow.Height = new GridLength(1, GridUnitType.Star);
                 LiveSecondaryRow.Height = new GridLength(0);
-                Grid.SetColumn(ChannelBrowserCard, 0);
+                LiveContentGrid.ColumnSpacing = 8;
+                Grid.SetColumn(CategoryRailCard, 0);
+                Grid.SetRow(CategoryRailCard, 0);
+                Grid.SetColumn(ChannelBrowserCard, 1);
                 Grid.SetRow(ChannelBrowserCard, 0);
-                Grid.SetColumn(PlayerWorkspace, 1);
+                Grid.SetColumn(PlayerWorkspace, 2);
                 Grid.SetRow(PlayerWorkspace, 0);
                 PlayerSurfaceBorder.MinHeight = 300;
-                SetProgrammeLayout(stacked: width < 1030);
+                SetProgrammeLayout(stacked: width < 1040);
                 ApplyControlDensity(compact: false, medium: true);
-                LiveSummaryText.Visibility = width < 940
-                    ? Visibility.Collapsed
-                    : Visibility.Visible;
+                LiveSummaryText.Visibility = Visibility.Collapsed;
                 break;
 
             default:
-                LiveRoot.Padding = new Thickness(14, 12, 14, 16);
-                ChannelBrowserColumn.Width = new GridLength(1, GridUnitType.Star);
+                LiveRoot.Padding = new Thickness(10, 10, 10, 10);
+                CategoryRailColumn.Width = new GridLength(1, GridUnitType.Star);
+                ChannelBrowserColumn.Width = new GridLength(0);
                 PlayerColumn.Width = new GridLength(0);
                 LivePrimaryRow.Height = new GridLength(3, GridUnitType.Star);
                 LiveSecondaryRow.Height = new GridLength(2, GridUnitType.Star);
+                LiveContentGrid.ColumnSpacing = 0;
+                LiveContentGrid.RowSpacing = 9;
                 Grid.SetColumn(PlayerWorkspace, 0);
+                Grid.SetColumnSpan(PlayerWorkspace, 3);
                 Grid.SetRow(PlayerWorkspace, 0);
                 Grid.SetColumn(ChannelBrowserCard, 0);
+                Grid.SetColumnSpan(ChannelBrowserCard, 3);
                 Grid.SetRow(ChannelBrowserCard, 1);
                 PlayerSurfaceBorder.MinHeight = 220;
                 SetProgrammeLayout(stacked: true);
@@ -168,11 +245,11 @@ public sealed partial class LiveTvView
             ? new GridLength(0)
             : new GridLength(1, GridUnitType.Star);
         VolumeColumn.Width = compact
-            ? new GridLength(88)
+            ? new GridLength(72)
             : medium
-                ? new GridLength(110)
-                : new GridLength(150);
-        PlaybackControlsGrid.ColumnSpacing = compact ? 6 : 10;
+                ? new GridLength(90)
+                : new GridLength(120);
+        PlaybackControlsGrid.ColumnSpacing = compact ? 4 : 7;
     }
 
     private async void LiveRoot_KeyDown(object sender, KeyRoutedEventArgs e)
@@ -203,10 +280,9 @@ public sealed partial class LiveTvView
         switch (key)
         {
             case VirtualKey.F:
-                ChannelSearchTextBox.Focus(FocusState.Programmatic);
+                FocusSearch();
                 e.Handled = true;
                 break;
-
             case VirtualKey.Enter:
             case VirtualKey.GamepadA:
                 if (ChannelListView.SelectedItem is LiveChannelItem selected)
@@ -215,12 +291,10 @@ public sealed partial class LiveTvView
                     e.Handled = true;
                 }
                 break;
-
             case VirtualKey.Space:
                 await TogglePlaybackAsync();
                 e.Handled = true;
                 break;
-
             case VirtualKey.M:
                 if (_playbackSession is not null)
                 {
@@ -228,18 +302,15 @@ public sealed partial class LiveTvView
                     e.Handled = true;
                 }
                 break;
-
             case VirtualKey.S:
                 _playbackSession?.Stop();
                 e.Handled = true;
                 break;
-
             case VirtualKey.PageUp:
             case VirtualKey.GamepadLeftShoulder:
                 await SelectAdjacentChannelAsync(-1);
                 e.Handled = true;
                 break;
-
             case VirtualKey.PageDown:
             case VirtualKey.GamepadRightShoulder:
                 await SelectAdjacentChannelAsync(1);
@@ -302,12 +373,13 @@ public sealed partial class LiveTvView
                 await Task.Yield();
                 captures.Add(new LayoutCapture(
                     _appliedLayout?.ToString() ?? string.Empty,
+                    Grid.GetColumn(CategoryRailCard),
                     Grid.GetColumn(ChannelBrowserCard),
                     Grid.GetRow(ChannelBrowserCard),
                     Grid.GetColumn(PlayerWorkspace),
                     Grid.GetRow(PlayerWorkspace),
                     ProgrammeSecondRow.Height.IsAuto,
-                    SelectedChannelPanel.Visibility == Visibility.Visible));
+                    CategoryRailCard.Visibility == Visibility.Visible));
             }
 
             ApplyResponsiveLayout(actualWidth, force: true);
@@ -338,12 +410,13 @@ public sealed partial class LiveTvView
 
     private sealed record LayoutCapture(
         string Layout,
+        int CategoryColumn,
         int ChannelColumn,
         int ChannelRow,
         int PlayerColumn,
         int PlayerRow,
         bool ProgrammeStacked,
-        bool ChannelInformationVisible);
+        bool CategoryRailVisible);
 
     private sealed record LayoutEvidence(
         IReadOnlyList<LayoutCapture> Layouts,
