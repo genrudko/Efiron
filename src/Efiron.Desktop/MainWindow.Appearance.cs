@@ -104,7 +104,7 @@ public sealed partial class MainWindow
     {
         for (var index = 0; index < comboBox.Items.Count; index++)
         {
-            if (ComboBox.Items[index] is ComboBoxItem item && Equals(item.Tag, value))
+            if (comboBox.Items[index] is ComboBoxItem item && Equals(item.Tag, value))
             {
                 comboBox.SelectedIndex = index;
                 return;
