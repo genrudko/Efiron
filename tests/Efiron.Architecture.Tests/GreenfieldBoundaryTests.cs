@@ -114,6 +114,14 @@ public sealed class GreenfieldBoundaryTests
             desktopDirectory,
             "Views",
             "ProgrammeGuideView.xaml"));
+        var programmeRenderer = File.ReadAllText(Path.Combine(
+            desktopDirectory,
+            "Views",
+            "ProgrammeGuideView.VirtualizedSurface.cs"));
+        var programmeProjection = File.ReadAllText(Path.Combine(
+            desktopDirectory,
+            "Views",
+            "ProgrammeGuideView.ProgressiveLoad.cs"));
         var channelPresentation = File.ReadAllText(Path.Combine(
             desktopDirectory,
             "Presentation",
@@ -141,13 +149,19 @@ public sealed class GreenfieldBoundaryTests
         Assert.Contains("Source=\"{Binding LogoUrl}\"", live, StringComparison.Ordinal);
         Assert.Contains("snapshot.Channel.LogoUri", channelPresentation, StringComparison.Ordinal);
 
-        Assert.Contains("x:Name=\"TimelineHeaderGrid\"", programme, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"ChannelRowsListView\"", programme, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"TimelineRowsListView\"", programme, StringComparison.Ordinal);
-        Assert.Contains("presentation:EpgTimelinePanel", programme, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"TimelineHeaderCanvas\"", programme, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"EpgRowsViewport\"", programme, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"EpgRowsCanvas\"", programme, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"EpgVerticalScrollBar\"", programme, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"EpgHorizontalScrollBar\"", programme, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"TimelineZoomSlider\"", programme, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"CurrentTimeLine\"", programme, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"ProgrammeDetailsCard\"", programme, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"PlayProgrammeChannelButton\"", programme, StringComparison.Ordinal);
+        Assert.DoesNotContain("ChannelRowsListView", programme, StringComparison.Ordinal);
+        Assert.DoesNotContain("TimelineRowsListView", programme, StringComparison.Ordinal);
+        Assert.Contains("RenderViewport", programmeRenderer, StringComparison.Ordinal);
+        Assert.Contains("manual-two-axis-virtualization", programmeProjection, StringComparison.Ordinal);
         Assert.Contains("IReadOnlyList<Programme> Schedule", channelSnapshot, StringComparison.Ordinal);
     }
 
