@@ -117,14 +117,12 @@ for ($x = 0; $x -lt $Width; $x++) {
 # Positive bitmap height means bottom-up scanline storage.
 for ($storageRow = 0; $storageRow -lt $Height; $storageRow++) {
     $sourceY = $Height - 1 - $storageRow
-    $sourceRow = if ($sourceY -lt $bandHeight) {
-        $redRow
+    [byte[]]$sourceRow = $blueRow
+    if ($sourceY -lt $bandHeight) {
+        $sourceRow = $redRow
     }
     elseif ($sourceY -ge $Height - $bandHeight) {
-        $greenRow
-    }
-    else {
-        $blueRow
+        $sourceRow = $greenRow
     }
 
     [System.Buffer]::BlockCopy(
