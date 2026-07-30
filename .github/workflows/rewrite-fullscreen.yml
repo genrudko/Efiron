@@ -15,9 +15,9 @@ permissions:
 
 jobs:
   fullscreen:
-    name: Fullscreen fill geometry and edges
+    name: Real-video fullscreen fill and edges
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 24
 
     steps:
       - name: Checkout exact branch head
@@ -38,10 +38,11 @@ jobs:
           dotnet restore Efiron.Greenfield.sln
           dotnet build Efiron.Greenfield.sln -c Release --no-restore
 
-      - name: Prepare fullscreen fixture
+      - name: Prepare ultrawide fullscreen video fixture
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
           $fixture = Join-Path $env:RUNNER_TEMP "efiron-fullscreen-fixture"
           $localAppData = [Environment]::GetFolderPath(
             [Environment+SpecialFolder]::LocalApplicationData)
@@ -49,31 +50,21 @@ jobs:
           Remove-Item $fixture,$data -Recurse -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Path $fixture,$data -Force | Out-Null
 
-          $wave = Join-Path $fixture "channel.wav"
-          $sampleRate = 8000
-          $dataLength = $sampleRate * 2 * 90
-          $stream = [IO.File]::Create($wave)
-          $writer = [IO.BinaryWriter]::new($stream)
-          try {
-            $ascii = [Text.Encoding]::ASCII
-            $writer.Write($ascii.GetBytes("RIFF")); $writer.Write([int](36 + $dataLength))
-            $writer.Write($ascii.GetBytes("WAVEfmt ")); $writer.Write([int]16)
-            $writer.Write([int16]1); $writer.Write([int16]1)
-            $writer.Write([int]$sampleRate); $writer.Write([int]($sampleRate * 2))
-            $writer.Write([int16]2); $writer.Write([int16]16)
-            $writer.Write($ascii.GetBytes("data")); $writer.Write([int]$dataLength)
-            $silence = [byte[]]::new(65536)
-            for ($remaining = $dataLength; $remaining -gt 0; $remaining -= $count) {
-              $count = [Math]::Min($silence.Length, $remaining)
-              $writer.Write($silence, 0, $count)
-            }
+          $ffmpeg = (Get-Command ffmpeg -ErrorAction Stop).Source
+          $video = Join-Path $fixture "channel.mp4"
+          & $ffmpeg -hide_banner -loglevel error -y `
+            -f lavfi `
+            -i "color=c=0x3465A4:s=1680x720:r=15:d=30" `
+            -vf "drawbox=x=0:y=0:w=iw:h=110:color=0xE03131:t=fill,drawbox=x=0:y=ih-110:w=iw:h=110:color=0x12B886:t=fill" `
+            -c:v mpeg4 -q:v 4 -pix_fmt yuv420p -an $video
+          if (-not (Test-Path $video) -or (Get-Item $video).Length -lt 10000) {
+            throw "Ultrawide fullscreen fixture was not created."
           }
-          finally { $writer.Dispose(); $stream.Dispose() }
 
           @'
           #EXTM3U
           #EXTINF:-1 tvg-id="fullscreen.one" group-title="Fullscreen",Fullscreen One
-          http://127.0.0.1:18770/channel.wav
+          http://127.0.0.1:18770/channel.mp4
           '@ | Set-Content (Join-Path $fixture "playlist.m3u") -Encoding utf8
 
           $now = [DateTimeOffset]::UtcNow
@@ -93,7 +84,7 @@ jobs:
           @{ version = 1; theme = 1; accent = 0 } |
             ConvertTo-Json | Set-Content (Join-Path $data "appearance.json") -Encoding utf8
 
-      - name: Verify fullscreen fill geometry and edge pixels
+      - name: Verify real-video fullscreen fill and edge pixels
         shell: pwsh
         env:
           EFIRON_CI_FULLSCREEN_VERIFICATION: "1"
@@ -123,7 +114,7 @@ jobs:
             if ($server.HasExited) { throw "Fullscreen media server exited." }
 
             $process = Start-Process $exe -WorkingDirectory $output -PassThru
-            $deadline = [DateTime]::UtcNow.AddSeconds(90)
+            $deadline = [DateTime]::UtcNow.AddSeconds(100)
             while ([DateTime]::UtcNow -lt $deadline -and
                    (-not (Test-Path $evidencePath) -or -not (Test-Path $previewPath))) {
               Start-Sleep -Milliseconds 300
@@ -155,6 +146,10 @@ jobs:
                 [double]$evidence.Surface.PlayerBorderThickness -ne 0) {
               throw "Fullscreen surface geometry is invalid."
             }
+            if ($evidence.Surface.PlaybackState -ne "Playing" -or
+                [string]::IsNullOrWhiteSpace([string]$evidence.Surface.PlaybackSource)) {
+              throw "Fullscreen fixture was not playing when evidence was recorded."
+            }
             if ([string]::IsNullOrWhiteSpace([string]$evidence.Surface.VideoCropGeometry)) {
               throw "Fullscreen video fill crop geometry was not applied."
             }
@@ -167,6 +162,73 @@ jobs:
               throw "White fullscreen edge detected: top=$($evidence.TopWhitePixelRatio), bottom=$($evidence.BottomWhitePixelRatio)"
             }
 
+            Start-Sleep -Seconds 2
+            Add-Type -AssemblyName System.Drawing
+            Add-Type -AssemblyName System.Windows.Forms
+            $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+            $desktopPath = Join-Path $diagnostics "fullscreen-desktop.png"
+            $bitmap = [System.Drawing.Bitmap]::new(
+              $bounds.Width,
+              $bounds.Height,
+              [System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
+            $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+            try {
+              $graphics.CopyFromScreen(
+                $bounds.Location,
+                [System.Drawing.Point]::Empty,
+                $bounds.Size)
+              $bitmap.Save($desktopPath, [System.Drawing.Imaging.ImageFormat]::Png)
+
+              function Measure-NonBlackRatio(
+                [System.Drawing.Bitmap]$Image,
+                [int]$YStart,
+                [int]$YEnd) {
+                $xStart = [int]($Image.Width * 0.20)
+                $xEnd = [int]($Image.Width * 0.80)
+                $nonBlack = 0L
+                $samples = 0L
+                for ($y = $YStart; $y -lt $YEnd; $y += 2) {
+                  for ($x = $xStart; $x -lt $xEnd; $x += 2) {
+                    $pixel = $Image.GetPixel($x, $y)
+                    if ($pixel.R -gt 30 -or $pixel.G -gt 30 -or $pixel.B -gt 30) {
+                      $nonBlack++
+                    }
+                    $samples++
+                  }
+                }
+                if ($samples -eq 0) { return 0d }
+                return [double]$nonBlack / [double]$samples
+              }
+
+              $topContentRatio = Measure-NonBlackRatio `
+                $bitmap `
+                ([int]($bitmap.Height * 0.04)) `
+                ([int]($bitmap.Height * 0.16))
+              $lowerContentRatio = Measure-NonBlackRatio `
+                $bitmap `
+                ([int]($bitmap.Height * 0.62)) `
+                ([int]($bitmap.Height * 0.74))
+              if ($topContentRatio -lt 0.70 -or $lowerContentRatio -lt 0.70) {
+                throw "Decoded video did not fill fullscreen: top=$topContentRatio lower=$lowerContentRatio"
+              }
+
+              $desktopEvidence = [ordered]@{
+                HeadSha = "${{ github.event.pull_request.head.sha || github.sha }}"
+                Width = $bitmap.Width
+                Height = $bitmap.Height
+                TopContentRatio = $topContentRatio
+                LowerContentRatio = $lowerContentRatio
+                PlaybackState = [string]$evidence.Surface.PlaybackState
+                CropGeometry = [string]$evidence.Surface.VideoCropGeometry
+              }
+              $desktopEvidence | ConvertTo-Json |
+                Set-Content (Join-Path $diagnostics "fullscreen-desktop-runtime.json") -Encoding utf8
+            }
+            finally {
+              $graphics.Dispose()
+              $bitmap.Dispose()
+            }
+
             Add-Type -AssemblyName System.Drawing
             $image = [System.Drawing.Image]::FromFile($previewPath)
             try {
@@ -177,7 +239,12 @@ jobs:
             finally { $image.Dispose() }
 
             New-Item -ItemType Directory -Path fullscreen-artifacts -Force | Out-Null
-            Copy-Item $evidencePath,$previewPath fullscreen-artifacts/ -Force
+            Copy-Item `
+              $evidencePath,` 
+              $previewPath,` 
+              $desktopPath,` 
+              (Join-Path $diagnostics "fullscreen-desktop-runtime.json") `
+              fullscreen-artifacts/ -Force
             Get-Content $evidencePath -Raw
           }
           finally {
