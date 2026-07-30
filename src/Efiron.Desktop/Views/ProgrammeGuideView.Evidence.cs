@@ -1,3 +1,6 @@
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
+
 namespace Efiron.Desktop.Views;
 
 public sealed partial class ProgrammeGuideView
@@ -13,9 +16,7 @@ public sealed partial class ProgrammeGuideView
         JumpToNow();
         await Task.Delay(350, cancellationToken);
 
-        var categoryIndex = -1;
-        string? category = null;
-        var expectedCategoryCount = 0;
+        var categoryCandidates = new List<(int Index, string Category, int Count)>();
         for (var index = 1; index < ProgrammeCategoryComboBox.Items.Count; index++)
         {
             if (ProgrammeCategoryComboBox.Items[index] is not EpgCategoryOption option ||
@@ -30,20 +31,22 @@ public sealed partial class ProgrammeGuideView
                 StringComparison.CurrentCultureIgnoreCase));
             if (count > 0 && count < _allRows.Count)
             {
-                categoryIndex = index;
-                category = option.Value;
-                expectedCategoryCount = count;
-                break;
+                categoryCandidates.Add((index, option.Value, count));
             }
         }
 
-        if (categoryIndex < 0 || category is null)
+        var selectedCandidate = categoryCandidates
+            .OrderByDescending(static candidate => candidate.Count)
+            .ThenBy(static candidate => candidate.Category, StringComparer.CurrentCultureIgnoreCase)
+            .FirstOrDefault();
+        if (selectedCandidate.Index <= 0 ||
+            string.IsNullOrWhiteSpace(selectedCandidate.Category))
         {
             throw new InvalidOperationException(
                 "EPG fixture does not contain a partial category filter.");
         }
 
-        ProgrammeCategoryComboBox.SelectedIndex = categoryIndex;
+        ProgrammeCategoryComboBox.SelectedIndex = selectedCandidate.Index;
         await Task.Delay(850, cancellationToken);
         var firstVisibleIds = _visibleRows.Select(static row => row.StableId).ToArray();
         await Task.Delay(650, cancellationToken);
@@ -58,11 +61,13 @@ public sealed partial class ProgrammeGuideView
             firstVisibleIds.SequenceEqual(secondVisibleIds, StringComparer.Ordinal) &&
             _visibleRows.All(row => string.Equals(
                 row.Category,
-                category,
+                selectedCandidate.Category,
                 StringComparison.CurrentCultureIgnoreCase));
         var headerAligned = Math.Abs(
             TimelineHeaderScrollViewer.HorizontalOffset -
             TimelineHorizontalScrollViewer.HorizontalOffset) < 1;
+        var realizedProgrammeButtons = CountRealizedProgrammeButtons(
+            TimelineRowsListView);
 
         return new ProgrammeGuideRuntimeEvidence(
             _catalog.Channels.Count,
@@ -70,12 +75,13 @@ public sealed partial class ProgrammeGuideView
             _visibleRows.Count,
             _allRows.Count(static row => row.Programmes.Count > 0),
             allBlocks.Length,
+            realizedProgrammeButtons,
             TimelineHeaderGrid.Children.Count,
             TimelineHeaderGrid.Width,
             TimelineViewportGrid.ActualWidth,
             EpgChannelColumn.Width.Value,
-            category,
-            expectedCategoryCount,
+            selectedCandidate.Category,
+            selectedCandidate.Count,
             _visibleRows.Count,
             stableContents,
             geometryValid,
@@ -85,12 +91,30 @@ public sealed partial class ProgrammeGuideView
             DateTimeOffset.UtcNow);
     }
 
+    private static int CountRealizedProgrammeButtons(DependencyObject root)
+    {
+        var count = 0;
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
+        {
+            var child = VisualTreeHelper.GetChild(root, index);
+            if (child is Button { Tag: EpgProgrammeBlockItem })
+            {
+                count++;
+            }
+
+            count += CountRealizedProgrammeButtons(child);
+        }
+
+        return count;
+    }
+
     internal sealed record ProgrammeGuideRuntimeEvidence(
         int CatalogChannelCount,
         int TotalRowCount,
         int VisibleRowCount,
         int RowsWithProgrammes,
         int ProgrammeBlockCount,
+        int RealizedProgrammeButtonCount,
         int TimeSlotCount,
         double TimelineWidth,
         double ViewportWidth,
