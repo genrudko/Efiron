@@ -14,7 +14,7 @@ public sealed partial class ProgrammeGuideView
         var root = new Grid
         {
             Height = RowHeight,
-            Background = ResolveBrush("EfironSurfaceBrush"),
+            Background = ResolveEpgBrush("EfironSurfaceBrush"),
         };
         root.ColumnDefinitions.Add(new ColumnDefinition());
         root.ColumnDefinitions.Add(new ColumnDefinition
@@ -28,8 +28,7 @@ public sealed partial class ProgrammeGuideView
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
             VerticalContentAlignment = VerticalAlignment.Stretch,
             Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
-            BorderThickness = new Thickness(0, 0, 0, 1),
-            BorderBrush = ResolveBrush("EfironStrokeSubtleBrush"),
+            BorderThickness = new Thickness(0),
         };
         channelButton.Click += ChannelButton_Click;
 
@@ -50,7 +49,7 @@ public sealed partial class ProgrammeGuideView
         {
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Center,
-            Foreground = ResolveBrush("EfironTextTertiaryBrush"),
+            Foreground = ResolveEpgBrush("EfironTextTertiaryBrush"),
             FontSize = 11,
             FontWeight = FontWeights.SemiBold,
         };
@@ -65,12 +64,12 @@ public sealed partial class ProgrammeGuideView
         Grid.SetColumn(logoHost, 1);
         logoHost.Children.Add(new Border
         {
-            Background = ResolveBrush("EfironAccentQuietBrush"),
+            Background = ResolveEpgBrush("EfironAccentQuietBrush"),
             CornerRadius = new CornerRadius(9),
         });
         var initials = new TextBlock
         {
-            Foreground = ResolveBrush("EfironAccentBrush"),
+            Foreground = ResolveEpgBrush("EfironAccentBrush"),
             FontWeight = FontWeights.Bold,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
@@ -88,13 +87,13 @@ public sealed partial class ProgrammeGuideView
         Grid.SetColumn(labels, 2);
         var name = new TextBlock
         {
-            Foreground = ResolveBrush("EfironTextBrush"),
+            Foreground = ResolveEpgBrush("EfironTextBrush"),
             FontWeight = FontWeights.SemiBold,
             TextTrimming = TextTrimming.CharacterEllipsis,
         };
         var category = new TextBlock
         {
-            Foreground = ResolveBrush("EfironTextTertiaryBrush"),
+            Foreground = ResolveEpgBrush("EfironTextTertiaryBrush"),
             FontSize = 11,
             TextTrimming = TextTrimming.CharacterEllipsis,
         };
@@ -133,7 +132,7 @@ public sealed partial class ProgrammeGuideView
     {
         visual.Row = row;
         visual.Root.ColumnDefinitions[0].Width = new GridLength(_channelColumnWidth);
-        visual.Root.Background = ResolveBrush(
+        visual.Root.Background = ResolveEpgBrush(
             rowIndex % 2 == 0
                 ? "EfironSurfaceBrush"
                 : "EfironSurfaceRaisedBrush");
@@ -192,11 +191,11 @@ public sealed partial class ProgrammeGuideView
             Height = RowHeight - 12,
             Style = Resources["EpgProgrammeButtonStyle"] as Style,
             Tag = block,
-            Background = ResolveBrush(
+            Background = ResolveEpgBrush(
                 block.IsCurrent
                     ? "EfironAccentSubtleBrush"
                     : "EfironAccentQuietBrush"),
-            BorderBrush = ResolveBrush(
+            BorderBrush = ResolveEpgBrush(
                 block.IsCurrent
                     ? "EfironAccentBrush"
                     : "EfironStrokeSubtleBrush"),
@@ -222,7 +221,7 @@ public sealed partial class ProgrammeGuideView
             meta.Children.Add(new Border
             {
                 Padding = new Thickness(5, 1, 5, 1),
-                Background = ResolveBrush("EfironAccentBrush"),
+                Background = ResolveEpgBrush("EfironAccentBrush"),
                 CornerRadius = new CornerRadius(5),
                 Child = new TextBlock
                 {
@@ -237,7 +236,7 @@ public sealed partial class ProgrammeGuideView
         meta.Children.Add(new TextBlock
         {
             Text = block.TimeText,
-            Foreground = ResolveBrush("EfironTextSecondaryBrush"),
+            Foreground = ResolveEpgBrush("EfironTextSecondaryBrush"),
             FontSize = 10.5,
             TextTrimming = TextTrimming.CharacterEllipsis,
         });
@@ -245,7 +244,7 @@ public sealed partial class ProgrammeGuideView
         var title = new TextBlock
         {
             Text = block.Title,
-            Foreground = ResolveBrush("EfironTextBrush"),
+            Foreground = ResolveEpgBrush("EfironTextBrush"),
             FontWeight = FontWeights.SemiBold,
             FontSize = 12.5,
             TextWrapping = TextWrapping.Wrap,
@@ -262,6 +261,22 @@ public sealed partial class ProgrammeGuideView
                 ? $"{block.TimeText} · {block.Title}"
                 : $"{block.TimeText} · {block.Title}\n{block.Description}");
         return button;
+    }
+
+    private Brush ResolveEpgBrush(string key)
+    {
+        var resources = Microsoft.UI.Xaml.Application.Current.Resources;
+        var dictionaryKey = ProgrammeRoot.ActualTheme == ElementTheme.Light
+            ? "Light"
+            : "Default";
+        if (resources.ThemeDictionaries[dictionaryKey] is ResourceDictionary dictionary &&
+            dictionary[key] is Brush themeBrush)
+        {
+            return themeBrush;
+        }
+
+        return resources[key] as Brush ??
+            new SolidColorBrush(Microsoft.UI.Colors.Transparent);
     }
 
     private void ChannelButton_Click(object sender, RoutedEventArgs e)
