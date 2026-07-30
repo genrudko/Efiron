@@ -93,7 +93,10 @@ jobs:
           @'
           #EXTM3U
           #EXTINF:-1 tvg-id="fullscreen.one" group-title="Fullscreen",Fullscreen One
-          http://127.0.0.1:18770/stream.mjpg
+          #EXTVLCOPT:demux=mjpeg
+          #EXTVLCOPT:mjpeg-fps=10
+          #EXTVLCOPT:network-caching=150
+          http://127.0.0.1:18770/stream.mpjpeg
           '@ | Set-Content (Join-Path $fixture "playlist.m3u") -Encoding utf8
 
           $now = [DateTimeOffset]::UtcNow
