@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Text.Json;
+using Efiron.Desktop.Diagnostics;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Graphics.Imaging;
 using Windows.Storage;
@@ -29,8 +30,39 @@ public sealed partial class MainWindow
         _epgVerificationNavigationStarted = true;
         DispatcherQueue.TryEnqueue(
             DispatcherQueuePriority.Low,
-            ShowProgrammeWorkspace);
+            () =>
+            {
+                try
+                {
+                    ShowProgrammeWorkspace();
+                }
+                catch (Exception exception)
+                {
+                    StartupDiagnostics.RecordCrash(
+                        "epg-verification-navigation",
+                        exception);
+                    TryWriteEpgNavigationError(exception);
+                }
+            });
         return true;
+    }
+
+    private static void TryWriteEpgNavigationError(Exception exception)
+    {
+        try
+        {
+            var directory = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Efiron",
+                "diagnostics");
+            Directory.CreateDirectory(directory);
+            File.WriteAllText(
+                Path.Combine(directory, "epg-preview-error.log"),
+                exception.ToString());
+        }
+        catch
+        {
+        }
     }
 
     private async Task CaptureEpgEvidenceAsync()
@@ -104,6 +136,9 @@ public sealed partial class MainWindow
         }
         catch (Exception exception)
         {
+            StartupDiagnostics.RecordCrash(
+                "epg-verification-capture",
+                exception);
             try
             {
                 Directory.CreateDirectory(diagnosticsDirectory);
