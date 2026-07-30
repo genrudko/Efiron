@@ -38,7 +38,20 @@ public sealed partial class MainWindow
 
         try
         {
-            await Task.Delay(TimeSpan.FromMilliseconds(900), _lifetime.Token);
+            var readinessDeadline = DateTimeOffset.UtcNow.AddSeconds(12);
+            while (!LiveTvWorkspace.IsPlaybackVisualReady &&
+                   DateTimeOffset.UtcNow < readinessDeadline)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(100), _lifetime.Token);
+            }
+
+            if (!LiveTvWorkspace.IsPlaybackVisualReady)
+            {
+                throw new InvalidOperationException(
+                    "The presentation preview timed out before the playback visual became ready.");
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(300), _lifetime.Token);
             Directory.CreateDirectory(diagnosticsDirectory);
 
             var bitmap = new RenderTargetBitmap();
