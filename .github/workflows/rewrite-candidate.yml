@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   candidate:
-    name: Exact-head greenfield Windows candidate
+    name: Exact-head poster-aligned Windows candidate
     runs-on: windows-latest
     timeout-minutes: 28
 
@@ -90,10 +90,10 @@ jobs:
           <tv>
             <channel id="candidate.news"><display-name>Candidate News</display-name></channel>
             <channel id="candidate.cinema"><display-name>Candidate Cinema</display-name></channel>
-            <programme channel="candidate.news" start="$start" stop="$middle"><title>News Now</title></programme>
-            <programme channel="candidate.news" start="$middle" stop="$stop"><title>News Next</title></programme>
-            <programme channel="candidate.cinema" start="$start" stop="$middle"><title>Movie Now</title></programme>
-            <programme channel="candidate.cinema" start="$middle" stop="$stop"><title>Movie Next</title></programme>
+            <programme channel="candidate.news" start="$start" stop="$middle"><title>News Now</title><desc>Current news programme description.</desc></programme>
+            <programme channel="candidate.news" start="$middle" stop="$stop"><title>News Next</title><desc>Next news programme description.</desc></programme>
+            <programme channel="candidate.cinema" start="$start" stop="$middle"><title>Movie Now</title><desc>Current movie description.</desc></programme>
+            <programme channel="candidate.cinema" start="$middle" stop="$stop"><title>Movie Next</title><desc>Next movie description.</desc></programme>
           </tv>
           "@ | Set-Content (Join-Path $fixture "guide.xml") -Encoding utf8
 
@@ -104,7 +104,7 @@ jobs:
           @{ version = 1; theme = 2; accent = 1 } |
             ConvertTo-Json | Set-Content (Join-Path $data "appearance.json") -Encoding utf8
 
-      - name: Validate candidate runtime
+      - name: Validate poster-aligned candidate runtime
         id: runtime
         continue-on-error: true
         shell: pwsh
@@ -166,15 +166,27 @@ jobs:
             $wide = $layout.Layouts | Where-Object Layout -eq "Wide" | Select-Object -First 1
             $medium = $layout.Layouts | Where-Object Layout -eq "Medium" | Select-Object -First 1
             $compact = $layout.Layouts | Where-Object Layout -eq "Compact" | Select-Object -First 1
-            if ($wide.ChannelColumn -ne 0 -or $wide.ChannelRow -ne 0 -or
-                $wide.PlayerColumn -ne 1 -or $wide.PlayerRow -ne 0 -or
-                [bool]$wide.ProgrammeStacked) { throw "Wide layout evidence is invalid." }
-            if ($medium.ChannelColumn -ne 0 -or $medium.ChannelRow -ne 0 -or
-                $medium.PlayerColumn -ne 1 -or $medium.PlayerRow -ne 0 -or
-                -not [bool]$medium.ProgrammeStacked) { throw "Medium layout evidence is invalid." }
+
+            if ($wide.CategoryColumn -ne 0 -or
+                $wide.ChannelColumn -ne 1 -or $wide.ChannelRow -ne 0 -or
+                $wide.PlayerColumn -ne 2 -or $wide.PlayerRow -ne 0 -or
+                [bool]$wide.ProgrammeStacked -or
+                -not [bool]$wide.CategoryRailVisible) {
+              throw "Wide poster layout evidence is invalid."
+            }
+            if ($medium.CategoryColumn -ne 0 -or
+                $medium.ChannelColumn -ne 1 -or $medium.ChannelRow -ne 0 -or
+                $medium.PlayerColumn -ne 2 -or $medium.PlayerRow -ne 0 -or
+                -not [bool]$medium.ProgrammeStacked -or
+                -not [bool]$medium.CategoryRailVisible) {
+              throw "Medium poster layout evidence is invalid."
+            }
             if ($compact.ChannelColumn -ne 0 -or $compact.ChannelRow -ne 1 -or
                 $compact.PlayerColumn -ne 0 -or $compact.PlayerRow -ne 0 -or
-                -not [bool]$compact.ProgrammeStacked) { throw "Compact layout evidence is invalid." }
+                -not [bool]$compact.ProgrammeStacked -or
+                [bool]$compact.CategoryRailVisible) {
+              throw "Compact poster layout evidence is invalid."
+            }
 
             $playing = Get-Content $playingPath -Raw | ConvertFrom-Json
             $controls = Get-Content $controlsPath -Raw | ConvertFrom-Json
@@ -194,7 +206,7 @@ jobs:
             $process.Refresh()
             if ($process.HasExited) { throw "Efiron exited after candidate evidence." }
             @(
-              "Candidate runtime passed."
+              "Poster-aligned candidate runtime passed."
               "Exact head: ${{ github.event.pull_request.head.sha || github.sha }}"
               "Theme: $($appearance.ActualTheme)"
               "Accent: $($appearance.Accent) $($appearance.AccentColor)"
@@ -218,7 +230,7 @@ jobs:
             if ($null -ne $server -and -not $server.HasExited) { Stop-Process $server.Id -Force }
           }
 
-      - name: Prepare candidate package
+      - name: Prepare internal candidate package
         if: steps.runtime.outcome == 'success'
         shell: pwsh
         run: |
@@ -234,12 +246,13 @@ jobs:
           @{
             product = "Efiron"
             architecture = "greenfield"
+            presentation = "poster-aligned rewrite"
             platform = "Windows 11 x64"
             headSha = "${{ github.event.pull_request.head.sha || github.sha }}"
             validationRefSha = "${{ github.sha }}"
             runId = "${{ github.run_id }}"
             builtAtUtc = [DateTimeOffset]::UtcNow.ToString("O")
-            status = "user test candidate"
+            status = "internal visual review candidate"
           } | ConvertTo-Json | Set-Content (Join-Path $output "candidate-manifest.json") -Encoding utf8
 
       - name: Upload candidate diagnostics
@@ -251,11 +264,11 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - name: Upload exact-head greenfield Windows candidate
+      - name: Upload internal poster-aligned Windows candidate
         if: steps.runtime.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: efiron-greenfield-win-x64
+          name: efiron-poster-aligned-win-x64
           path: src/Efiron.Desktop/bin/x64/Release/net10.0-windows10.0.22000.0/win-x64/
           if-no-files-found: error
           retention-days: 7
@@ -264,5 +277,5 @@ jobs:
         if: steps.runtime.outcome == 'failure'
         shell: pwsh
         run: |
-          Write-Error "Greenfield candidate validation failed. See rewrite-candidate-diagnostics."
+          Write-Error "Poster-aligned candidate validation failed. See rewrite-candidate-diagnostics."
           exit 1
