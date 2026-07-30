@@ -110,14 +110,27 @@ public sealed class GreenfieldBoundaryTests
             desktopDirectory,
             "Views",
             "LiveTvView.xaml"));
+        var programme = File.ReadAllText(Path.Combine(
+            desktopDirectory,
+            "Views",
+            "ProgrammeGuideView.xaml"));
         var channelPresentation = File.ReadAllText(Path.Combine(
             desktopDirectory,
             "Presentation",
             "LiveChannelItem.cs"));
+        var channelSnapshot = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "src",
+            "Efiron.Application",
+            "Live",
+            "LiveChannelSnapshot.cs"));
 
         Assert.Contains("x:Name=\"AppNavigationRail\"", shell, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"LiveNavigationButton\"", shell, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ProgrammeNavigationButton\"", shell, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"SettingsNavigationButton\"", shell, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ProgrammeGuideWorkspace\"", shell, StringComparison.Ordinal);
+
         Assert.Contains("x:Name=\"CategoryRailCard\"", live, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"ChannelBrowserCard\"", live, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"PlayerWorkspace\"", live, StringComparison.Ordinal);
@@ -127,6 +140,15 @@ public sealed class GreenfieldBoundaryTests
         Assert.Contains("Text=\"ДАЛЕЕ\"", live, StringComparison.Ordinal);
         Assert.Contains("Source=\"{Binding LogoUrl}\"", live, StringComparison.Ordinal);
         Assert.Contains("snapshot.Channel.LogoUri", channelPresentation, StringComparison.Ordinal);
+
+        Assert.Contains("x:Name=\"TimelineHeaderGrid\"", programme, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ChannelRowsListView\"", programme, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"TimelineRowsListView\"", programme, StringComparison.Ordinal);
+        Assert.Contains("presentation:EpgTimelinePanel", programme, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"CurrentTimeLine\"", programme, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ProgrammeDetailsCard\"", programme, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"PlayProgrammeChannelButton\"", programme, StringComparison.Ordinal);
+        Assert.Contains("IReadOnlyList<Programme> Schedule", channelSnapshot, StringComparison.Ordinal);
     }
 
     private static IEnumerable<string> EnumerateExistingGreenfieldProjects(
