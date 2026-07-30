@@ -24,7 +24,7 @@ public sealed class LiveChannelItem : INotifyPropertyChanged
         Snapshot = snapshot;
         Name = snapshot.Channel.Name;
         Initials = CreateInitials(Name);
-        LogoUrl = snapshot.Channel.LogoUri?.AbsoluteUri;
+        LogoUrl = snapshot.Channel.LogoUri?.ToString();
         Category = snapshot.Channel.Category ?? string.Empty;
         CurrentProgramme = snapshot.CurrentProgramme?.Title ?? noProgrammeText;
         CurrentDescription = snapshot.CurrentProgramme?.Description ?? string.Empty;
