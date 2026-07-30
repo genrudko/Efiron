@@ -26,7 +26,8 @@
       RowSpacing="14"
       Background="{ThemeResource EfironWindowBrush}"
       KeyDown="ProgrammeRoot_KeyDown"
-      SizeChanged="ProgrammeRoot_SizeChanged">
+      SizeChanged="ProgrammeRoot_TimeWindowSizeChanged"
+      Unloaded="ProgrammeRoot_SmoothUnloaded">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto" />
       <RowDefinition Height="Auto" />
@@ -80,7 +81,7 @@
         <ColumnDefinition Width="*" />
         <ColumnDefinition Width="230" />
         <ColumnDefinition Width="Auto" />
-        <ColumnDefinition Width="190" />
+        <ColumnDefinition Width="320" />
       </Grid.ColumnDefinitions>
 
       <TextBox
@@ -111,18 +112,46 @@
         </StackPanel>
       </Border>
 
-      <StackPanel Grid.Column="3" Spacing="3" VerticalAlignment="Bottom">
-        <Grid>
-          <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-          <TextBlock Text="Масштаб времени" Style="{StaticResource EfironCaptionStyle}" />
-          <TextBlock x:Name="TimelineZoomText" Grid.Column="1" Style="{StaticResource EfironCaptionStyle}" FontWeight="SemiBold" />
+      <StackPanel Grid.Column="3" Spacing="5" VerticalAlignment="Bottom">
+        <Grid ColumnSpacing="8">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <Button
+              x:Name="PreviousTimeWindowButton"
+              Style="{StaticResource EfironIconButtonStyle}"
+              Click="PreviousTimeWindowButton_Click"
+              ToolTipService.ToolTip="Назад по времени">
+            <FontIcon Glyph="&#xE76B;" FontSize="14" />
+          </Button>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Окно" Style="{StaticResource EfironCaptionStyle}" />
+            <TextBlock x:Name="TimelineZoomText" Style="{StaticResource EfironCaptionStyle}" FontWeight="SemiBold" />
+          </StackPanel>
+          <Button
+              x:Name="NextTimeWindowButton"
+              Grid.Column="2"
+              Style="{StaticResource EfironIconButtonStyle}"
+              Click="NextTimeWindowButton_Click"
+              ToolTipService.ToolTip="Вперёд по времени">
+            <FontIcon Glyph="&#xE76C;" FontSize="14" />
+          </Button>
         </Grid>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="6">
+          <ToggleButton x:Name="TimeWindow3HoursButton" Content="3 ч" Tag="3" MinWidth="52" Style="{StaticResource EfironPillToggleStyle}" Click="TimeWindowButton_Click" />
+          <ToggleButton x:Name="TimeWindow6HoursButton" Content="6 ч" Tag="6" MinWidth="52" Style="{StaticResource EfironPillToggleStyle}" IsChecked="True" Click="TimeWindowButton_Click" />
+          <ToggleButton x:Name="TimeWindow12HoursButton" Content="12 ч" Tag="12" MinWidth="58" Style="{StaticResource EfironPillToggleStyle}" Click="TimeWindowButton_Click" />
+          <ToggleButton x:Name="TimeWindow24HoursButton" Content="24 ч" Tag="24" MinWidth="58" Style="{StaticResource EfironPillToggleStyle}" Click="TimeWindowButton_Click" />
+        </StackPanel>
         <Slider
             x:Name="TimelineZoomSlider"
             Minimum="0.7"
             Maximum="4"
             StepFrequency="0.1"
             Value="1.35"
+            Visibility="Collapsed"
             ValueChanged="TimelineZoomSlider_ValueChanged" />
       </StackPanel>
     </Grid>
@@ -174,7 +203,7 @@
             Grid.Row="1"
             Grid.ColumnSpan="2"
             Background="{ThemeResource EfironSurfaceBrush}"
-            PointerWheelChanged="EpgRowsViewport_PointerWheelChanged"
+            PointerWheelChanged="EpgRowsViewport_SmoothPointerWheelChanged"
             SizeChanged="EpgRowsViewport_SizeChanged">
           <Canvas x:Name="EpgRowsCanvas" />
           <Border
@@ -206,14 +235,14 @@
             Grid.Row="1"
             Grid.Column="2"
             Orientation="Vertical"
-            ValueChanged="EpgVerticalScrollBar_ValueChanged" />
+            ValueChanged="EpgVerticalScrollBar_SmoothValueChanged" />
 
         <ScrollBar
             x:Name="EpgHorizontalScrollBar"
             Grid.Row="2"
             Grid.Column="1"
             Orientation="Horizontal"
-            ValueChanged="EpgHorizontalScrollBar_ValueChanged" />
+            ValueChanged="EpgHorizontalScrollBar_TimeWindowValueChanged" />
       </Grid>
     </Border>
 
