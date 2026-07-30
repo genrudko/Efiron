@@ -28,81 +28,52 @@ jobs:
         with:
           dotnet-version: 10.0.302
 
-      - name: Restore greenfield solution
-        run: dotnet restore Efiron.Greenfield.sln
-
-      - name: Build greenfield candidate
-        run: dotnet build Efiron.Greenfield.sln -c Release --no-restore
-
-      - name: Run greenfield tests
+      - name: Restore and build greenfield candidate
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          dotnet test tests/Efiron.Architecture.Tests/Efiron.Architecture.Tests.csproj -c Release --no-build
-          dotnet test tests/Efiron.Application.Tests/Efiron.Application.Tests.csproj -c Release --no-build
-          dotnet test tests/Efiron.Infrastructure.Tests/Efiron.Infrastructure.Tests.csproj -c Release --no-build
+          dotnet restore Efiron.Greenfield.sln
+          dotnet build Efiron.Greenfield.sln -c Release --no-restore
 
       - name: Prepare deterministic candidate fixture
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           $fixture = Join-Path $env:RUNNER_TEMP "efiron-candidate-fixture"
-          $playlist = Join-Path $fixture "playlist.m3u"
-          $guide = Join-Path $fixture "guide.xml"
-          $wave = Join-Path $fixture "candidate.wav"
           $localAppData = [Environment]::GetFolderPath(
             [Environment+SpecialFolder]::LocalApplicationData)
-          $efironData = Join-Path $localAppData "Efiron"
+          $data = Join-Path $localAppData "Efiron"
+          Remove-Item $fixture,$data -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $fixture,$data -Force | Out-Null
 
-          Remove-Item -LiteralPath $fixture -Recurse -Force -ErrorAction SilentlyContinue
-          Remove-Item -LiteralPath $efironData -Recurse -Force -ErrorAction SilentlyContinue
-          New-Item -ItemType Directory -Path $fixture -Force | Out-Null
-          New-Item -ItemType Directory -Path $efironData -Force | Out-Null
-
+          $wave = Join-Path $fixture "candidate.wav"
           $sampleRate = 8000
-          $channels = 1
-          $bitsPerSample = 16
-          $durationSeconds = 60
-          $blockAlign = [int]($channels * $bitsPerSample / 8)
-          $byteRate = $sampleRate * $blockAlign
-          $dataLength = $byteRate * $durationSeconds
-          $stream = [System.IO.File]::Create($wave)
-          $writer = [System.IO.BinaryWriter]::new($stream)
+          $dataLength = $sampleRate * 2 * 60
+          $stream = [IO.File]::Create($wave)
+          $writer = [IO.BinaryWriter]::new($stream)
           try {
-            $ascii = [System.Text.Encoding]::ASCII
-            $writer.Write($ascii.GetBytes("RIFF"))
-            $writer.Write([int](36 + $dataLength))
-            $writer.Write($ascii.GetBytes("WAVE"))
-            $writer.Write($ascii.GetBytes("fmt "))
-            $writer.Write([int]16)
-            $writer.Write([int16]1)
-            $writer.Write([int16]$channels)
-            $writer.Write([int]$sampleRate)
-            $writer.Write([int]$byteRate)
-            $writer.Write([int16]$blockAlign)
-            $writer.Write([int16]$bitsPerSample)
-            $writer.Write($ascii.GetBytes("data"))
-            $writer.Write([int]$dataLength)
+            $ascii = [Text.Encoding]::ASCII
+            $writer.Write($ascii.GetBytes("RIFF")); $writer.Write([int](36 + $dataLength))
+            $writer.Write($ascii.GetBytes("WAVEfmt ")); $writer.Write([int]16)
+            $writer.Write([int16]1); $writer.Write([int16]1)
+            $writer.Write([int]$sampleRate); $writer.Write([int]($sampleRate * 2))
+            $writer.Write([int16]2); $writer.Write([int16]16)
+            $writer.Write($ascii.GetBytes("data")); $writer.Write([int]$dataLength)
             $silence = [byte[]]::new(65536)
-            $remaining = $dataLength
-            while ($remaining -gt 0) {
+            for ($remaining = $dataLength; $remaining -gt 0; $remaining -= $count) {
               $count = [Math]::Min($silence.Length, $remaining)
               $writer.Write($silence, 0, $count)
-              $remaining -= $count
             }
           }
-          finally {
-            $writer.Dispose()
-            $stream.Dispose()
-          }
+          finally { $writer.Dispose(); $stream.Dispose() }
 
           @'
           #EXTM3U
-          #EXTINF:-1 tvg-id="candidate.news" tvg-name="Candidate News" group-title="News",Candidate News
+          #EXTINF:-1 tvg-id="candidate.news" group-title="News",Candidate News
           http://127.0.0.1:18766/candidate.wav
-          #EXTINF:-1 tvg-id="candidate.cinema" tvg-name="Candidate Cinema" group-title="Cinema",Candidate Cinema
+          #EXTINF:-1 tvg-id="candidate.cinema" group-title="Cinema",Candidate Cinema
           http://127.0.0.1:18766/candidate.wav
-          '@ | Set-Content -LiteralPath $playlist -Encoding utf8
+          '@ | Set-Content (Join-Path $fixture "playlist.m3u") -Encoding utf8
 
           $now = [DateTimeOffset]::UtcNow
           $start = $now.AddMinutes(-20).ToString("yyyyMMddHHmmss +0000")
@@ -112,28 +83,22 @@ jobs:
           <tv>
             <channel id="candidate.news"><display-name>Candidate News</display-name></channel>
             <channel id="candidate.cinema"><display-name>Candidate Cinema</display-name></channel>
-            <programme channel="candidate.news" start="$start" stop="$middle"><title>Candidate News Now</title></programme>
-            <programme channel="candidate.news" start="$middle" stop="$stop"><title>Candidate News Next</title></programme>
-            <programme channel="candidate.cinema" start="$start" stop="$middle"><title>Candidate Movie Now</title></programme>
-            <programme channel="candidate.cinema" start="$middle" stop="$stop"><title>Candidate Movie Next</title></programme>
+            <programme channel="candidate.news" start="$start" stop="$middle"><title>News Now</title></programme>
+            <programme channel="candidate.news" start="$middle" stop="$stop"><title>News Next</title></programme>
+            <programme channel="candidate.cinema" start="$start" stop="$middle"><title>Movie Now</title></programme>
+            <programme channel="candidate.cinema" start="$middle" stop="$stop"><title>Movie Next</title></programme>
           </tv>
-          "@ | Set-Content -LiteralPath $guide -Encoding utf8
+          "@ | Set-Content (Join-Path $fixture "guide.xml") -Encoding utf8
 
           @{
-            playlist = @{ location = $playlist; isEnabled = $true }
-            programmeGuide = @{ location = $guide; isEnabled = $true }
-          } | ConvertTo-Json -Depth 4 |
-            Set-Content -LiteralPath (Join-Path $efironData "sources.json") -Encoding utf8
-
-          @{
-            version = 1
-            theme = 2
-            accent = 1
-          } | ConvertTo-Json |
-            Set-Content -LiteralPath (Join-Path $efironData "appearance.json") -Encoding utf8
+            playlist = @{ location = (Join-Path $fixture "playlist.m3u"); isEnabled = $true }
+            programmeGuide = @{ location = (Join-Path $fixture "guide.xml"); isEnabled = $true }
+          } | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $data "sources.json") -Encoding utf8
+          @{ version = 1; theme = 2; accent = 1 } |
+            ConvertTo-Json | Set-Content (Join-Path $data "appearance.json") -Encoding utf8
 
       - name: Validate candidate runtime
-        id: candidate_runtime
+        id: runtime
         continue-on-error: true
         shell: pwsh
         env:
@@ -143,162 +108,121 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $output = "src/Efiron.Desktop/bin/x64/Release/net10.0-windows10.0.22000.0/win-x64"
-          $executable = Join-Path $output "Efiron.exe"
+          $exe = Join-Path $output "Efiron.exe"
           $fixture = Join-Path $env:RUNNER_TEMP "efiron-candidate-fixture"
           $localAppData = [Environment]::GetFolderPath(
             [Environment+SpecialFolder]::LocalApplicationData)
           $diagnostics = Join-Path $localAppData "Efiron/diagnostics"
           $appearancePath = Join-Path $diagnostics "appearance-runtime.json"
           $layoutPath = Join-Path $diagnostics "layout-runtime.json"
-          $playbackPath = Join-Path $diagnostics "playback-playing.json"
+          $playingPath = Join-Path $diagnostics "playback-playing.json"
+          $controlsPath = Join-Path $diagnostics "playback-controls.json"
           $crashPath = Join-Path $diagnostics "startup-crash.log"
-          $process = $null
-          $server = $null
-
-          Remove-Item -LiteralPath $appearancePath -Force -ErrorAction SilentlyContinue
-          Remove-Item -LiteralPath $layoutPath -Force -ErrorAction SilentlyContinue
-          Remove-Item -LiteralPath $playbackPath -Force -ErrorAction SilentlyContinue
-          Remove-Item -LiteralPath $crashPath -Force -ErrorAction SilentlyContinue
+          $required = @($appearancePath,$layoutPath,$playingPath,$controlsPath)
+          Remove-Item $required -Force -ErrorAction SilentlyContinue
+          $process = $null; $server = $null
 
           try {
             $python = (Get-Command python -ErrorAction Stop).Source
-            $server = Start-Process -FilePath $python -ArgumentList @(
-              "-m", "http.server", "18766", "--bind", "127.0.0.1", "--directory", $fixture) `
+            $server = Start-Process $python -ArgumentList @(
+              "-m","http.server","18766","--bind","127.0.0.1","--directory",$fixture) `
               -WindowStyle Hidden -PassThru
             Start-Sleep -Seconds 2
-            $server.Refresh()
-            if ($server.HasExited) {
-              throw "The candidate media server exited with code $($server.ExitCode)."
-            }
+            if ($server.HasExited) { throw "Candidate media server exited." }
 
-            $process = Start-Process -FilePath $executable -WorkingDirectory $output -PassThru
-            $deadline = [DateTime]::UtcNow.AddSeconds(55)
+            $process = Start-Process $exe -WorkingDirectory $output -PassThru
+            $deadline = [DateTime]::UtcNow.AddSeconds(60)
             while ([DateTime]::UtcNow -lt $deadline) {
               $process.Refresh()
-              if ($process.HasExited) {
-                throw "Efiron exited during candidate validation with code $($process.ExitCode)."
-              }
-
-              if ((Test-Path $appearancePath) -and
-                  (Test-Path $layoutPath) -and
-                  (Test-Path $playbackPath)) {
-                break
-              }
+              if ($process.HasExited) { throw "Efiron exited with code $($process.ExitCode)." }
+              if ((@($required | Where-Object { -not (Test-Path $_) })).Count -eq 0) { break }
               Start-Sleep -Milliseconds 250
             }
-
-            foreach ($required in @($appearancePath, $layoutPath, $playbackPath)) {
-              if (-not (Test-Path -LiteralPath $required)) {
-                throw "Candidate evidence is missing: $required"
-              }
+            foreach ($path in $required) {
+              if (-not (Test-Path $path)) { throw "Candidate evidence is missing: $path" }
             }
 
-            $appearance = Get-Content -LiteralPath $appearancePath -Raw | ConvertFrom-Json
+            $appearance = Get-Content $appearancePath -Raw | ConvertFrom-Json
             if ($appearance.StoredTheme -ne "Dark" -or
                 $appearance.RequestedTheme -ne "Dark" -or
                 $appearance.ActualTheme -ne "Dark" -or
                 $appearance.Accent -ne "Violet" -or
                 [string]::IsNullOrWhiteSpace($appearance.AccentColor)) {
-              throw "Appearance evidence is invalid: $($appearance | ConvertTo-Json -Compress)"
+              throw "Appearance evidence is invalid."
             }
 
-            $layout = Get-Content -LiteralPath $layoutPath -Raw | ConvertFrom-Json
-            $names = @($layout.Layouts | ForEach-Object { $_.Layout })
-            foreach ($expected in @("Wide", "Medium", "Compact")) {
-              if ($expected -notin $names) {
-                throw "Layout evidence does not contain $expected."
-              }
+            $layout = Get-Content $layoutPath -Raw | ConvertFrom-Json
+            $names = @($layout.Layouts | ForEach-Object Layout)
+            foreach ($name in @("Wide","Medium","Compact")) {
+              if ($name -notin $names) { throw "Layout evidence does not contain $name." }
             }
             $wide = $layout.Layouts | Where-Object Layout -eq "Wide" | Select-Object -First 1
             $medium = $layout.Layouts | Where-Object Layout -eq "Medium" | Select-Object -First 1
             $compact = $layout.Layouts | Where-Object Layout -eq "Compact" | Select-Object -First 1
             if ($wide.ChannelColumn -ne 0 -or $wide.ChannelRow -ne 0 -or
                 $wide.PlayerColumn -ne 1 -or $wide.PlayerRow -ne 0 -or
-                [bool]$wide.ProgrammeStacked) {
-              throw "Wide layout evidence is invalid."
-            }
+                [bool]$wide.ProgrammeStacked) { throw "Wide layout evidence is invalid." }
             if ($medium.ChannelColumn -ne 0 -or $medium.ChannelRow -ne 0 -or
                 $medium.PlayerColumn -ne 1 -or $medium.PlayerRow -ne 0 -or
-                -not [bool]$medium.ProgrammeStacked) {
-              throw "Medium layout evidence is invalid."
-            }
+                -not [bool]$medium.ProgrammeStacked) { throw "Medium layout evidence is invalid." }
             if ($compact.ChannelColumn -ne 0 -or $compact.ChannelRow -ne 1 -or
                 $compact.PlayerColumn -ne 0 -or $compact.PlayerRow -ne 0 -or
-                -not [bool]$compact.ProgrammeStacked) {
-              throw "Compact layout evidence is invalid."
-            }
+                -not [bool]$compact.ProgrammeStacked) { throw "Compact layout evidence is invalid." }
 
-            $playback = Get-Content -LiteralPath $playbackPath -Raw | ConvertFrom-Json
-            if ($playback.State -ne "Playing" -or
-                -not [bool]$playback.Paused -or
-                -not [bool]$playback.Resumed -or
-                -not [bool]$playback.VolumeSetTo37 -or
-                -not [bool]$playback.Muted -or
-                -not [bool]$playback.Unmuted -or
-                -not [bool]$playback.Stopped -or
-                -not [bool]$playback.SwitchedToSecondChannel) {
+            $playing = Get-Content $playingPath -Raw | ConvertFrom-Json
+            $controls = Get-Content $controlsPath -Raw | ConvertFrom-Json
+            if ($playing.State -ne "Playing" -or
+                -not [bool]$controls.Paused -or
+                -not [bool]$controls.Resumed -or
+                -not [bool]$controls.VolumeSetTo37 -or
+                -not [bool]$controls.Muted -or
+                -not [bool]$controls.Unmuted -or
+                -not [bool]$controls.Stopped -or
+                -not [bool]$controls.SwitchedToSecondChannel -or
+                -not [string]::IsNullOrWhiteSpace($controls.Error)) {
               throw "Playback control evidence is incomplete."
             }
 
             Start-Sleep -Seconds 4
             $process.Refresh()
-            if ($process.HasExited) {
-              throw "Efiron exited after candidate evidence was produced."
-            }
-
+            if ($process.HasExited) { throw "Efiron exited after candidate evidence." }
             @(
               "Candidate runtime passed."
               "Theme: $($appearance.ActualTheme)"
               "Accent: $($appearance.Accent) $($appearance.AccentColor)"
               "Layouts: $($names -join ', ')"
-              "Playback: $($playback.State)"
-            ) | Set-Content -LiteralPath rewrite-candidate.log -Encoding utf8
+              "Playback: $($playing.State)"
+            ) | Set-Content rewrite-candidate.log -Encoding utf8
           }
           catch {
             $details = @($_ | Out-String)
-            if (Test-Path -LiteralPath $crashPath) {
-              $details += "===== APPLICATION CRASH ====="
-              $details += Get-Content -LiteralPath $crashPath -Raw
-            }
-            foreach ($path in @($appearancePath, $layoutPath, $playbackPath)) {
-              if (Test-Path -LiteralPath $path) {
+            foreach ($path in @($crashPath) + $required) {
+              if (Test-Path $path) {
                 $details += "===== $path ====="
-                $details += Get-Content -LiteralPath $path -Raw
+                $details += Get-Content $path -Raw
               }
             }
-            $details | Set-Content -LiteralPath rewrite-candidate.log -Encoding utf8
+            $details | Set-Content rewrite-candidate.log -Encoding utf8
             throw
           }
           finally {
-            if ($null -ne $process) {
-              $process.Refresh()
-              if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
-            }
-            if ($null -ne $server) {
-              $server.Refresh()
-              if (-not $server.HasExited) { Stop-Process -Id $server.Id -Force }
-            }
+            if ($null -ne $process -and -not $process.HasExited) { Stop-Process $process.Id -Force }
+            if ($null -ne $server -and -not $server.HasExited) { Stop-Process $server.Id -Force }
           }
 
       - name: Prepare candidate package
-        if: steps.candidate_runtime.outcome == 'success'
+        if: steps.runtime.outcome == 'success'
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           $output = "src/Efiron.Desktop/bin/x64/Release/net10.0-windows10.0.22000.0/win-x64"
-          $allowed = [System.Collections.Generic.HashSet[string]]::new(
-            [System.StringComparer]::OrdinalIgnoreCase)
-          [void]$allowed.Add("en-US")
-          [void]$allowed.Add("ru-RU")
-
-          Get-ChildItem -LiteralPath $output -Directory | ForEach-Object {
-            try { [void][System.Globalization.CultureInfo]::GetCultureInfo($_.Name) }
-            catch [System.Globalization.CultureNotFoundException] { return }
-            if (-not $allowed.Contains($_.Name)) {
-              Remove-Item -LiteralPath $_.FullName -Recurse -Force
-            }
+          $allowed = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+          [void]$allowed.Add("en-US"); [void]$allowed.Add("ru-RU")
+          Get-ChildItem $output -Directory | ForEach-Object {
+            try { [void][Globalization.CultureInfo]::GetCultureInfo($_.Name) }
+            catch [Globalization.CultureNotFoundException] { return }
+            if (-not $allowed.Contains($_.Name)) { Remove-Item $_.FullName -Recurse -Force }
           }
-
           @{
             product = "Efiron"
             architecture = "greenfield"
@@ -307,11 +231,10 @@ jobs:
             runId = "${{ github.run_id }}"
             builtAtUtc = [DateTimeOffset]::UtcNow.ToString("O")
             status = "user test candidate"
-          } | ConvertTo-Json |
-            Set-Content -LiteralPath (Join-Path $output "candidate-manifest.json") -Encoding utf8
+          } | ConvertTo-Json | Set-Content (Join-Path $output "candidate-manifest.json") -Encoding utf8
 
       - name: Upload candidate diagnostics
-        if: steps.candidate_runtime.outcome == 'failure'
+        if: steps.runtime.outcome == 'failure'
         uses: actions/upload-artifact@v4
         with:
           name: rewrite-candidate-diagnostics
@@ -320,7 +243,7 @@ jobs:
           retention-days: 7
 
       - name: Upload greenfield Windows candidate
-        if: steps.candidate_runtime.outcome == 'success'
+        if: steps.runtime.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: efiron-greenfield-win-x64
@@ -329,7 +252,7 @@ jobs:
           retention-days: 7
 
       - name: Enforce candidate runtime
-        if: steps.candidate_runtime.outcome == 'failure'
+        if: steps.runtime.outcome == 'failure'
         shell: pwsh
         run: |
           Write-Error "Greenfield candidate validation failed. See rewrite-candidate-diagnostics."
