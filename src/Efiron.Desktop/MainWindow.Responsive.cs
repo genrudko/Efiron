@@ -13,10 +13,10 @@ public sealed partial class MainWindow
         var narrow = e.NewSize.Width < 620;
 
         SourcesContentGrid.Margin = narrow
-            ? new Thickness(16, 20, 16, 32)
+            ? new Thickness(14, 18, 14, 28)
             : compact
-                ? new Thickness(26, 26, 26, 38)
-                : new Thickness(42, 34, 42, 48);
+                ? new Thickness(22, 22, 22, 34)
+                : new Thickness(30, 26, 30, 44);
 
         SourceCardsFirstColumn.Width = new GridLength(1, GridUnitType.Star);
         SourceCardsSecondColumn.Width = compact
@@ -28,17 +28,11 @@ public sealed partial class MainWindow
         Grid.SetColumn(GuideSourceCard, compact ? 0 : 1);
         Grid.SetRow(GuideSourceCard, compact ? 1 : 0);
 
-        StorageActionColumn.Width = compact
-            ? new GridLength(0)
-            : GridLength.Auto;
-        StorageActionRow.Height = compact
-            ? GridLength.Auto
-            : new GridLength(0);
-        Grid.SetColumn(StorageActionPanel, compact ? 0 : 1);
-        Grid.SetRow(StorageActionPanel, compact ? 1 : 0);
-        StorageActionPanel.HorizontalAlignment = compact
-            ? HorizontalAlignment.Left
-            : HorizontalAlignment.Right;
+        StorageActionColumn.Width = GridLength.Auto;
+        StorageActionRow.Height = new GridLength(0);
+        Grid.SetColumn(StorageActionPanel, 1);
+        Grid.SetRow(StorageActionPanel, 0);
+        StorageActionPanel.HorizontalAlignment = HorizontalAlignment.Right;
 
         AppearanceSecondColumn.Width = compact
             ? new GridLength(0)
