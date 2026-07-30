@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   fullscreen:
-    name: Borderless fullscreen edges
+    name: Fullscreen fill geometry and edges
     runs-on: windows-latest
     timeout-minutes: 20
 
@@ -93,7 +93,7 @@ jobs:
           @{ version = 1; theme = 1; accent = 0 } |
             ConvertTo-Json | Set-Content (Join-Path $data "appearance.json") -Encoding utf8
 
-      - name: Verify fullscreen presenter and edge pixels
+      - name: Verify fullscreen fill geometry and edge pixels
         shell: pwsh
         env:
           EFIRON_CI_FULLSCREEN_VERIFICATION: "1"
@@ -154,6 +154,9 @@ jobs:
                 [double]$evidence.Surface.PlayerWorkspaceRowSpacing -ne 0 -or
                 [double]$evidence.Surface.PlayerBorderThickness -ne 0) {
               throw "Fullscreen surface geometry is invalid."
+            }
+            if ([string]::IsNullOrWhiteSpace([string]$evidence.Surface.VideoCropGeometry)) {
+              throw "Fullscreen video fill crop geometry was not applied."
             }
             if ($evidence.WindowBackground -ne "#FF000000" -or
                 $evidence.Surface.LiveRootBackground -ne "#FF000000") {
