@@ -4,7 +4,9 @@ using Efiron.Desktop.Diagnostics;
 using Efiron.Domain.Appearance;
 using Efiron.Infrastructure.Appearance;
 using Efiron.Infrastructure.Playback;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Windows.Graphics;
 
 namespace Efiron.Desktop;
 
@@ -37,6 +39,7 @@ public sealed partial class App : Microsoft.UI.Xaml.Application
         {
             var appearance = await LoadAppearancePreferencesAsync();
             _window = new MainWindow(AppearancePreferencesStore, appearance);
+            ApplyInitialWindowSize(_window);
             _window.Activate();
         }
         catch (Exception exception)
@@ -44,6 +47,17 @@ public sealed partial class App : Microsoft.UI.Xaml.Application
             StartupDiagnostics.RecordCrash("App.OnLaunched", exception);
             throw;
         }
+    }
+
+    private static void ApplyInitialWindowSize(Window window)
+    {
+        var displayArea = DisplayArea.GetFromWindowId(
+            window.AppWindow.Id,
+            DisplayAreaFallback.Primary);
+        var workArea = displayArea.WorkArea;
+        var width = Math.Min(1440, Math.Max(960, workArea.Width - 80));
+        var height = Math.Min(900, Math.Max(640, workArea.Height - 80));
+        window.AppWindow.Resize(new SizeInt32(width, height));
     }
 
     private async Task<AppearancePreferences> LoadAppearancePreferencesAsync()
