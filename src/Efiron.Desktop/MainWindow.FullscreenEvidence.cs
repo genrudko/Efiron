@@ -1,0 +1,186 @@
+using System.Runtime.InteropServices.WindowsRuntime;
+using System.Text.Json;
+using Microsoft.UI.Windowing;
+using Microsoft.UI.Xaml.Media.Imaging;
+using Windows.Graphics.Imaging;
+using Windows.Storage;
+
+namespace Efiron.Desktop;
+
+public sealed partial class MainWindow
+{
+    private const string FullscreenVerificationEnvironmentVariable =
+        "EFIRON_CI_FULLSCREEN_VERIFICATION";
+
+    private bool _fullscreenVerificationStarted;
+
+    private bool TryStartFullscreenVerification()
+    {
+        if (_fullscreenVerificationStarted ||
+            !string.Equals(
+                Environment.GetEnvironmentVariable(
+                    FullscreenVerificationEnvironmentVariable),
+                "1",
+                StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        _fullscreenVerificationStarted = true;
+        _ = CaptureFullscreenEvidenceAsync();
+        return true;
+    }
+
+    private async Task CaptureFullscreenEvidenceAsync()
+    {
+        var diagnosticsDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Efiron",
+            "diagnostics");
+        var evidencePath = Path.Combine(
+            diagnosticsDirectory,
+            "fullscreen-runtime.json");
+        var previewPath = Path.Combine(
+            diagnosticsDirectory,
+            "fullscreen-preview.png");
+        var errorPath = Path.Combine(
+            diagnosticsDirectory,
+            "fullscreen-preview-error.log");
+
+        try
+        {
+            await Task.Delay(450, _lifetime.Token);
+            SetFullscreen(true);
+            await Task.Delay(950, _lifetime.Token);
+
+            var bitmap = new RenderTargetBitmap();
+            await bitmap.RenderAsync(WindowRoot);
+            var pixels = (await bitmap.GetPixelsAsync()).ToArray();
+            if (bitmap.PixelWidth <= 0 || bitmap.PixelHeight <= 0)
+            {
+                throw new InvalidOperationException(
+                    "The fullscreen preview rendered with an empty pixel size.");
+            }
+
+            var edge = MeasureHorizontalEdges(
+                pixels,
+                bitmap.PixelWidth,
+                bitmap.PixelHeight,
+                rowsPerEdge: 6);
+            var surface = LiveTvWorkspace.GetFullscreenSurfaceEvidence();
+            var evidence = new
+            {
+                PresenterKind = AppWindow.Presenter.Kind.ToString(),
+                TitleBarRowHeight = WindowRoot.RowDefinitions[0].Height.Value,
+                NavigationColumnWidth = ShellNavigationColumn.Width.Value,
+                WindowBackground = WindowRoot.Background is
+                    Microsoft.UI.Xaml.Media.SolidColorBrush windowBrush
+                        ? windowBrush.Color.ToString()
+                        : string.Empty,
+                Surface = surface,
+                PixelWidth = bitmap.PixelWidth,
+                PixelHeight = bitmap.PixelHeight,
+                edge.TopWhitePixelRatio,
+                edge.BottomWhitePixelRatio,
+                RecordedAtUtc = DateTimeOffset.UtcNow,
+            };
+
+            Directory.CreateDirectory(diagnosticsDirectory);
+            await File.WriteAllTextAsync(
+                evidencePath,
+                JsonSerializer.Serialize(evidence),
+                _lifetime.Token);
+            await WritePngAsync(
+                previewPath,
+                bitmap.PixelWidth,
+                bitmap.PixelHeight,
+                pixels,
+                _lifetime.Token);
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            try
+            {
+                Directory.CreateDirectory(diagnosticsDirectory);
+                await File.WriteAllTextAsync(errorPath, exception.ToString());
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private static (double TopWhitePixelRatio, double BottomWhitePixelRatio)
+        MeasureHorizontalEdges(
+            IReadOnlyList<byte> pixels,
+            int width,
+            int height,
+            int rowsPerEdge)
+    {
+        var rowCount = Math.Min(rowsPerEdge, Math.Max(1, height / 2));
+        var topWhite = 0L;
+        var bottomWhite = 0L;
+        var samples = (long)width * rowCount;
+
+        for (var row = 0; row < rowCount; row++)
+        {
+            topWhite += CountWhitePixels(pixels, width, row);
+            bottomWhite += CountWhitePixels(pixels, width, height - 1 - row);
+        }
+
+        return (
+            samples == 0 ? 0 : (double)topWhite / samples,
+            samples == 0 ? 0 : (double)bottomWhite / samples);
+    }
+
+    private static long CountWhitePixels(
+        IReadOnlyList<byte> pixels,
+        int width,
+        int row)
+    {
+        var white = 0L;
+        var offset = row * width * 4;
+        for (var column = 0; column < width; column++)
+        {
+            var pixel = offset + column * 4;
+            var blue = pixels[pixel];
+            var green = pixels[pixel + 1];
+            var red = pixels[pixel + 2];
+            if (red >= 235 && green >= 235 && blue >= 235)
+            {
+                white++;
+            }
+        }
+
+        return white;
+    }
+
+    private static async Task WritePngAsync(
+        string path,
+        int width,
+        int height,
+        byte[] pixels,
+        CancellationToken cancellationToken)
+    {
+        await File.WriteAllBytesAsync(path, [], cancellationToken);
+        var file = await StorageFile.GetFileFromPathAsync(path);
+        await using var stream = await file.OpenStreamForWriteAsync();
+        stream.SetLength(0);
+        var encoder = await BitmapEncoder.CreateAsync(
+            BitmapEncoder.PngEncoderId,
+            stream.AsRandomAccessStream());
+        encoder.SetPixelData(
+            BitmapPixelFormat.Bgra8,
+            BitmapAlphaMode.Premultiplied,
+            (uint)width,
+            (uint)height,
+            96,
+            96,
+            pixels);
+        await encoder.FlushAsync();
+        await stream.FlushAsync(cancellationToken);
+    }
+}
