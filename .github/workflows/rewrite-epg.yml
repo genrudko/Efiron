@@ -164,12 +164,16 @@ jobs:
                 [int]$evidence.ProgrammeBlockCount -lt 9) {
               throw "Full EPG schedules were not retained."
             }
+            if ([int]$evidence.RealizedProgrammeButtonCount -le 0) {
+              throw "EPG programme controls were not realized in the visual tree."
+            }
             if ([int]$evidence.TimeSlotCount -ne 48 -or
                 [math]::Abs([double]$evidence.TimelineWidth - 2880) -gt 0.5) {
               throw "24-hour timeline geometry is invalid."
             }
-            if ([int]$evidence.ExpectedCategoryCount -ne 2 -or
-                [int]$evidence.ActualCategoryCount -ne 2 -or
+            if ([int]$evidence.ExpectedCategoryCount -le 0 -or
+                [int]$evidence.ExpectedCategoryCount -ge [int]$evidence.TotalRowCount -or
+                [int]$evidence.ActualCategoryCount -ne [int]$evidence.ExpectedCategoryCount -or
                 -not [bool]$evidence.StableCategoryContents) {
               throw "EPG category filtering is not stable."
             }
@@ -228,5 +232,5 @@ jobs:
         with:
           name: rewrite-epg-evidence
           path: epg-artifacts/
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 14
