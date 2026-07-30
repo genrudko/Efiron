@@ -129,7 +129,6 @@
               <TextBlock x:Uid="LivePlayerEmpty" MaxWidth="340" Foreground="#DCE4EF" TextAlignment="Center" TextWrapping="Wrap" />
             </StackPanel>
             <ProgressRing x:Name="PlayerOpeningIndicator" Width="46" Height="46" HorizontalAlignment="Center" VerticalAlignment="Center" IsActive="False" Visibility="Collapsed" />
-
             <Grid VerticalAlignment="Bottom" Height="190" Background="{StaticResource EfironVideoOverlayBrush}" IsHitTestVisible="False" />
             <Grid Margin="22,18,22,66" VerticalAlignment="Bottom" ColumnSpacing="12" IsHitTestVisible="False">
               <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
@@ -142,8 +141,7 @@
                 <Grid Margin="0,5,0,0" ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="{Binding SelectedItem.CurrentTime, ElementName=ChannelListView}" Foreground="#C2CAD5" FontSize="11" /><ProgressBar Grid.Column="1" Height="3" Minimum="0" Maximum="100" Value="{Binding SelectedItem.Progress, ElementName=ChannelListView}" VerticalAlignment="Center" /><TextBlock Grid.Column="2" Text="{Binding SelectedItem.NextTime, ElementName=ChannelListView}" Foreground="#C2CAD5" FontSize="11" /></Grid>
               </StackPanel>
             </Grid>
-
-            <Border x:Name="PlayerControlsBorder" Margin="12" Padding="8" Background="#D90B1018" BorderBrush="#402FFFFFF" BorderThickness="1" CornerRadius="9" VerticalAlignment="Bottom">
+            <Border x:Name="PlayerControlsBorder" Margin="12" Padding="8" Background="#D90B1018" BorderBrush="#40FFFFFF" BorderThickness="1" CornerRadius="9" VerticalAlignment="Bottom">
               <Grid x:Name="PlaybackControlsGrid" ColumnSpacing="7">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition x:Name="SelectedInfoColumn" Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition x:Name="VolumeColumn" Width="120" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <Button x:Name="PlayPauseButton" Style="{StaticResource EfironIconButtonStyle}" Click="PlayPauseButton_Click"><FontIcon x:Name="PlayPauseIcon" Glyph="&#xE768;" FontSize="17" /></Button>
@@ -156,7 +154,6 @@
             </Border>
           </Grid>
         </Border>
-
         <Border x:Name="ProgrammeCard" Grid.Row="1" Background="{ThemeResource EfironSurfaceBrush}" BorderBrush="{ThemeResource EfironStrokeSubtleBrush}" BorderThickness="1" CornerRadius="10" Padding="15">
           <Grid x:Name="ProgrammeGrid" ColumnSpacing="20" RowSpacing="10">
             <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition x:Name="ProgrammeSecondColumn" Width="*" /></Grid.ColumnDefinitions>
