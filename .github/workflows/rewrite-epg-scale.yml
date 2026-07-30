@@ -1,0 +1,226 @@
+name: rewrite epg scale
+
+on:
+  pull_request:
+  push:
+    branches:
+      - rewrite/001-greenfield-desktop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  epg-scale:
+    name: 1500-channel EPG responsiveness
+    runs-on: windows-latest
+    timeout-minutes: 28
+
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.302
+
+      - name: Restore and build exact head
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          dotnet restore Efiron.Greenfield.sln
+          dotnet build Efiron.Greenfield.sln -c Release --no-restore
+
+      - name: Prepare 1500-channel provider fixture
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $fixture = Join-Path $env:RUNNER_TEMP "efiron-epg-scale-fixture"
+          $localAppData = [Environment]::GetFolderPath(
+            [Environment+SpecialFolder]::LocalApplicationData)
+          $data = Join-Path $localAppData "Efiron"
+          Remove-Item $fixture,$data -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $fixture,$data -Force | Out-Null
+
+          $wave = Join-Path $fixture "channel.wav"
+          $sampleRate = 8000
+          $dataLength = $sampleRate * 2 * 180
+          $stream = [IO.File]::Create($wave)
+          $writer = [IO.BinaryWriter]::new($stream)
+          try {
+            $ascii = [Text.Encoding]::ASCII
+            $writer.Write($ascii.GetBytes("RIFF")); $writer.Write([int](36 + $dataLength))
+            $writer.Write($ascii.GetBytes("WAVEfmt ")); $writer.Write([int]16)
+            $writer.Write([int16]1); $writer.Write([int16]1)
+            $writer.Write([int]$sampleRate); $writer.Write([int]($sampleRate * 2))
+            $writer.Write([int16]2); $writer.Write([int16]16)
+            $writer.Write($ascii.GetBytes("data")); $writer.Write([int]$dataLength)
+            $silence = [byte[]]::new(65536)
+            for ($remaining = $dataLength; $remaining -gt 0; $remaining -= $count) {
+              $count = [Math]::Min($silence.Length, $remaining)
+              $writer.Write($silence, 0, $count)
+            }
+          }
+          finally { $writer.Dispose(); $stream.Dispose() }
+
+          $utf8 = [Text.UTF8Encoding]::new($false)
+          $playlistWriter = [IO.StreamWriter]::new(
+            (Join-Path $fixture "playlist.m3u"),
+            $false,
+            $utf8)
+          try {
+            $playlistWriter.WriteLine("#EXTM3U")
+            for ($index = 1; $index -le 1500; $index++) {
+              $category = "Category $([int](($index - 1) % 12 + 1))"
+              $playlistWriter.WriteLine(
+                "#EXTINF:-1 tvg-id=`"scale.$index`" group-title=`"$category`",Scale Channel $index")
+              $playlistWriter.WriteLine("http://127.0.0.1:18769/channel.wav")
+            }
+          }
+          finally { $playlistWriter.Dispose() }
+
+          $now = [DateTimeOffset]::UtcNow
+          $starts = @(
+            $now.AddMinutes(-30),
+            $now.AddMinutes(30),
+            $now.AddMinutes(90))
+          $stops = @(
+            $now.AddMinutes(30),
+            $now.AddMinutes(90),
+            $now.AddMinutes(150))
+          $guideWriter = [IO.StreamWriter]::new(
+            (Join-Path $fixture "guide.xml"),
+            $false,
+            $utf8)
+          try {
+            $guideWriter.WriteLine("<tv>")
+            for ($index = 1; $index -le 1500; $index++) {
+              $guideWriter.WriteLine(
+                "  <channel id=`"scale.$index`"><display-name>Scale Channel $index</display-name></channel>")
+            }
+            for ($index = 1; $index -le 1500; $index++) {
+              for ($slot = 0; $slot -lt 3; $slot++) {
+                $start = $starts[$slot].ToString("yyyyMMddHHmmss +0000")
+                $stop = $stops[$slot].ToString("yyyyMMddHHmmss +0000")
+                $guideWriter.WriteLine(
+                  "  <programme channel=`"scale.$index`" start=`"$start`" stop=`"$stop`"><title>Programme $index-$slot</title><desc>Provider scale fixture.</desc></programme>")
+              }
+            }
+            $guideWriter.WriteLine("</tv>")
+          }
+          finally { $guideWriter.Dispose() }
+
+          @{
+            playlist = @{ location = (Join-Path $fixture "playlist.m3u"); isEnabled = $true }
+            programmeGuide = @{ location = (Join-Path $fixture "guide.xml"); isEnabled = $true }
+          } | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $data "sources.json") -Encoding utf8
+          @{ version = 1; theme = 2; accent = 1 } |
+            ConvertTo-Json | Set-Content (Join-Path $data "appearance.json") -Encoding utf8
+
+      - name: Verify provider-scale EPG remains responsive
+        shell: pwsh
+        env:
+          EFIRON_CI_EPG_VERIFICATION: "1"
+        run: |
+          $ErrorActionPreference = "Stop"
+          $output = "src/Efiron.Desktop/bin/x64/Release/net10.0-windows10.0.22000.0/win-x64"
+          $exe = Join-Path $output "Efiron.exe"
+          if (-not (Test-Path $exe)) { throw "Efiron.exe not found: $exe" }
+
+          $fixture = Join-Path $env:RUNNER_TEMP "efiron-epg-scale-fixture"
+          $localAppData = [Environment]::GetFolderPath(
+            [Environment+SpecialFolder]::LocalApplicationData)
+          $diagnostics = Join-Path $localAppData "Efiron/diagnostics"
+          $projectionPath = Join-Path $diagnostics "epg-projection-runtime.json"
+          $crashPath = Join-Path $diagnostics "startup-crash.log"
+          $process = $null
+          $server = $null
+          $unresponsiveSamples = 0
+          $responsiveSamples = 0
+          $peakWorkingSet = 0L
+          $clock = [Diagnostics.Stopwatch]::StartNew()
+
+          try {
+            $python = (Get-Command python -ErrorAction Stop).Source
+            $server = Start-Process $python -ArgumentList @(
+              "-m","http.server","18769","--bind","127.0.0.1","--directory",$fixture) `
+              -WindowStyle Hidden -PassThru
+            Start-Sleep -Seconds 2
+            if ($server.HasExited) { throw "Scale media server exited." }
+
+            $process = Start-Process $exe -WorkingDirectory $output -PassThru
+            $deadline = [DateTime]::UtcNow.AddSeconds(150)
+            while ([DateTime]::UtcNow -lt $deadline -and -not (Test-Path $projectionPath)) {
+              Start-Sleep -Milliseconds 250
+              $process.Refresh()
+              if ($process.HasExited) {
+                $crash = if (Test-Path $crashPath) { Get-Content $crashPath -Raw } else { "no crash log" }
+                throw "Efiron exited before scale projection. $crash"
+              }
+
+              $current = Get-Process -Id $process.Id -ErrorAction Stop
+              $peakWorkingSet = [Math]::Max($peakWorkingSet, [long]$current.WorkingSet64)
+              if ($current.Responding) { $responsiveSamples++ } else { $unresponsiveSamples++ }
+            }
+
+            if (-not (Test-Path $projectionPath)) {
+              throw "Provider-scale projection did not finish within 150 seconds."
+            }
+
+            $projection = Get-Content $projectionPath -Raw | ConvertFrom-Json
+            if ([int]$projection.CatalogChannelCount -ne 1500 -or
+                [int]$projection.ProjectedRowCount -ne 1500) {
+              throw "Scale row count is invalid: $($projection | ConvertTo-Json -Compress)"
+            }
+            if ([int]$projection.ProgrammeBlockCount -lt 4500) {
+              throw "Scale programme projection is incomplete."
+            }
+            if ([double]$projection.ProjectionMilliseconds -gt 30000) {
+              throw "Scale projection exceeded 30 seconds: $($projection.ProjectionMilliseconds) ms."
+            }
+            if ($unresponsiveSamples -gt 2) {
+              throw "UI became unresponsive in $unresponsiveSamples samples."
+            }
+            if ($peakWorkingSet -gt 1610612736) {
+              throw "Working set exceeded 1.5 GiB: $peakWorkingSet bytes."
+            }
+
+            Start-Sleep -Seconds 3
+            $process.Refresh()
+            if ($process.HasExited) { throw "Efiron exited after scale projection." }
+
+            $result = [ordered]@{
+              HeadSha = "${{ github.event.pull_request.head.sha || github.sha }}"
+              Channels = [int]$projection.CatalogChannelCount
+              ProgrammeBlocks = [int]$projection.ProgrammeBlockCount
+              ProjectionMilliseconds = [double]$projection.ProjectionMilliseconds
+              EndToEndMilliseconds = $clock.Elapsed.TotalMilliseconds
+              ResponsiveSamples = $responsiveSamples
+              UnresponsiveSamples = $unresponsiveSamples
+              PeakWorkingSetBytes = $peakWorkingSet
+            }
+            New-Item -ItemType Directory -Path scale-artifacts -Force | Out-Null
+            $result | ConvertTo-Json | Set-Content scale-artifacts/epg-scale-runtime.json -Encoding utf8
+            Copy-Item $projectionPath scale-artifacts/ -Force
+            $result | ConvertTo-Json -Compress
+          }
+          finally {
+            if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force }
+            if ($server -and -not $server.HasExited) { Stop-Process -Id $server.Id -Force }
+          }
+
+      - name: Upload scale evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rewrite-epg-scale-evidence
+          path: scale-artifacts/
+          if-no-files-found: error
+          retention-days: 14
