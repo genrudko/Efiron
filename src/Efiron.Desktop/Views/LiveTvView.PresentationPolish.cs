@@ -19,6 +19,7 @@ public sealed partial class LiveTvView
     private UIElement? _playerProgrammeOverlay;
     private UIElement? _playerOverlayScrim;
     private PlaybackState _playerChromePlaybackState;
+    private string? _selectedCategory;
 
     internal void EnablePresentationPolish()
     {
@@ -37,6 +38,8 @@ public sealed partial class LiveTvView
         LiveRoot.KeyDown += PresentationPolish_LiveRootKeyDown;
         CategoryRailListView.SelectionChanged +=
             PresentationPolish_CategoryRailSelectionChanged;
+        CategoryComboBox.SelectionChanged +=
+            PresentationPolish_CategoryComboBoxSelectionChanged;
 
         PlayerSurfaceBorder.PointerEntered += PlayerSurface_PointerEntered;
         PlayerSurfaceBorder.PointerMoved += PlayerSurface_PointerMoved;
@@ -90,6 +93,8 @@ public sealed partial class LiveTvView
             PlayerControlsBorder.Padding = new Thickness(8, 6, 8, 6);
             PlayerControlsBorder.Margin = new Thickness(0, 0, 0, 14);
 
+            var overlayForeground = new SolidColorBrush(
+                Microsoft.UI.ColorHelper.FromArgb(255, 247, 249, 252));
             foreach (var button in PlaybackControlsGrid.Children.OfType<Button>())
             {
                 button.Background = new SolidColorBrush(
@@ -98,7 +103,17 @@ public sealed partial class LiveTvView
                 button.CornerRadius = new CornerRadius(18);
                 button.Width = 36;
                 button.Height = 36;
+                button.Foreground = overlayForeground;
+
+                if (button.Content is FontIcon icon)
+                {
+                    // The player surface is always dark, regardless of the app theme.
+                    // Keep media glyphs readable when the surrounding app uses Light.
+                    icon.Foreground = overlayForeground;
+                }
             }
+
+            VolumeSlider.Foreground = overlayForeground;
         }
 
         // Responsive layout must not turn the floating player controls back into
@@ -136,14 +151,85 @@ public sealed partial class LiveTvView
             return;
         }
 
+        _selectedCategory = CategoryRailListView.SelectedIndex == 0
+            ? null
+            : CategoryRailListView.SelectedItem?.ToString();
+
         if (CategoryComboBox.SelectedIndex != CategoryRailListView.SelectedIndex)
         {
             CategoryComboBox.SelectedIndex = CategoryRailListView.SelectedIndex;
         }
 
-        // Do not rely on the hidden ComboBox event as an implementation bridge.
-        // The visible category rail owns the user action and applies the filter directly.
-        ApplyFilters();
+        ApplyPresentationFilters();
+    }
+
+    private void PresentationPolish_CategoryComboBoxSelectionChanged(
+        object sender,
+        SelectionChangedEventArgs e)
+    {
+        if (_isUpdatingCategory)
+        {
+            return;
+        }
+
+        _selectedCategory =
+            (CategoryComboBox.SelectedItem as ComboBoxItem)?.Tag as string;
+
+        if (CategoryRailListView.SelectedIndex != CategoryComboBox.SelectedIndex)
+        {
+            CategoryRailListView.SelectedIndex = CategoryComboBox.SelectedIndex;
+        }
+
+        ApplyPresentationFilters();
+    }
+
+    private void ApplyPresentationFilters()
+    {
+        var search = ChannelSearchTextBox.Text.Trim();
+        IEnumerable<Presentation.LiveChannelItem> query = _allItems;
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            query = query.Where(item =>
+                item.Name.Contains(
+                    search,
+                    StringComparison.CurrentCultureIgnoreCase) ||
+                item.CurrentProgramme.Contains(
+                    search,
+                    StringComparison.CurrentCultureIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(_selectedCategory))
+        {
+            query = query.Where(item => string.Equals(
+                item.Category,
+                _selectedCategory,
+                StringComparison.CurrentCultureIgnoreCase));
+        }
+
+        if (FavoritesOnlyButton.IsChecked is true)
+        {
+            query = query.Where(static item => item.IsFavorite);
+        }
+
+        var filtered = query.ToArray();
+        _visibleItems.Clear();
+        foreach (var item in filtered)
+        {
+            _visibleItems.Add(item);
+        }
+
+        ChannelEmptyState.Visibility = filtered.Length == 0
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        ChannelListView.Visibility = filtered.Length == 0
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+
+        ChannelListView.SelectedItem =
+            _selectedItem is not null && filtered.Contains(_selectedItem)
+                ? _selectedItem
+                : null;
     }
 
     private void PresentationPolish_LiveRootSizeChanged(
