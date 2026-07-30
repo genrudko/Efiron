@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Globalization;
 using Efiron.Application.Live;
 using Efiron.Desktop.Presentation;
 using Microsoft.UI.Xaml;
@@ -8,13 +7,10 @@ namespace Efiron.Desktop.Views;
 
 public sealed partial class ProgrammeGuideView
 {
-    private const int ProgressiveRowBatchSize = 32;
-
+    private readonly Dictionary<DateOnly, EpgChannelRowItem[]> _projectionCache = [];
     private CancellationTokenSource? _programmeProjectionCancellation;
-    private LiveCatalogSnapshot? _projectedCatalog;
-    private DateOnly? _projectedDate;
-    private bool _progressiveFilterHandlersEnabled;
-    private CancellationTokenSource? _filterDebounceCancellation;
+    private LiveCatalogSnapshot? _projectionCacheCatalog;
+    private bool _projectionBusy;
 
     internal async Task SetCatalogProgressivelyAsync(
         LiveCatalogSnapshot catalog,
@@ -22,23 +18,29 @@ public sealed partial class ProgrammeGuideView
     {
         ArgumentNullException.ThrowIfNull(catalog);
 
-        EnableProgressiveFilterHandlers();
         _programmeProjectionCancellation?.Cancel();
         _programmeProjectionCancellation?.Dispose();
         _programmeProjectionCancellation =
             CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var token = _programmeProjectionCancellation.Token;
 
+        if (!ReferenceEquals(_projectionCacheCatalog, catalog))
+        {
+            _projectionCache.Clear();
+            _projectionCacheCatalog = catalog;
+        }
+
         _catalog = catalog;
         _selectedProgramme = null;
         ProgrammeDetailsCard.Visibility = Visibility.Collapsed;
         PopulateCategories();
+        UpdateSelectedDateText();
 
-        if (ReferenceEquals(_projectedCatalog, catalog) &&
-            _projectedDate == _selectedDate &&
-            _allRows.Count == catalog.Channels.Count)
+        if (_projectionCache.TryGetValue(_selectedDate, out var cachedRows))
         {
-            await ApplyFiltersProgressivelyAsync(token);
+            _allRows.Clear();
+            _allRows.AddRange(cachedRows);
+            ApplyFilters();
             QueueJumpToNow();
             return;
         }
@@ -56,20 +58,22 @@ public sealed partial class ProgrammeGuideView
                 token);
             token.ThrowIfCancellationRequested();
 
+            _projectionCache[_selectedDate] = rows;
+            TrimProjectionCache();
             _allRows.Clear();
             _allRows.AddRange(rows);
-            _projectedCatalog = catalog;
-            _projectedDate = _selectedDate;
-
-            await ApplyFiltersProgressivelyAsync(token);
-            UpdateSelectedDateText();
-            UpdateCurrentTimeMarker();
+            ApplyFilters();
             QueueJumpToNow();
+            await Task.Yield();
             await RecordProjectionDiagnosticsAsync(
                 catalog,
                 rows,
                 clock.Elapsed,
                 token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
         }
         finally
         {
@@ -79,6 +83,8 @@ public sealed partial class ProgrammeGuideView
             }
         }
     }
+
+    internal bool IsProjectionBusy => _projectionBusy;
 
     private static EpgChannelRowItem[] ProjectRows(
         LiveCatalogSnapshot catalog,
@@ -92,161 +98,47 @@ public sealed partial class ProgrammeGuideView
         {
             cancellationToken.ThrowIfCancellationRequested();
             var channel = catalog.Channels[index];
-            var programmes = BuildProgrammeBlocks(
-                channel,
-                dayStart,
-                dayEnd,
-                now);
             rows[index] = new EpgChannelRowItem(
                 index + 1,
                 channel,
-                programmes,
-                TimelineWidth);
+                BuildProgrammeBlocks(channel, dayStart, dayEnd, now),
+                MinutesPerDay * BasePixelsPerMinute);
         }
 
         return rows;
     }
 
-    private void EnableProgressiveFilterHandlers()
+    private void TrimProjectionCache()
     {
-        if (_progressiveFilterHandlersEnabled)
+        if (_projectionCache.Count <= 5)
         {
             return;
         }
 
-        _progressiveFilterHandlersEnabled = true;
-        ProgrammeSearchTextBox.TextChanged -= ProgrammeSearchTextBox_TextChanged;
-        ProgrammeCategoryComboBox.SelectionChanged -=
-            ProgrammeCategoryComboBox_SelectionChanged;
-        ProgrammeSearchTextBox.TextChanged +=
-            ProgressiveProgrammeSearchTextBox_TextChanged;
-        ProgrammeCategoryComboBox.SelectionChanged +=
-            ProgressiveProgrammeCategoryComboBox_SelectionChanged;
-    }
-
-    private async void ProgressiveProgrammeSearchTextBox_TextChanged(
-        object sender,
-        Microsoft.UI.Xaml.Controls.TextChangedEventArgs e)
-    {
-        _filterDebounceCancellation?.Cancel();
-        _filterDebounceCancellation?.Dispose();
-        _filterDebounceCancellation =
-            CancellationTokenSource.CreateLinkedTokenSource(
-                _programmeProjectionCancellation?.Token ?? CancellationToken.None);
-        var token = _filterDebounceCancellation.Token;
-
-        try
+        var keysToRemove = _projectionCache.Keys
+            .OrderByDescending(date => Math.Abs(date.DayNumber - _selectedDate.DayNumber))
+            .Take(_projectionCache.Count - 5)
+            .ToArray();
+        foreach (var key in keysToRemove)
         {
-            await Task.Delay(180, token);
-            await ApplyFiltersProgressivelyAsync(token);
+            _projectionCache.Remove(key);
         }
-        catch (OperationCanceledException)
-        {
-        }
-    }
-
-    private async void ProgressiveProgrammeCategoryComboBox_SelectionChanged(
-        object sender,
-        Microsoft.UI.Xaml.Controls.SelectionChangedEventArgs e)
-    {
-        if (_updatingCategory)
-        {
-            return;
-        }
-
-        try
-        {
-            await ApplyFiltersProgressivelyAsync(
-                _programmeProjectionCancellation?.Token ?? CancellationToken.None);
-        }
-        catch (OperationCanceledException)
-        {
-        }
-    }
-
-    private async Task ApplyFiltersProgressivelyAsync(CancellationToken cancellationToken)
-    {
-        var search = ProgrammeSearchTextBox.Text.Trim();
-        var category =
-            (ProgrammeCategoryComboBox.SelectedItem as EpgCategoryOption)?.Value;
-        IEnumerable<EpgChannelRowItem> query = _allRows;
-
-        if (!string.IsNullOrWhiteSpace(category))
-        {
-            query = query.Where(row => string.Equals(
-                row.Category,
-                category,
-                StringComparison.CurrentCultureIgnoreCase));
-        }
-
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            query = query.Where(row =>
-                row.Name.Contains(search, StringComparison.CurrentCultureIgnoreCase) ||
-                row.Programmes.Any(block => block.Title.Contains(
-                    search,
-                    StringComparison.CurrentCultureIgnoreCase)));
-        }
-
-        var filtered = query.ToArray();
-        _visibleRows.Clear();
-
-        for (var offset = 0; offset < filtered.Length; offset += ProgressiveRowBatchSize)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var count = Math.Min(ProgressiveRowBatchSize, filtered.Length - offset);
-            for (var index = 0; index < count; index++)
-            {
-                _visibleRows.Add(filtered[offset + index]);
-            }
-
-            if (offset + count < filtered.Length)
-            {
-                await Task.Delay(1, cancellationToken);
-            }
-        }
-
-        var isEmpty = filtered.Length == 0;
-        ProgrammeEmptyState.Visibility = isEmpty
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-        ChannelRowsListView.Visibility = isEmpty
-            ? Visibility.Collapsed
-            : Visibility.Visible;
-        TimelineViewportGrid.Visibility = isEmpty
-            ? Visibility.Collapsed
-            : Visibility.Visible;
-
-        VisibleChannelCountText.Text = string.Format(
-            CultureInfo.CurrentCulture,
-            "{0} каналов",
-            filtered.Length);
-        ProgrammeSummaryText.Text = string.Format(
-            CultureInfo.CurrentCulture,
-            "{0} каналов · {1} с программой",
-            filtered.Length,
-            filtered.Count(static row => row.Programmes.Count > 0));
     }
 
     private void SetProjectionBusy(bool isBusy, int channelCount)
     {
+        _projectionBusy = isBusy;
+        ProgrammeLoadingOverlay.Visibility = isBusy
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        ProgrammeLoadingText.Text = $"Подготовка программы: {channelCount} каналов";
+        VisibleChannelCountText.Text = isBusy
+            ? "Загрузка…"
+            : $"{_visibleRows.Count} каналов";
+
         ProgrammeSearchTextBox.IsEnabled = !isBusy;
         ProgrammeCategoryComboBox.IsEnabled = !isBusy;
         JumpNowButton.IsEnabled = !isBusy;
-
-        if (!isBusy)
-        {
-            return;
-        }
-
-        ProgrammeEmptyState.Visibility = Visibility.Collapsed;
-        ChannelRowsListView.Visibility = Visibility.Collapsed;
-        TimelineViewportGrid.Visibility = Visibility.Collapsed;
-        VisibleChannelCountText.Text = "Загрузка…";
-        ProgrammeSummaryText.Text = string.Format(
-            CultureInfo.CurrentCulture,
-            "Подготовка программы: {0} каналов",
-            channelCount);
     }
 
     private static async Task RecordProjectionDiagnosticsAsync(
@@ -266,6 +158,7 @@ public sealed partial class ProgrammeGuideView
             ProjectedRowCount = rows.Count,
             ProgrammeBlockCount = rows.Sum(static row => row.Programmes.Count),
             ProjectionMilliseconds = elapsed.TotalMilliseconds,
+            RenderingArchitecture = "manual-two-axis-virtualization",
             RecordedAtUtc = DateTimeOffset.UtcNow,
         };
         await File.WriteAllTextAsync(
