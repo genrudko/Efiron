@@ -17,6 +17,7 @@ public sealed partial class MainWindow
             LiveWorkspace_VisibilityChanged);
         ShellRoot.LayoutUpdated += ShellRoot_LayoutUpdated;
         LiveTvWorkspace.EnablePresentationPolish();
+        LiveTvWorkspace.EnableCategoryController();
         EnableTitleBarContrast();
 
         _shellClockTimer = DispatcherQueue.CreateTimer();
