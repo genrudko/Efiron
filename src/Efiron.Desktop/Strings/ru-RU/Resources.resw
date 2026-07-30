@@ -22,6 +22,7 @@
   <data name="WindowContextTitle.Text" xml:space="preserve"><value>Источники</value></data>
   <data name="WindowContextSourcesMessage" xml:space="preserve"><value>Источники</value></data>
   <data name="WindowContextLiveMessage" xml:space="preserve"><value>Эфир</value></data>
+  <data name="WindowContextProgrammeMessage" xml:space="preserve"><value>Программа</value></data>
 
   <data name="SourcesTitle.Text" xml:space="preserve"><value>Источники телевидения</value></data>
   <data name="SourcesDescription.Text" xml:space="preserve"><value>Подключите плейлист каналов и телепрограмму. После сохранения Efiron сразу проверит источники и сформирует рабочий каталог.</value></data>
