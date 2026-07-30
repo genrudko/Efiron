@@ -33,7 +33,7 @@ public sealed class LiveChannelItem : INotifyPropertyChanged
         CurrentProgrammeLine = string.IsNullOrWhiteSpace(CurrentStartTime)
             ? CurrentProgramme
             : $"{CurrentStartTime}  {CurrentProgramme}";
-        CurrentTime = CurrentStartTime;
+        CurrentTime = string.Empty;
         NextProgramme = snapshot.NextProgramme is null
             ? string.Empty
             : string.Format(
