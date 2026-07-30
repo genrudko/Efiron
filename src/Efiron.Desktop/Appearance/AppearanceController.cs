@@ -26,13 +26,13 @@ internal sealed class AppearanceController(
             palette.Dark,
             palette.DarkHover,
             palette.DarkSubtle,
-            WithAlpha(palette.Dark, 0x15));
+            WithAlpha(palette.Dark, 0x2D));
         ApplyPalette(
             GetThemeDictionary("Light"),
             palette.Light,
             palette.LightHover,
             palette.LightSubtle,
-            WithAlpha(palette.Light, 0x10));
+            WithAlpha(palette.Light, 0x24));
     }
 
     private ResourceDictionary GetThemeDictionary(string key)
