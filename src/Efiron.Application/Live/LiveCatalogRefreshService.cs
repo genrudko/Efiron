@@ -89,10 +89,14 @@ public sealed class LiveCatalogRefreshService(
         IReadOnlyDictionary<string, IReadOnlyList<Programme>> programmesByChannel,
         DateTimeOffset now)
     {
-        if (!guideChannelByStableId.TryGetValue(channel.StableId, out var guideChannelId) ||
-            !programmesByChannel.TryGetValue(guideChannelId, out var schedule))
+        if (!guideChannelByStableId.TryGetValue(channel.StableId, out var guideChannelId))
         {
             return new LiveChannelSnapshot(channel, null, null, null);
+        }
+
+        if (!programmesByChannel.TryGetValue(guideChannelId, out var schedule))
+        {
+            return new LiveChannelSnapshot(channel, guideChannelId, null, null);
         }
 
         Programme? current = null;
@@ -124,7 +128,10 @@ public sealed class LiveCatalogRefreshService(
             channel,
             guideChannelId,
             current,
-            next);
+            next)
+        {
+            Schedule = schedule,
+        };
     }
 
     private static string DecodePlaylist(ReadOnlyMemory<byte> content)
