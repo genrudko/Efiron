@@ -136,13 +136,83 @@
 
       <Style x:Key="EfironNavigationToggleStyle" TargetType="ToggleButton">
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-        <Setter Property="MinHeight" Value="44" />
-        <Setter Property="Padding" Value="12,8" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="MinHeight" Value="48" />
+        <Setter Property="Padding" Value="11,8" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Foreground" Value="{ThemeResource EfironTextSecondaryBrush}" />
         <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="CornerRadius" Value="9" />
         <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Template">
+          <Setter.Value>
+            <ControlTemplate TargetType="ToggleButton">
+              <Border
+                  x:Name="NavigationRoot"
+                  Background="{TemplateBinding Background}"
+                  CornerRadius="{TemplateBinding CornerRadius}">
+                <Grid>
+                  <VisualStateManager.VisualStateGroups>
+                    <VisualStateGroup x:Name="CommonStates">
+                      <VisualState x:Name="Normal" />
+                      <VisualState x:Name="PointerOver">
+                        <VisualState.Setters>
+                          <Setter Target="NavigationRoot.Background" Value="{ThemeResource EfironSurfaceHoverBrush}" />
+                        </VisualState.Setters>
+                      </VisualState>
+                      <VisualState x:Name="Pressed">
+                        <VisualState.Setters>
+                          <Setter Target="NavigationRoot.Background" Value="{ThemeResource EfironSurfaceRaisedBrush}" />
+                          <Setter Target="NavigationRoot.Opacity" Value="0.88" />
+                        </VisualState.Setters>
+                      </VisualState>
+                      <VisualState x:Name="Disabled">
+                        <VisualState.Setters>
+                          <Setter Target="NavigationRoot.Opacity" Value="0.45" />
+                        </VisualState.Setters>
+                      </VisualState>
+                    </VisualStateGroup>
+                    <VisualStateGroup x:Name="CheckStates">
+                      <VisualState x:Name="Unchecked" />
+                      <VisualState x:Name="Checked">
+                        <VisualState.Setters>
+                          <Setter Target="NavigationRoot.Background" Value="{ThemeResource EfironAccentQuietBrush}" />
+                          <Setter Target="NavigationIndicator.Background" Value="{ThemeResource EfironAccentBrush}" />
+                          <Setter Target="NavigationContent.Foreground" Value="{ThemeResource EfironTextBrush}" />
+                        </VisualState.Setters>
+                      </VisualState>
+                      <VisualState x:Name="Indeterminate">
+                        <VisualState.Setters>
+                          <Setter Target="NavigationRoot.Background" Value="{ThemeResource EfironAccentQuietBrush}" />
+                          <Setter Target="NavigationIndicator.Background" Value="{ThemeResource EfironAccentBrush}" />
+                        </VisualState.Setters>
+                      </VisualState>
+                    </VisualStateGroup>
+                  </VisualStateManager.VisualStateGroups>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="3" />
+                    <ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+                  <Border
+                      x:Name="NavigationIndicator"
+                      Width="3"
+                      Margin="0,7"
+                      Background="Transparent"
+                      CornerRadius="2" />
+                  <ContentPresenter
+                      x:Name="NavigationContent"
+                      Grid.Column="1"
+                      Padding="{TemplateBinding Padding}"
+                      Content="{TemplateBinding Content}"
+                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                      Foreground="{TemplateBinding Foreground}"
+                      HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                      VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+                </Grid>
+              </Border>
+            </ControlTemplate>
+          </Setter.Value>
+        </Setter>
       </Style>
 
       <Style x:Key="EfironCategoryItemStyle" TargetType="ListViewItem">
