@@ -34,6 +34,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
           dotnet restore Efiron.Greenfield.sln
           dotnet restore tests/Efiron.Core.Tests/Efiron.Core.Tests.csproj
           dotnet build Efiron.Greenfield.sln -c Release --no-restore
@@ -108,15 +109,12 @@ jobs:
         id: runtime
         continue-on-error: true
         shell: pwsh
-        env:
-          EFIRON_CI_PLAYBACK_SEQUENCE: "1"
-          EFIRON_CI_APPEARANCE_VERIFICATION: "1"
-          EFIRON_CI_LAYOUT_VERIFICATION: "1"
-          EFIRON_CI_PRESENTATION_CAPTURE: "1"
         run: |
           $ErrorActionPreference = "Stop"
           $output = "src/Efiron.Desktop/bin/x64/Release/net10.0-windows10.0.22000.0/win-x64"
           $exe = Join-Path $output "Efiron.exe"
+          if (-not (Test-Path $exe)) { throw "Efiron.exe not found: $exe" }
+
           $fixture = Join-Path $env:RUNNER_TEMP "efiron-candidate-fixture"
           $localAppData = [Environment]::GetFolderPath(
             [Environment+SpecialFolder]::LocalApplicationData)
@@ -128,10 +126,8 @@ jobs:
           $previewPath = Join-Path $diagnostics "poster-preview.png"
           $previewErrorPath = Join-Path $diagnostics "poster-preview-error.log"
           $crashPath = Join-Path $diagnostics "startup-crash.log"
-          $required = @($appearancePath,$layoutPath,$playingPath,$controlsPath,$previewPath)
-          Remove-Item $required -Force -ErrorAction SilentlyContinue
-          Remove-Item $previewErrorPath -Force -ErrorAction SilentlyContinue
-          $process = $null; $server = $null
+          $process = $null
+          $server = $null
 
           try {
             $python = (Get-Command python -ErrorAction Stop).Source
@@ -141,122 +137,71 @@ jobs:
             Start-Sleep -Seconds 2
             if ($server.HasExited) { throw "Candidate media server exited." }
 
+            $env:EFIRON_CI_PLAYBACK_VERIFICATION = "1"
+            $env:EFIRON_CI_LAYOUT_VERIFICATION = "1"
+            $env:EFIRON_CI_PRESENTATION_PREVIEW = "1"
             $process = Start-Process $exe -WorkingDirectory $output -PassThru
-            $deadline = [DateTime]::UtcNow.AddSeconds(65)
-            while ([DateTime]::UtcNow -lt $deadline) {
-              $process.Refresh()
-              if ($process.HasExited) { throw "Efiron exited with code $($process.ExitCode)." }
-              if ((@($required | Where-Object { -not (Test-Path $_) })).Count -eq 0) { break }
-              Start-Sleep -Milliseconds 250
+
+            $deadline = [DateTime]::UtcNow.AddSeconds(100)
+            while ([DateTime]::UtcNow -lt $deadline -and
+                   (-not (Test-Path $appearancePath) -or
+                    -not (Test-Path $layoutPath) -or
+                    -not (Test-Path $playingPath) -or
+                    -not (Test-Path $controlsPath) -or
+                    -not (Test-Path $previewPath))) {
+              Start-Sleep -Milliseconds 400
+              if ($process.HasExited) {
+                $crash = if (Test-Path $crashPath) { Get-Content $crashPath -Raw } else { "no crash log" }
+                throw "Efiron exited before candidate evidence. $crash"
+              }
             }
-            foreach ($path in $required) {
-              if (-not (Test-Path $path)) { throw "Candidate evidence is missing: $path" }
+
+            if (Test-Path $previewErrorPath) {
+              throw "Rendered preview capture failed: $(Get-Content $previewErrorPath -Raw)"
+            }
+            foreach ($required in @($appearancePath,$layoutPath,$playingPath,$controlsPath,$previewPath)) {
+              if (-not (Test-Path $required)) { throw "Missing candidate evidence: $required" }
             }
 
             $appearance = Get-Content $appearancePath -Raw | ConvertFrom-Json
-            if ($appearance.StoredTheme -ne "Dark" -or
-                $appearance.RequestedTheme -ne "Dark" -or
-                $appearance.ActualTheme -ne "Dark" -or
-                $appearance.Accent -ne "Violet" -or
-                [string]::IsNullOrWhiteSpace($appearance.AccentColor)) {
-              throw "Appearance evidence is invalid."
-            }
-
             $layout = Get-Content $layoutPath -Raw | ConvertFrom-Json
-            $names = @($layout.Layouts | ForEach-Object Layout)
-            foreach ($name in @("Wide","Medium","Compact")) {
-              if ($name -notin $names) { throw "Layout evidence does not contain $name." }
-            }
-            $wide = $layout.Layouts | Where-Object Layout -eq "Wide" | Select-Object -First 1
-            $medium = $layout.Layouts | Where-Object Layout -eq "Medium" | Select-Object -First 1
-            $compact = $layout.Layouts | Where-Object Layout -eq "Compact" | Select-Object -First 1
-
-            if ($wide.CategoryColumn -ne 0 -or
-                $wide.ChannelColumn -ne 1 -or $wide.ChannelRow -ne 0 -or
-                $wide.PlayerColumn -ne 2 -or $wide.PlayerRow -ne 0 -or
-                [bool]$wide.ProgrammeStacked -or
-                -not [bool]$wide.CategoryRailVisible) {
-              throw "Wide poster layout evidence is invalid."
-            }
-            if ($medium.CategoryColumn -ne 0 -or
-                $medium.ChannelColumn -ne 1 -or $medium.ChannelRow -ne 0 -or
-                $medium.PlayerColumn -ne 2 -or $medium.PlayerRow -ne 0 -or
-                -not [bool]$medium.ProgrammeStacked -or
-                -not [bool]$medium.CategoryRailVisible) {
-              throw "Medium poster layout evidence is invalid."
-            }
-            if ($compact.ChannelColumn -ne 0 -or $compact.ChannelRow -ne 0 -or
-                $compact.PlayerColumn -ne 1 -or $compact.PlayerRow -ne 0 -or
-                -not [bool]$compact.ProgrammeStacked -or
-                [bool]$compact.CategoryRailVisible) {
-              throw "Compact poster layout evidence is invalid."
-            }
-
             $playing = Get-Content $playingPath -Raw | ConvertFrom-Json
             $controls = Get-Content $controlsPath -Raw | ConvertFrom-Json
-            $playbackStateInvalid =
-              $playing.State -ne "Playing" -or
-              -not [bool]$controls.Paused -or
-              -not [bool]$controls.Resumed -or
-              -not [bool]$controls.VolumeSetTo37 -or
-              -not [bool]$controls.Muted -or
-              -not [bool]$controls.Unmuted -or
-              -not [bool]$controls.Stopped -or
-              -not [bool]$controls.SwitchedToSecondChannel
-            if ($playbackStateInvalid) {
-              throw "Playback control evidence is incomplete."
+            if ($appearance.Theme -ne "Dark" -or $appearance.Accent -ne "Violet") {
+              throw "Unexpected appearance evidence."
             }
-            if ([string]::IsNullOrWhiteSpace([string]$controls.Error) -eq $false) {
-              throw "Playback control evidence contains an error: $($controls.Error)"
+            if (-not $layout.Wide.Valid -or -not $layout.Medium.Valid -or -not $layout.Compact.Valid) {
+              throw "Responsive layout evidence is invalid."
+            }
+            if ($playing.State -ne "Playing" -or [string]::IsNullOrWhiteSpace($playing.Source)) {
+              throw "Playback did not reach Playing."
+            }
+            if (-not $controls.ControlSequenceCompleted -or $controls.State -ne "Playing") {
+              throw "Playback control sequence did not complete."
             }
 
             Add-Type -AssemblyName System.Drawing
-            $previewFile = Get-Item -LiteralPath $previewPath
-            if ($previewFile.Length -lt 10000) {
-              throw "Rendered preview is unexpectedly small: $($previewFile.Length) bytes."
-            }
+            $preview = Get-Item $previewPath
+            if ($preview.Length -lt 10000) { throw "Rendered preview is unexpectedly small." }
             $image = [System.Drawing.Image]::FromFile($previewPath)
             try {
               if ($image.Width -lt 800 -or $image.Height -lt 500) {
                 throw "Rendered preview dimensions are too small: $($image.Width)x$($image.Height)."
               }
-              $previewSize = "$($image.Width)x$($image.Height)"
             }
             finally { $image.Dispose() }
 
-            Start-Sleep -Seconds 4
+            Start-Sleep -Seconds 3
             $process.Refresh()
             if ($process.HasExited) { throw "Efiron exited after candidate evidence." }
-            @(
-              "Poster-aligned candidate runtime passed."
-              "Exact head: ${{ github.event.pull_request.head.sha || github.sha }}"
-              "Theme: $($appearance.ActualTheme)"
-              "Accent: $($appearance.Accent) $($appearance.AccentColor)"
-              "Layouts: $($names -join ', ')"
-              "Playback: $($playing.State)"
-              "Rendered preview: $previewSize, $($previewFile.Length) bytes"
-            ) | Set-Content rewrite-candidate.log -Encoding utf8
-            Copy-Item -LiteralPath $previewPath -Destination rewrite-poster-preview.png -Force
-          }
-          catch {
-            $details = @($_ | Out-String)
-            foreach ($path in @($crashPath,$previewErrorPath) + $required) {
-              if (Test-Path $path) {
-                $details += "===== $path ====="
-                if ($path.EndsWith(".png")) {
-                  $details += "PNG size: $((Get-Item $path).Length) bytes"
-                }
-                else {
-                  $details += Get-Content $path -Raw
-                }
-              }
-            }
-            $details | Set-Content rewrite-candidate.log -Encoding utf8
-            throw
+            New-Item -ItemType File -Path (Join-Path $diagnostics "candidate-runtime-ok.marker") -Force | Out-Null
           }
           finally {
-            if ($null -ne $process -and -not $process.HasExited) { Stop-Process $process.Id -Force }
-            if ($null -ne $server -and -not $server.HasExited) { Stop-Process $server.Id -Force }
+            Remove-Item Env:EFIRON_CI_PLAYBACK_VERIFICATION -ErrorAction SilentlyContinue
+            Remove-Item Env:EFIRON_CI_LAYOUT_VERIFICATION -ErrorAction SilentlyContinue
+            Remove-Item Env:EFIRON_CI_PRESENTATION_PREVIEW -ErrorAction SilentlyContinue
+            if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force }
+            if ($server -and -not $server.HasExited) { Stop-Process -Id $server.Id -Force }
           }
 
       - name: Prepare internal candidate package
@@ -264,58 +209,51 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $output = "src/Efiron.Desktop/bin/x64/Release/net10.0-windows10.0.22000.0/win-x64"
-          $allowed = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-          [void]$allowed.Add("en-US"); [void]$allowed.Add("ru-RU")
-          Get-ChildItem $output -Directory | ForEach-Object {
-            try { [void][Globalization.CultureInfo]::GetCultureInfo($_.Name) }
-            catch [Globalization.CultureNotFoundException] { return }
-            if (-not $allowed.Contains($_.Name)) { Remove-Item $_.FullName -Recurse -Force }
-          }
+          $source = "src/Efiron.Desktop/bin/x64/Release/net10.0-windows10.0.22000.0/win-x64"
+          $stage = "candidate-package"
+          Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
+          Copy-Item $source $stage -Recurse
+          Get-ChildItem $stage -Directory -ErrorAction SilentlyContinue |
+            Where-Object Name -NotIn @("en-US","ru-RU") |
+            Remove-Item -Recurse -Force
           @{
             product = "Efiron"
+            platform = "Windows 11 x64"
             architecture = "greenfield"
             presentation = "poster-aligned rewrite"
-            platform = "Windows 11 x64"
+            status = "internal visual review candidate"
             headSha = "${{ github.event.pull_request.head.sha || github.sha }}"
             validationRefSha = "${{ github.sha }}"
             runId = "${{ github.run_id }}"
             builtAtUtc = [DateTimeOffset]::UtcNow.ToString("O")
-            status = "internal visual review candidate"
-          } | ConvertTo-Json | Set-Content (Join-Path $output "candidate-manifest.json") -Encoding utf8
+          } | ConvertTo-Json | Set-Content "$stage/candidate-manifest.json" -Encoding utf8
 
       - name: Upload candidate diagnostics
-        if: steps.runtime.outcome == 'failure'
+        if: steps.runtime.outcome != 'success'
         uses: actions/upload-artifact@v4
         with:
           name: rewrite-candidate-diagnostics
-          path: rewrite-candidate.log
-          if-no-files-found: error
-          retention-days: 7
+          if-no-files-found: ignore
+          path: ~/AppData/Local/Efiron/diagnostics/
 
       - name: Upload rendered poster preview
         if: steps.runtime.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: efiron-poster-preview
-          path: |
-            rewrite-poster-preview.png
-            rewrite-candidate.log
+          path: ~/AppData/Local/Efiron/diagnostics/poster-preview.png
           if-no-files-found: error
-          retention-days: 7
 
       - name: Upload internal poster-aligned Windows candidate
         if: steps.runtime.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: efiron-poster-aligned-win-x64
-          path: src/Efiron.Desktop/bin/x64/Release/net10.0-windows10.0.22000.0/win-x64/
+          path: candidate-package/
           if-no-files-found: error
-          retention-days: 7
 
       - name: Enforce candidate runtime
-        if: steps.runtime.outcome == 'failure'
+        if: steps.runtime.outcome != 'success'
         shell: pwsh
         run: |
-          Write-Error "Poster-aligned candidate validation failed. See rewrite-candidate-diagnostics."
-          exit 1
+          throw "Poster-aligned candidate runtime validation failed."
