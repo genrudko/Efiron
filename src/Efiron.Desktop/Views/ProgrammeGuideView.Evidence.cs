@@ -80,7 +80,7 @@ public sealed partial class ProgrammeGuideView
             stableContents,
             geometryValid,
             headerAligned,
-            CurrentTimeLine.Visibility == Visibility.Visible,
+            CurrentTimeLine.Visibility == Microsoft.UI.Xaml.Visibility.Visible,
             TimelineHorizontalScrollViewer.HorizontalOffset,
             DateTimeOffset.UtcNow);
     }
