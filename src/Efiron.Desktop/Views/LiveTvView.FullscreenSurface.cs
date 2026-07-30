@@ -30,6 +30,7 @@ public sealed partial class LiveTvView
         var background = LiveRoot.Background is SolidColorBrush brush
             ? brush.Color.ToString()
             : string.Empty;
+        var snapshot = _playbackSession?.Snapshot;
         return new FullscreenSurfaceEvidence(
             _isFullscreen,
             LiveRoot.RowSpacing,
@@ -38,7 +39,9 @@ public sealed partial class LiveTvView
             background,
             LiveRoot.ActualWidth,
             LiveRoot.ActualHeight,
-            _appliedVideoCropGeometry ?? string.Empty);
+            _appliedVideoCropGeometry ?? string.Empty,
+            snapshot?.State.ToString() ?? string.Empty,
+            snapshot?.Source?.ToString() ?? string.Empty);
     }
 
     private void FullscreenSurface_LiveRootLayoutUpdated(object? sender, object e) =>
@@ -124,5 +127,7 @@ public sealed partial class LiveTvView
         string LiveRootBackground,
         double Width,
         double Height,
-        string VideoCropGeometry);
+        string VideoCropGeometry,
+        string PlaybackState,
+        string PlaybackSource);
 }
