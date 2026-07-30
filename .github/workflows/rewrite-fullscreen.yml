@@ -1,0 +1,192 @@
+name: rewrite fullscreen
+
+on:
+  pull_request:
+  push:
+    branches:
+      - rewrite/001-greenfield-desktop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  fullscreen:
+    name: Borderless fullscreen edges
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.302
+
+      - name: Restore and build exact head
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          dotnet restore Efiron.Greenfield.sln
+          dotnet build Efiron.Greenfield.sln -c Release --no-restore
+
+      - name: Prepare fullscreen fixture
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $fixture = Join-Path $env:RUNNER_TEMP "efiron-fullscreen-fixture"
+          $localAppData = [Environment]::GetFolderPath(
+            [Environment+SpecialFolder]::LocalApplicationData)
+          $data = Join-Path $localAppData "Efiron"
+          Remove-Item $fixture,$data -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $fixture,$data -Force | Out-Null
+
+          $wave = Join-Path $fixture "channel.wav"
+          $sampleRate = 8000
+          $dataLength = $sampleRate * 2 * 90
+          $stream = [IO.File]::Create($wave)
+          $writer = [IO.BinaryWriter]::new($stream)
+          try {
+            $ascii = [Text.Encoding]::ASCII
+            $writer.Write($ascii.GetBytes("RIFF")); $writer.Write([int](36 + $dataLength))
+            $writer.Write($ascii.GetBytes("WAVEfmt ")); $writer.Write([int]16)
+            $writer.Write([int16]1); $writer.Write([int16]1)
+            $writer.Write([int]$sampleRate); $writer.Write([int]($sampleRate * 2))
+            $writer.Write([int16]2); $writer.Write([int16]16)
+            $writer.Write($ascii.GetBytes("data")); $writer.Write([int]$dataLength)
+            $silence = [byte[]]::new(65536)
+            for ($remaining = $dataLength; $remaining -gt 0; $remaining -= $count) {
+              $count = [Math]::Min($silence.Length, $remaining)
+              $writer.Write($silence, 0, $count)
+            }
+          }
+          finally { $writer.Dispose(); $stream.Dispose() }
+
+          @'
+          #EXTM3U
+          #EXTINF:-1 tvg-id="fullscreen.one" group-title="Fullscreen",Fullscreen One
+          http://127.0.0.1:18770/channel.wav
+          '@ | Set-Content (Join-Path $fixture "playlist.m3u") -Encoding utf8
+
+          $now = [DateTimeOffset]::UtcNow
+          $start = $now.AddMinutes(-30).ToString("yyyyMMddHHmmss +0000")
+          $stop = $now.AddMinutes(90).ToString("yyyyMMddHHmmss +0000")
+          @"
+          <tv>
+            <channel id="fullscreen.one"><display-name>Fullscreen One</display-name></channel>
+            <programme channel="fullscreen.one" start="$start" stop="$stop"><title>Fullscreen programme</title></programme>
+          </tv>
+          "@ | Set-Content (Join-Path $fixture "guide.xml") -Encoding utf8
+
+          @{
+            playlist = @{ location = (Join-Path $fixture "playlist.m3u"); isEnabled = $true }
+            programmeGuide = @{ location = (Join-Path $fixture "guide.xml"); isEnabled = $true }
+          } | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $data "sources.json") -Encoding utf8
+          @{ version = 1; theme = 1; accent = 0 } |
+            ConvertTo-Json | Set-Content (Join-Path $data "appearance.json") -Encoding utf8
+
+      - name: Verify fullscreen presenter and edge pixels
+        shell: pwsh
+        env:
+          EFIRON_CI_FULLSCREEN_VERIFICATION: "1"
+        run: |
+          $ErrorActionPreference = "Stop"
+          $output = "src/Efiron.Desktop/bin/x64/Release/net10.0-windows10.0.22000.0/win-x64"
+          $exe = Join-Path $output "Efiron.exe"
+          if (-not (Test-Path $exe)) { throw "Efiron.exe not found: $exe" }
+
+          $fixture = Join-Path $env:RUNNER_TEMP "efiron-fullscreen-fixture"
+          $localAppData = [Environment]::GetFolderPath(
+            [Environment+SpecialFolder]::LocalApplicationData)
+          $diagnostics = Join-Path $localAppData "Efiron/diagnostics"
+          $evidencePath = Join-Path $diagnostics "fullscreen-runtime.json"
+          $previewPath = Join-Path $diagnostics "fullscreen-preview.png"
+          $errorPath = Join-Path $diagnostics "fullscreen-preview-error.log"
+          $crashPath = Join-Path $diagnostics "startup-crash.log"
+          $process = $null
+          $server = $null
+
+          try {
+            $python = (Get-Command python -ErrorAction Stop).Source
+            $server = Start-Process $python -ArgumentList @(
+              "-m","http.server","18770","--bind","127.0.0.1","--directory",$fixture) `
+              -WindowStyle Hidden -PassThru
+            Start-Sleep -Seconds 2
+            if ($server.HasExited) { throw "Fullscreen media server exited." }
+
+            $process = Start-Process $exe -WorkingDirectory $output -PassThru
+            $deadline = [DateTime]::UtcNow.AddSeconds(90)
+            while ([DateTime]::UtcNow -lt $deadline -and
+                   (-not (Test-Path $evidencePath) -or -not (Test-Path $previewPath))) {
+              Start-Sleep -Milliseconds 300
+              $process.Refresh()
+              if ($process.HasExited) {
+                $crash = if (Test-Path $crashPath) { Get-Content $crashPath -Raw } else { "no crash log" }
+                throw "Efiron exited before fullscreen evidence. $crash"
+              }
+            }
+
+            if (Test-Path $errorPath) {
+              throw "Fullscreen capture failed: $(Get-Content $errorPath -Raw)"
+            }
+            if (-not (Test-Path $evidencePath) -or -not (Test-Path $previewPath)) {
+              throw "Fullscreen evidence is incomplete."
+            }
+
+            $evidence = Get-Content $evidencePath -Raw | ConvertFrom-Json
+            if ($evidence.PresenterKind -ne "FullScreen") {
+              throw "Unexpected presenter: $($evidence.PresenterKind)"
+            }
+            if ([double]$evidence.TitleBarRowHeight -ne 0 -or
+                [double]$evidence.NavigationColumnWidth -ne 0) {
+              throw "Shell chrome remains visible in fullscreen."
+            }
+            if (-not [bool]$evidence.Surface.IsFullscreen -or
+                [double]$evidence.Surface.LiveRootRowSpacing -ne 0 -or
+                [double]$evidence.Surface.PlayerWorkspaceRowSpacing -ne 0 -or
+                [double]$evidence.Surface.PlayerBorderThickness -ne 0) {
+              throw "Fullscreen surface geometry is invalid."
+            }
+            if ($evidence.WindowBackground -ne "#FF000000" -or
+                $evidence.Surface.LiveRootBackground -ne "#FF000000") {
+              throw "Fullscreen root surfaces are not black."
+            }
+            if ([double]$evidence.TopWhitePixelRatio -gt 0.01 -or
+                [double]$evidence.BottomWhitePixelRatio -gt 0.01) {
+              throw "White fullscreen edge detected: top=$($evidence.TopWhitePixelRatio), bottom=$($evidence.BottomWhitePixelRatio)"
+            }
+
+            Add-Type -AssemblyName System.Drawing
+            $image = [System.Drawing.Image]::FromFile($previewPath)
+            try {
+              if ($image.Width -lt 800 -or $image.Height -lt 500) {
+                throw "Fullscreen preview dimensions are too small: $($image.Width)x$($image.Height)."
+              }
+            }
+            finally { $image.Dispose() }
+
+            New-Item -ItemType Directory -Path fullscreen-artifacts -Force | Out-Null
+            Copy-Item $evidencePath,$previewPath fullscreen-artifacts/ -Force
+            Get-Content $evidencePath -Raw
+          }
+          finally {
+            if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force }
+            if ($server -and -not $server.HasExited) { Stop-Process -Id $server.Id -Force }
+          }
+
+      - name: Upload fullscreen evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rewrite-fullscreen-evidence
+          path: fullscreen-artifacts/
+          if-no-files-found: error
+          retention-days: 14
