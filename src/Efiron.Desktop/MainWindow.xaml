@@ -68,11 +68,14 @@
         HorizontalScrollBarVisibility="Disabled"
         VerticalScrollBarVisibility="Auto">
       <Grid
+          x:Name="SourcesContentGrid"
           MaxWidth="1120"
           Margin="42,34,42,48"
           HorizontalAlignment="Stretch"
-          RowSpacing="20">
+          RowSpacing="20"
+          SizeChanged="SourcesContentGrid_SizeChanged">
         <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
           <RowDefinition Height="Auto" />
           <RowDefinition Height="Auto" />
           <RowDefinition Height="Auto" />
@@ -126,13 +129,21 @@
             IsClosable="True"
             IsOpen="False" />
 
-        <Grid Grid.Row="2" ColumnSpacing="18">
+        <Grid
+            x:Name="SourceCardsGrid"
+            Grid.Row="2"
+            ColumnSpacing="18"
+            RowSpacing="18">
           <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="*" />
+            <ColumnDefinition x:Name="SourceCardsFirstColumn" Width="*" />
+            <ColumnDefinition x:Name="SourceCardsSecondColumn" Width="*" />
           </Grid.ColumnDefinitions>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition x:Name="SourceCardsSecondRow" Height="0" />
+          </Grid.RowDefinitions>
 
-          <Border Style="{StaticResource EfironCardStyle}">
+          <Border x:Name="PlaylistSourceCard" Style="{StaticResource EfironCardStyle}">
             <Grid RowSpacing="15">
               <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -179,7 +190,10 @@
             </Grid>
           </Border>
 
-          <Border Grid.Column="1" Style="{StaticResource EfironCardStyle}">
+          <Border
+              x:Name="GuideSourceCard"
+              Grid.Column="1"
+              Style="{StaticResource EfironCardStyle}">
             <Grid RowSpacing="15">
               <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -228,11 +242,15 @@
         </Grid>
 
         <Border Grid.Row="3" Style="{StaticResource EfironCardStyle}">
-          <Grid ColumnSpacing="18">
+          <Grid x:Name="StorageCardGrid" ColumnSpacing="18" RowSpacing="14">
             <Grid.ColumnDefinitions>
               <ColumnDefinition Width="*" />
-              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition x:Name="StorageActionColumn" Width="Auto" />
             </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition x:Name="StorageActionRow" Height="0" />
+            </Grid.RowDefinitions>
             <StackPanel Spacing="5">
               <TextBlock
                   x:Uid="StorageTitle"
@@ -249,6 +267,7 @@
             </StackPanel>
 
             <StackPanel
+                x:Name="StorageActionPanel"
                 Grid.Column="1"
                 Orientation="Horizontal"
                 Spacing="10"
@@ -273,8 +292,85 @@
           </Grid>
         </Border>
 
+        <Border Grid.Row="4" Style="{StaticResource EfironCardStyle}">
+          <Grid RowSpacing="16">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Grid ColumnSpacing="12">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="42" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <Border
+                  Width="42"
+                  Height="42"
+                  Background="{ThemeResource EfironAccentSubtleBrush}"
+                  CornerRadius="11">
+                <FontIcon
+                    Glyph="&#xE790;"
+                    FontSize="19"
+                    Foreground="{ThemeResource EfironAccentBrush}"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center" />
+              </Border>
+              <StackPanel Grid.Column="1" Spacing="3">
+                <TextBlock
+                    x:Uid="AppearanceTitle"
+                    Style="{StaticResource EfironSectionTitleStyle}" />
+                <TextBlock
+                    x:Uid="AppearanceDescription"
+                    Style="{StaticResource EfironCaptionStyle}"
+                    TextWrapping="Wrap" />
+              </StackPanel>
+              <Border
+                  x:Name="AccentPreview"
+                  Grid.Column="2"
+                  Width="34"
+                  Height="34"
+                  Background="{ThemeResource EfironAccentBrush}"
+                  CornerRadius="17"
+                  VerticalAlignment="Center" />
+            </Grid>
+
+            <Grid
+                x:Name="AppearanceOptionsGrid"
+                Grid.Row="1"
+                ColumnSpacing="18"
+                RowSpacing="12">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition x:Name="AppearanceSecondColumn" Width="*" />
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition x:Name="AppearanceSecondRow" Height="0" />
+              </Grid.RowDefinitions>
+              <StackPanel x:Name="ThemeOptionPanel" Spacing="7">
+                <TextBlock x:Uid="AppearanceThemeLabel" Style="{StaticResource EfironCaptionStyle}" />
+                <ComboBox
+                    x:Name="ThemeComboBox"
+                    HorizontalAlignment="Stretch"
+                    SelectionChanged="AppearanceComboBox_SelectionChanged" />
+              </StackPanel>
+              <StackPanel
+                  x:Name="AccentOptionPanel"
+                  Grid.Column="1"
+                  Spacing="7">
+                <TextBlock x:Uid="AppearanceAccentLabel" Style="{StaticResource EfironCaptionStyle}" />
+                <ComboBox
+                    x:Name="AccentComboBox"
+                    HorizontalAlignment="Stretch"
+                    SelectionChanged="AppearanceComboBox_SelectionChanged" />
+              </StackPanel>
+            </Grid>
+          </Grid>
+        </Border>
+
         <TextBlock
-            Grid.Row="4"
+            Grid.Row="5"
             x:Uid="NextStepCaption"
             Style="{StaticResource EfironCaptionStyle}"
             TextWrapping="Wrap" />
