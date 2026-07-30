@@ -217,7 +217,6 @@ public sealed partial class LiveTvView
                 break;
 
             case VirtualKey.Space:
-            case VirtualKey.MediaPlayPause:
                 await TogglePlaybackAsync();
                 e.Handled = true;
                 break;
@@ -231,7 +230,6 @@ public sealed partial class LiveTvView
                 break;
 
             case VirtualKey.S:
-            case VirtualKey.MediaStop:
                 _playbackSession?.Stop();
                 e.Handled = true;
                 break;
