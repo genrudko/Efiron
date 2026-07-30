@@ -28,15 +28,12 @@ public sealed class LiveChannelItem : INotifyPropertyChanged
         Category = snapshot.Channel.Category ?? string.Empty;
         CurrentProgramme = snapshot.CurrentProgramme?.Title ?? noProgrammeText;
         CurrentDescription = snapshot.CurrentProgramme?.Description ?? string.Empty;
-        CurrentStartTime = snapshot.CurrentProgramme?.Start
-            .ToLocalTime()
-            .ToString("HH:mm", CultureInfo.CurrentCulture) ?? string.Empty;
+        CurrentStartTime = FormatPointInTime(snapshot.CurrentProgramme?.Start);
+        CurrentEndTime = FormatPointInTime(snapshot.CurrentProgramme?.Stop);
         CurrentProgrammeLine = string.IsNullOrWhiteSpace(CurrentStartTime)
             ? CurrentProgramme
             : $"{CurrentStartTime}  {CurrentProgramme}";
-        CurrentTime = FormatTimeRange(
-            snapshot.CurrentProgramme?.Start,
-            snapshot.CurrentProgramme?.Stop);
+        CurrentTime = CurrentStartTime;
         NextProgramme = snapshot.NextProgramme is null
             ? string.Empty
             : string.Format(
@@ -46,9 +43,7 @@ public sealed class LiveChannelItem : INotifyPropertyChanged
                 snapshot.NextProgramme.Title);
         NextProgrammeTitle = snapshot.NextProgramme?.Title ?? noProgrammeText;
         NextDescription = snapshot.NextProgramme?.Description ?? string.Empty;
-        NextTime = FormatTimeRange(
-            snapshot.NextProgramme?.Start,
-            snapshot.NextProgramme?.Stop);
+        NextTime = CurrentEndTime;
         Progress = CalculateProgress(snapshot, now);
         _isFavorite = isFavorite;
     }
@@ -72,6 +67,8 @@ public sealed class LiveChannelItem : INotifyPropertyChanged
     public string CurrentDescription { get; }
 
     public string CurrentStartTime { get; }
+
+    public string CurrentEndTime { get; }
 
     public string CurrentProgrammeLine { get; }
 
@@ -138,25 +135,9 @@ public sealed class LiveChannelItem : INotifyPropertyChanged
             .Select(static word => char.ToUpperInvariant(word[0])));
     }
 
-    private static string FormatTimeRange(
-        DateTimeOffset? start,
-        DateTimeOffset? stop)
-    {
-        if (start is null)
-        {
-            return string.Empty;
-        }
-
-        var startText = start.Value.ToLocalTime().ToString(
-            "HH:mm",
-            CultureInfo.CurrentCulture);
-        if (stop is null)
-        {
-            return startText;
-        }
-
-        return $"{startText}–{stop.Value.ToLocalTime():HH:mm}";
-    }
+    private static string FormatPointInTime(DateTimeOffset? value) =>
+        value?.ToLocalTime().ToString("HH:mm", CultureInfo.CurrentCulture) ??
+        string.Empty;
 
     private static double CalculateProgress(
         LiveChannelSnapshot snapshot,
