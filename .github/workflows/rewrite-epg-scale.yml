@@ -15,9 +15,9 @@ permissions:
 
 jobs:
   epg-scale:
-    name: 1500-channel EPG responsiveness
+    name: 1500-channel EPG interaction responsiveness
     runs-on: windows-latest
-    timeout-minutes: 28
+    timeout-minutes: 30
 
     steps:
       - name: Checkout exact branch head
@@ -124,7 +124,7 @@ jobs:
           @{ version = 1; theme = 2; accent = 1 } |
             ConvertTo-Json | Set-Content (Join-Path $data "appearance.json") -Encoding utf8
 
-      - name: Verify provider-scale EPG remains responsive
+      - name: Verify provider-scale scrolling zoom and day switching
         shell: pwsh
         env:
           EFIRON_CI_EPG_VERIFICATION: "1"
@@ -139,6 +139,8 @@ jobs:
             [Environment+SpecialFolder]::LocalApplicationData)
           $diagnostics = Join-Path $localAppData "Efiron/diagnostics"
           $projectionPath = Join-Path $diagnostics "epg-projection-runtime.json"
+          $interactionPath = Join-Path $diagnostics "epg-runtime.json"
+          $previewPath = Join-Path $diagnostics "epg-preview.png"
           $crashPath = Join-Path $diagnostics "startup-crash.log"
           $process = $null
           $server = $null
@@ -156,13 +158,14 @@ jobs:
             if ($server.HasExited) { throw "Scale media server exited." }
 
             $process = Start-Process $exe -WorkingDirectory $output -PassThru
-            $deadline = [DateTime]::UtcNow.AddSeconds(150)
-            while ([DateTime]::UtcNow -lt $deadline -and -not (Test-Path $projectionPath)) {
+            $deadline = [DateTime]::UtcNow.AddSeconds(180)
+            while ([DateTime]::UtcNow -lt $deadline -and
+                   (-not (Test-Path $projectionPath) -or -not (Test-Path $interactionPath))) {
               Start-Sleep -Milliseconds 250
               $process.Refresh()
               if ($process.HasExited) {
                 $crash = if (Test-Path $crashPath) { Get-Content $crashPath -Raw } else { "no crash log" }
-                throw "Efiron exited before scale projection. $crash"
+                throw "Efiron exited before scale interaction evidence. $crash"
               }
 
               $current = Get-Process -Id $process.Id -ErrorAction Stop
@@ -170,20 +173,42 @@ jobs:
               if ($current.Responding) { $responsiveSamples++ } else { $unresponsiveSamples++ }
             }
 
-            if (-not (Test-Path $projectionPath)) {
-              throw "Provider-scale projection did not finish within 150 seconds."
+            if (-not (Test-Path $projectionPath) -or -not (Test-Path $interactionPath)) {
+              throw "Provider-scale interaction evidence did not finish within 180 seconds."
             }
 
             $projection = Get-Content $projectionPath -Raw | ConvertFrom-Json
+            $interaction = Get-Content $interactionPath -Raw | ConvertFrom-Json
             if ([int]$projection.CatalogChannelCount -ne 1500 -or
-                [int]$projection.ProjectedRowCount -ne 1500) {
-              throw "Scale row count is invalid: $($projection | ConvertTo-Json -Compress)"
+                [int]$projection.ProjectedRowCount -ne 1500 -or
+                [int]$interaction.CatalogChannelCount -ne 1500) {
+              throw "Scale row count is invalid."
             }
-            if ([int]$projection.ProgrammeBlockCount -lt 4500) {
+            if ([int]$projection.ProgrammeBlockCount -lt 4500 -or
+                [int]$interaction.ProgrammeBlockCount -lt 4500) {
               throw "Scale programme projection is incomplete."
             }
             if ([double]$projection.ProjectionMilliseconds -gt 30000) {
               throw "Scale projection exceeded 30 seconds: $($projection.ProjectionMilliseconds) ms."
+            }
+            if ($interaction.RenderingArchitecture -ne "manual-two-axis-virtualization" -or
+                [double]$interaction.VerticalScrollMaximum -le 0 -or
+                -not [bool]$interaction.VerticalScrollChanged) {
+              throw "Provider-scale vertical virtualization/scrolling is invalid."
+            }
+            if (-not [bool]$interaction.ZoomChanged -or
+                [double]$interaction.PixelsPerMinute -le 1.8) {
+              throw "Provider-scale timeline zoom did not change."
+            }
+            if (-not [bool]$interaction.DaySwitchCompleted -or
+                -not [bool]$interaction.ReturnedToOriginalDay -or
+                [double]$interaction.DaySwitchMilliseconds -gt 20000) {
+              throw "Provider-scale day switching is invalid or too slow."
+            }
+            if ([int]$interaction.RealizedRowCount -le 0 -or
+                [int]$interaction.RealizedRowCount -ge [int]$interaction.VisibleRowCount -or
+                [int]$interaction.RealizedRowCount -gt 40) {
+              throw "Provider-scale row realization is not bounded."
             }
             if ($unresponsiveSamples -gt 2) {
               throw "UI became unresponsive in $unresponsiveSamples samples."
@@ -194,13 +219,17 @@ jobs:
 
             Start-Sleep -Seconds 3
             $process.Refresh()
-            if ($process.HasExited) { throw "Efiron exited after scale projection." }
+            if ($process.HasExited) { throw "Efiron exited after scale interactions." }
 
             $result = [ordered]@{
               HeadSha = "${{ github.event.pull_request.head.sha || github.sha }}"
               Channels = [int]$projection.CatalogChannelCount
               ProgrammeBlocks = [int]$projection.ProgrammeBlockCount
               ProjectionMilliseconds = [double]$projection.ProjectionMilliseconds
+              DaySwitchMilliseconds = [double]$interaction.DaySwitchMilliseconds
+              VerticalScrollChanged = [bool]$interaction.VerticalScrollChanged
+              ZoomChanged = [bool]$interaction.ZoomChanged
+              RealizedRows = [int]$interaction.RealizedRowCount
               EndToEndMilliseconds = $clock.Elapsed.TotalMilliseconds
               ResponsiveSamples = $responsiveSamples
               UnresponsiveSamples = $unresponsiveSamples
@@ -209,6 +238,8 @@ jobs:
             New-Item -ItemType Directory -Path scale-artifacts -Force | Out-Null
             $result | ConvertTo-Json | Set-Content scale-artifacts/epg-scale-runtime.json -Encoding utf8
             Copy-Item $projectionPath scale-artifacts/ -Force
+            Copy-Item $interactionPath scale-artifacts/ -Force
+            if (Test-Path $previewPath) { Copy-Item $previewPath scale-artifacts/ -Force }
             $result | ConvertTo-Json -Compress
           }
           finally {
