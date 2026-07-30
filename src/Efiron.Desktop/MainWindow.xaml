@@ -14,372 +14,154 @@
       <KeyboardAccelerator Key="F11" Invoked="FullscreenKeyboardAccelerator_Invoked" />
       <KeyboardAccelerator Key="Escape" Invoked="ExitFullscreenKeyboardAccelerator_Invoked" />
     </Grid.KeyboardAccelerators>
-
     <Grid.RowDefinitions>
-      <RowDefinition Height="44" />
+      <RowDefinition Height="46" />
       <RowDefinition Height="*" />
     </Grid.RowDefinitions>
 
-    <Grid
-        x:Name="TitleBarDragRegion"
-        Padding="12,0"
-        Background="{ThemeResource EfironNavigationBrush}">
+    <Grid x:Name="TitleBarDragRegion" Background="{ThemeResource EfironNavigationBrush}">
       <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="216" />
         <ColumnDefinition Width="*" />
         <ColumnDefinition Width="Auto" />
       </Grid.ColumnDefinitions>
-
-      <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-        <Border
-            Width="26"
-            Height="26"
-            Background="{ThemeResource EfironAccentBrush}"
-            CornerRadius="8">
-          <FontIcon
-              Glyph="&#xE768;"
-              FontSize="14"
-              Foreground="White"
-              HorizontalAlignment="Center"
-              VerticalAlignment="Center" />
+      <Grid Padding="18,0,12,0">
+        <StackPanel Orientation="Horizontal" Spacing="11" VerticalAlignment="Center">
+          <Viewbox Width="28" Height="28">
+            <Grid Width="32" Height="32">
+              <Path Data="M2,1 L30,16 L2,31 Z" Fill="{StaticResource EfironBrandGradient}" />
+              <Path Data="M10,9 L23,16 L10,23 Z" Fill="{ThemeResource EfironNavigationBrush}" />
+            </Grid>
+          </Viewbox>
+          <TextBlock Text="EFIRON" FontFamily="Segoe UI Variable Display" FontSize="17" FontWeight="Bold" CharacterSpacing="55" Foreground="{ThemeResource EfironTextBrush}" VerticalAlignment="Center" />
+        </StackPanel>
+      </Grid>
+      <TextBlock x:Name="WindowContextTitle" Grid.Column="1" x:Uid="WindowContextTitle" Margin="20,0,0,0" Style="{StaticResource EfironCaptionStyle}" FontWeight="SemiBold" VerticalAlignment="Center" />
+      <StackPanel Grid.Column="2" Margin="0,0,142,0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <Button x:Name="GlobalSearchButton" Style="{StaticResource EfironIconButtonStyle}" Click="GlobalSearchButton_Click" ToolTipService.ToolTip="Поиск">
+          <FontIcon Glyph="&#xE721;" FontSize="15" />
+        </Button>
+        <Border Padding="11,6" Background="{ThemeResource EfironSurfaceRaisedBrush}" CornerRadius="8">
+          <TextBlock x:Name="AppClockText" Style="{StaticResource EfironCaptionStyle}" FontWeight="SemiBold" />
         </Border>
-        <TextBlock
-            Text="EFIRON"
-            FontFamily="Segoe UI Variable Display"
-            FontSize="15"
-            FontWeight="Bold"
-            CharacterSpacing="45"
-            Foreground="{ThemeResource EfironTextBrush}"
-            VerticalAlignment="Center" />
       </StackPanel>
-
-      <TextBlock
-          x:Name="WindowContextTitle"
-          Grid.Column="1"
-          x:Uid="WindowContextTitle"
-          Margin="24,0,0,0"
-          Style="{StaticResource EfironCaptionStyle}"
-          VerticalAlignment="Center" />
     </Grid>
 
-    <ScrollViewer
-        x:Name="SourcesWorkspace"
-        Grid.Row="1"
-        HorizontalScrollBarVisibility="Disabled"
-        VerticalScrollBarVisibility="Auto">
-      <Grid
-          x:Name="SourcesContentGrid"
-          MaxWidth="1120"
-          Margin="42,34,42,48"
-          HorizontalAlignment="Stretch"
-          RowSpacing="20"
-          SizeChanged="SourcesContentGrid_SizeChanged">
-        <Grid.RowDefinitions>
-          <RowDefinition Height="Auto" />
-          <RowDefinition Height="Auto" />
-          <RowDefinition Height="Auto" />
-          <RowDefinition Height="Auto" />
-          <RowDefinition Height="Auto" />
-          <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+    <Grid x:Name="ShellRoot" Grid.Row="1" Loaded="ShellRoot_Loaded">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition x:Name="ShellNavigationColumn" Width="216" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
 
-        <Grid ColumnSpacing="24">
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="Auto" />
-          </Grid.ColumnDefinitions>
-          <StackPanel Spacing="7">
-            <TextBlock
-                x:Uid="SourcesTitle"
-                Style="{StaticResource EfironPageTitleStyle}" />
-            <TextBlock
-                x:Uid="SourcesDescription"
-                MaxWidth="760"
-                Style="{StaticResource EfironBodyStyle}"
-                TextWrapping="Wrap" />
-          </StackPanel>
-
-          <Border
-              Grid.Column="1"
-              Padding="12,7"
-              Background="{ThemeResource EfironSurfaceRaisedBrush}"
-              BorderBrush="{ThemeResource EfironStrokeBrush}"
-              BorderThickness="1"
-              CornerRadius="18"
-              VerticalAlignment="Top">
-            <StackPanel Orientation="Horizontal" Spacing="8">
-              <Ellipse
-                  x:Name="ConfigurationStatusDot"
-                  Width="8"
-                  Height="8"
-                  Fill="{ThemeResource EfironTextTertiaryBrush}"
-                  VerticalAlignment="Center" />
-              <TextBlock
-                  x:Name="ConfigurationStatusText"
-                  x:Uid="ConfigurationStatusLoading"
-                  Style="{StaticResource EfironCaptionStyle}"
-                  FontWeight="SemiBold" />
-            </StackPanel>
-          </Border>
-        </Grid>
-
-        <InfoBar
-            x:Name="PageMessage"
-            Grid.Row="1"
-            IsClosable="True"
-            IsOpen="False" />
-
-        <Grid
-            x:Name="SourceCardsGrid"
-            Grid.Row="2"
-            ColumnSpacing="18"
-            RowSpacing="18">
-          <Grid.ColumnDefinitions>
-            <ColumnDefinition x:Name="SourceCardsFirstColumn" Width="*" />
-            <ColumnDefinition x:Name="SourceCardsSecondColumn" Width="*" />
-          </Grid.ColumnDefinitions>
+      <Border x:Name="AppNavigationRail" Background="{ThemeResource EfironNavigationBrush}" BorderBrush="{ThemeResource EfironStrokeSubtleBrush}" BorderThickness="0,1,1,0">
+        <Grid Margin="12,16,12,14">
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition x:Name="SourceCardsSecondRow" Height="0" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
           </Grid.RowDefinitions>
-
-          <Border x:Name="PlaylistSourceCard" Style="{StaticResource EfironCardStyle}">
-            <Grid RowSpacing="15">
-              <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-              </Grid.RowDefinitions>
+          <StackPanel Spacing="5">
+            <ToggleButton x:Name="LiveNavigationButton" Style="{StaticResource EfironNavigationToggleStyle}" Click="LiveNavigationButton_Click">
               <Grid ColumnSpacing="12">
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="42" />
-                  <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <Border
-                    Width="42"
-                    Height="42"
-                    Background="{ThemeResource EfironAccentSubtleBrush}"
-                    CornerRadius="11">
-                  <FontIcon
-                      Glyph="&#xE8A5;"
-                      FontSize="19"
-                      Foreground="{ThemeResource EfironAccentBrush}"
-                      HorizontalAlignment="Center"
-                      VerticalAlignment="Center" />
-                </Border>
-                <StackPanel Grid.Column="1" Spacing="3">
-                  <TextBlock
-                      x:Uid="PlaylistCardTitle"
-                      Style="{StaticResource EfironSectionTitleStyle}" />
-                  <TextBlock
-                      x:Uid="PlaylistCardDescription"
-                      Style="{StaticResource EfironCaptionStyle}"
-                      TextWrapping="Wrap" />
+                <Grid.ColumnDefinitions><ColumnDefinition Width="24" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                <FontIcon Glyph="&#xE7F4;" FontSize="17" />
+                <StackPanel Grid.Column="1" Spacing="1">
+                  <TextBlock Text="Эфир" FontWeight="SemiBold" />
+                  <TextBlock Text="Каналы и просмотр" Style="{StaticResource EfironCaptionStyle}" />
                 </StackPanel>
               </Grid>
-              <TextBox
-                  x:Name="PlaylistLocationTextBox"
-                  Grid.Row="1"
-                  x:Uid="PlaylistLocation"
-                  MinHeight="42" />
-              <TextBlock
-                  Grid.Row="2"
-                  x:Uid="PlaylistHelp"
-                  Style="{StaticResource EfironCaptionStyle}"
-                  TextWrapping="Wrap" />
-            </Grid>
-          </Border>
-
-          <Border
-              x:Name="GuideSourceCard"
-              Grid.Column="1"
-              Style="{StaticResource EfironCardStyle}">
-            <Grid RowSpacing="15">
-              <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-              </Grid.RowDefinitions>
+            </ToggleButton>
+            <ToggleButton x:Name="SettingsNavigationButton" Style="{StaticResource EfironNavigationToggleStyle}" Click="SettingsNavigationButton_Click">
               <Grid ColumnSpacing="12">
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="42" />
-                  <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <Border
-                    Width="42"
-                    Height="42"
-                    Background="{ThemeResource EfironAccentSubtleBrush}"
-                    CornerRadius="11">
-                  <FontIcon
-                      Glyph="&#xE787;"
-                      FontSize="19"
-                      Foreground="{ThemeResource EfironAccentBrush}"
-                      HorizontalAlignment="Center"
-                      VerticalAlignment="Center" />
-                </Border>
-                <StackPanel Grid.Column="1" Spacing="3">
-                  <TextBlock
-                      x:Uid="GuideCardTitle"
-                      Style="{StaticResource EfironSectionTitleStyle}" />
-                  <TextBlock
-                      x:Uid="GuideCardDescription"
-                      Style="{StaticResource EfironCaptionStyle}"
-                      TextWrapping="Wrap" />
+                <Grid.ColumnDefinitions><ColumnDefinition Width="24" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                <FontIcon Glyph="&#xE713;" FontSize="17" />
+                <StackPanel Grid.Column="1" Spacing="1">
+                  <TextBlock Text="Настройки" FontWeight="SemiBold" />
+                  <TextBlock Text="Источники и интерфейс" Style="{StaticResource EfironCaptionStyle}" />
                 </StackPanel>
               </Grid>
-              <TextBox
-                  x:Name="GuideLocationTextBox"
-                  Grid.Row="1"
-                  x:Uid="GuideLocation"
-                  MinHeight="42" />
-              <TextBlock
-                  Grid.Row="2"
-                  x:Uid="GuideHelp"
-                  Style="{StaticResource EfironCaptionStyle}"
-                  TextWrapping="Wrap" />
-            </Grid>
-          </Border>
+            </ToggleButton>
+          </StackPanel>
+          <StackPanel Grid.Row="2" Spacing="10">
+            <Border Padding="13" Background="{ThemeResource EfironSurfaceBrush}" BorderBrush="{ThemeResource EfironStrokeSubtleBrush}" BorderThickness="1" CornerRadius="10">
+              <StackPanel Spacing="5">
+                <StackPanel Orientation="Horizontal" Spacing="8"><TextBlock Text="★" Foreground="{ThemeResource EfironWarningBrush}" /><TextBlock Text="Избранное" Foreground="{ThemeResource EfironTextBrush}" FontWeight="SemiBold" /></StackPanel>
+                <TextBlock Text="Любимые каналы доступны в один клик" Style="{StaticResource EfironCaptionStyle}" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+            <TextBlock Text="GREENFIELD PREVIEW" Style="{StaticResource EfironEyebrowStyle}" HorizontalAlignment="Center" />
+          </StackPanel>
         </Grid>
+      </Border>
 
-        <Border Grid.Row="3" Style="{StaticResource EfironCardStyle}">
-          <Grid x:Name="StorageCardGrid" ColumnSpacing="18" RowSpacing="14">
-            <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="*" />
-              <ColumnDefinition x:Name="StorageActionColumn" Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <Grid.RowDefinitions>
-              <RowDefinition Height="Auto" />
-              <RowDefinition x:Name="StorageActionRow" Height="0" />
-            </Grid.RowDefinitions>
-            <StackPanel Spacing="5">
-              <TextBlock
-                  x:Uid="StorageTitle"
-                  Style="{StaticResource EfironSectionTitleStyle}" />
-              <TextBlock
-                  x:Uid="StorageDescription"
-                  Style="{StaticResource EfironBodyStyle}"
-                  TextWrapping="Wrap" />
-              <TextBlock
-                  x:Name="ConfigurationPathText"
-                  Margin="0,5,0,0"
-                  Style="{StaticResource EfironCaptionStyle}"
-                  TextTrimming="CharacterEllipsis" />
-            </StackPanel>
-
-            <StackPanel
-                x:Name="StorageActionPanel"
-                Grid.Column="1"
-                Orientation="Horizontal"
-                Spacing="10"
-                VerticalAlignment="Center">
-              <ProgressRing
-                  x:Name="SaveProgressRing"
-                  Width="24"
-                  Height="24"
-                  IsActive="False"
-                  Visibility="Collapsed" />
-              <Button
-                  x:Name="SaveSourcesButton"
-                  x:Uid="SaveSourcesButton"
-                  Click="SaveSourcesButton_Click" />
-              <Button
-                  x:Name="OpenLiveButton"
-                  x:Uid="OpenLiveButton"
-                  Style="{StaticResource EfironPrimaryButtonStyle}"
-                  IsEnabled="False"
-                  Click="OpenLiveButton_Click" />
-            </StackPanel>
-          </Grid>
-        </Border>
-
-        <Border Grid.Row="4" Style="{StaticResource EfironCardStyle}">
-          <Grid RowSpacing="16">
-            <Grid.RowDefinitions>
-              <RowDefinition Height="Auto" />
-              <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
-            <Grid ColumnSpacing="12">
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="42" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-              </Grid.ColumnDefinitions>
-              <Border
-                  Width="42"
-                  Height="42"
-                  Background="{ThemeResource EfironAccentSubtleBrush}"
-                  CornerRadius="11">
-                <FontIcon
-                    Glyph="&#xE790;"
-                    FontSize="19"
-                    Foreground="{ThemeResource EfironAccentBrush}"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center" />
+      <Grid Grid.Column="1">
+        <ScrollViewer x:Name="SourcesWorkspace" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+          <Grid x:Name="SourcesContentGrid" MaxWidth="1180" Margin="30,26,30,44" HorizontalAlignment="Stretch" SizeChanged="SourcesContentGrid_SizeChanged" RowSpacing="16">
+            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+            <Grid ColumnSpacing="24">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+              <StackPanel Spacing="5">
+                <TextBlock Text="НАСТРОЙКИ" Style="{StaticResource EfironEyebrowStyle}" />
+                <TextBlock Text="Источники и интерфейс" Style="{StaticResource EfironPageTitleStyle}" />
+                <TextBlock x:Uid="SourcesDescription" MaxWidth="720" Style="{StaticResource EfironBodyStyle}" TextWrapping="Wrap" />
+              </StackPanel>
+              <Border Grid.Column="1" Padding="12,7" Background="{ThemeResource EfironSurfaceRaisedBrush}" BorderBrush="{ThemeResource EfironStrokeSubtleBrush}" BorderThickness="1" CornerRadius="18" VerticalAlignment="Top">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Ellipse x:Name="ConfigurationStatusDot" Width="8" Height="8" Fill="{ThemeResource EfironTextTertiaryBrush}" VerticalAlignment="Center" />
+                  <TextBlock x:Name="ConfigurationStatusText" x:Uid="ConfigurationStatusLoading" Style="{StaticResource EfironCaptionStyle}" FontWeight="SemiBold" />
+                </StackPanel>
               </Border>
-              <StackPanel Grid.Column="1" Spacing="3">
-                <TextBlock
-                    x:Uid="AppearanceTitle"
-                    Style="{StaticResource EfironSectionTitleStyle}" />
-                <TextBlock
-                    x:Uid="AppearanceDescription"
-                    Style="{StaticResource EfironCaptionStyle}"
-                    TextWrapping="Wrap" />
-              </StackPanel>
-              <Border
-                  x:Name="AccentPreview"
-                  Grid.Column="2"
-                  Width="34"
-                  Height="34"
-                  Background="{ThemeResource EfironAccentBrush}"
-                  CornerRadius="17"
-                  VerticalAlignment="Center" />
             </Grid>
-
-            <Grid
-                x:Name="AppearanceOptionsGrid"
-                Grid.Row="1"
-                ColumnSpacing="18"
-                RowSpacing="12">
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition x:Name="AppearanceSecondColumn" Width="*" />
-              </Grid.ColumnDefinitions>
-              <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition x:Name="AppearanceSecondRow" Height="0" />
-              </Grid.RowDefinitions>
-              <StackPanel x:Name="ThemeOptionPanel" Spacing="7">
-                <TextBlock x:Uid="AppearanceThemeLabel" Style="{StaticResource EfironCaptionStyle}" />
-                <ComboBox
-                    x:Name="ThemeComboBox"
-                    HorizontalAlignment="Stretch"
-                    SelectionChanged="AppearanceComboBox_SelectionChanged" />
-              </StackPanel>
-              <StackPanel
-                  x:Name="AccentOptionPanel"
-                  Grid.Column="1"
-                  Spacing="7">
-                <TextBlock x:Uid="AppearanceAccentLabel" Style="{StaticResource EfironCaptionStyle}" />
-                <ComboBox
-                    x:Name="AccentComboBox"
-                    HorizontalAlignment="Stretch"
-                    SelectionChanged="AppearanceComboBox_SelectionChanged" />
-              </StackPanel>
+            <InfoBar x:Name="PageMessage" Grid.Row="1" IsClosable="True" IsOpen="False" />
+            <Grid Grid.Row="2" ColumnSpacing="18">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="164" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+              <Border Padding="10" Background="{ThemeResource EfironSurfaceBrush}" BorderBrush="{ThemeResource EfironStrokeSubtleBrush}" BorderThickness="1" CornerRadius="10" VerticalAlignment="Top">
+                <StackPanel Spacing="4">
+                  <Button Style="{StaticResource EfironSecondaryButtonStyle}" HorizontalContentAlignment="Left" Click="SettingsSourcesAnchorButton_Click"><StackPanel Orientation="Horizontal" Spacing="9"><FontIcon Glyph="&#xE8A5;" FontSize="14" /><TextBlock Text="Источники" /></StackPanel></Button>
+                  <Button Style="{StaticResource EfironSecondaryButtonStyle}" HorizontalContentAlignment="Left" Click="SettingsInterfaceAnchorButton_Click"><StackPanel Orientation="Horizontal" Spacing="9"><FontIcon Glyph="&#xE790;" FontSize="14" /><TextBlock Text="Интерфейс" /></StackPanel></Button>
+                </StackPanel>
+              </Border>
+              <Grid Grid.Column="1" RowSpacing="14">
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                <Grid x:Name="SourceCardsGrid" ColumnSpacing="14" RowSpacing="14">
+                  <Grid.ColumnDefinitions><ColumnDefinition x:Name="SourceCardsFirstColumn" Width="*" /><ColumnDefinition x:Name="SourceCardsSecondColumn" Width="*" /></Grid.ColumnDefinitions>
+                  <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition x:Name="SourceCardsSecondRow" Height="0" /></Grid.RowDefinitions>
+                  <Border x:Name="PlaylistSourceCard" Style="{StaticResource EfironCardStyle}">
+                    <Grid RowSpacing="14"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                      <Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="40" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions><Border Width="40" Height="40" Background="{ThemeResource EfironAccentSubtleBrush}" CornerRadius="10"><FontIcon Glyph="&#xE8A5;" FontSize="18" Foreground="{ThemeResource EfironAccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border><StackPanel Grid.Column="1" Spacing="2"><TextBlock x:Uid="PlaylistCardTitle" Style="{StaticResource EfironSectionTitleStyle}" /><TextBlock x:Uid="PlaylistCardDescription" Style="{StaticResource EfironCaptionStyle}" TextWrapping="Wrap" /></StackPanel></Grid>
+                      <TextBox x:Name="PlaylistLocationTextBox" Grid.Row="1" x:Uid="PlaylistLocation" MinHeight="40" />
+                      <TextBlock Grid.Row="2" x:Uid="PlaylistHelp" Style="{StaticResource EfironCaptionStyle}" TextWrapping="Wrap" />
+                    </Grid>
+                  </Border>
+                  <Border x:Name="GuideSourceCard" Grid.Column="1" Style="{StaticResource EfironCardStyle}">
+                    <Grid RowSpacing="14"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                      <Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="40" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions><Border Width="40" Height="40" Background="{ThemeResource EfironAccentSubtleBrush}" CornerRadius="10"><FontIcon Glyph="&#xE787;" FontSize="18" Foreground="{ThemeResource EfironAccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border><StackPanel Grid.Column="1" Spacing="2"><TextBlock x:Uid="GuideCardTitle" Style="{StaticResource EfironSectionTitleStyle}" /><TextBlock x:Uid="GuideCardDescription" Style="{StaticResource EfironCaptionStyle}" TextWrapping="Wrap" /></StackPanel></Grid>
+                      <TextBox x:Name="GuideLocationTextBox" Grid.Row="1" x:Uid="GuideLocation" MinHeight="40" />
+                      <TextBlock Grid.Row="2" x:Uid="GuideHelp" Style="{StaticResource EfironCaptionStyle}" TextWrapping="Wrap" />
+                    </Grid>
+                  </Border>
+                </Grid>
+                <Border Grid.Row="1" Style="{StaticResource EfironCardStyle}">
+                  <Grid RowSpacing="14"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition x:Name="StorageActionRow" Height="0" /></Grid.RowDefinitions>
+                    <Grid ColumnSpacing="16"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition x:Name="StorageActionColumn" Width="Auto" /></Grid.ColumnDefinitions>
+                      <StackPanel Spacing="4"><TextBlock x:Uid="StorageTitle" Style="{StaticResource EfironSectionTitleStyle}" /><TextBlock x:Uid="StorageDescription" Style="{StaticResource EfironBodyStyle}" TextWrapping="Wrap" /><TextBlock x:Name="ConfigurationPathText" Margin="0,3,0,0" Style="{StaticResource EfironCaptionStyle}" TextTrimming="CharacterEllipsis" /></StackPanel>
+                      <StackPanel x:Name="StorageActionPanel" Grid.Column="1" Orientation="Horizontal" Spacing="9" VerticalAlignment="Center"><ProgressRing x:Name="SaveProgressRing" Width="22" Height="22" IsActive="False" Visibility="Collapsed" /><Button x:Name="SaveSourcesButton" x:Uid="SaveSourcesButton" Style="{StaticResource EfironSecondaryButtonStyle}" Click="SaveSourcesButton_Click" /><Button x:Name="OpenLiveButton" x:Uid="OpenLiveButton" Style="{StaticResource EfironPrimaryButtonStyle}" IsEnabled="False" Click="OpenLiveButton_Click" /></StackPanel>
+                    </Grid>
+                  </Grid>
+                </Border>
+                <Border x:Name="AppearanceCard" Grid.Row="2" Style="{StaticResource EfironCardStyle}">
+                  <Grid RowSpacing="14"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition x:Name="AppearanceSecondRow" Height="0" /></Grid.RowDefinitions>
+                    <StackPanel Spacing="3"><TextBlock x:Uid="AppearanceTitle" Style="{StaticResource EfironSectionTitleStyle}" /><TextBlock x:Uid="AppearanceDescription" Style="{StaticResource EfironBodyStyle}" TextWrapping="Wrap" /></StackPanel>
+                    <Grid Grid.Row="1" ColumnSpacing="14"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition x:Name="AppearanceSecondColumn" Width="*" /></Grid.ColumnDefinitions><StackPanel Spacing="5"><TextBlock x:Uid="AppearanceThemeLabel" Style="{StaticResource EfironCaptionStyle}" /><ComboBox x:Name="ThemeComboBox" HorizontalAlignment="Stretch" SelectionChanged="AppearanceComboBox_SelectionChanged" /></StackPanel><StackPanel x:Name="AccentOptionPanel" Grid.Column="1" Spacing="5"><TextBlock x:Uid="AppearanceAccentLabel" Style="{StaticResource EfironCaptionStyle}" /><ComboBox x:Name="AccentComboBox" HorizontalAlignment="Stretch" SelectionChanged="AppearanceComboBox_SelectionChanged" /></StackPanel></Grid>
+                  </Grid>
+                </Border>
+                <TextBlock Grid.Row="3" x:Uid="NextStepCaption" Style="{StaticResource EfironCaptionStyle}" TextWrapping="Wrap" />
+              </Grid>
             </Grid>
           </Grid>
-        </Border>
-
-        <TextBlock
-            Grid.Row="5"
-            x:Uid="NextStepCaption"
-            Style="{StaticResource EfironCaptionStyle}"
-            TextWrapping="Wrap" />
+        </ScrollViewer>
+        <views:LiveTvView x:Name="LiveTvWorkspace" Visibility="Collapsed" />
       </Grid>
-    </ScrollViewer>
-
-    <views:LiveTvView
-        x:Name="LiveTvWorkspace"
-        Grid.Row="1"
-        Visibility="Collapsed" />
+    </Grid>
   </Grid>
 </Window>
