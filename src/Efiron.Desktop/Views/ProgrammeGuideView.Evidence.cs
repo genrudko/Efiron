@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace Efiron.Desktop.Views;
 
 public sealed partial class ProgrammeGuideView
@@ -80,6 +82,50 @@ public sealed partial class ProgrammeGuideView
                 verticalProgramme.ChannelStableId,
                 StringComparison.Ordinal);
 
+        var verticalScrollChanged = false;
+        var zoomChanged = false;
+        var daySwitchCompleted = false;
+        var returnedToOriginalDay = true;
+        var daySwitchMilliseconds = 0d;
+
+        if (_catalog.Channels.Count >= 100)
+        {
+            var oldVerticalOffset = _verticalOffset;
+            SetVerticalOffset(Math.Min(
+                EpgVerticalScrollBar.Maximum,
+                Math.Max(RowHeight * 12, EpgRowsViewport.ActualHeight * 1.4)));
+            await Task.Delay(300, cancellationToken);
+            verticalScrollChanged =
+                _verticalOffset > oldVerticalOffset + RowHeight &&
+                _rowVisualPool.Any(static visual =>
+                    visual.Root.Visibility == Microsoft.UI.Xaml.Visibility.Visible);
+
+            var oldPixelsPerMinute = _pixelsPerMinute;
+            var oldTimelineWidth = TimelineWidth;
+            TimelineZoomSlider.Value = Math.Min(4, oldPixelsPerMinute + 0.65);
+            await Task.Delay(300, cancellationToken);
+            zoomChanged =
+                _pixelsPerMinute > oldPixelsPerMinute + 0.5 &&
+                TimelineWidth > oldTimelineWidth + 500;
+
+            var originalDate = _selectedDate;
+            var targetDate = originalDate.AddDays(1);
+            var dayClock = Stopwatch.StartNew();
+            await SelectDateAsync(targetDate, jumpToNow: false);
+            daySwitchCompleted =
+                _selectedDate == targetDate &&
+                !_projectionBusy &&
+                _allRows.Count == _catalog.Channels.Count;
+            await SelectDateAsync(originalDate, jumpToNow: true);
+            dayClock.Stop();
+            daySwitchMilliseconds = dayClock.Elapsed.TotalMilliseconds;
+            returnedToOriginalDay =
+                _selectedDate == originalDate &&
+                !_projectionBusy &&
+                _allRows.Count == _catalog.Channels.Count;
+            await Task.Delay(300, cancellationToken);
+        }
+
         return new ProgrammeGuideRuntimeEvidence(
             _catalog.Channels.Count,
             _allRows.Count,
@@ -106,6 +152,11 @@ public sealed partial class ProgrammeGuideView
             _pixelsPerMinute,
             EpgVerticalScrollBar.Maximum,
             "manual-two-axis-virtualization",
+            verticalScrollChanged,
+            zoomChanged,
+            daySwitchCompleted,
+            returnedToOriginalDay,
+            daySwitchMilliseconds,
             DateTimeOffset.UtcNow);
     }
 
@@ -134,5 +185,10 @@ public sealed partial class ProgrammeGuideView
         double PixelsPerMinute,
         double VerticalScrollMaximum,
         string RenderingArchitecture,
+        bool VerticalScrollChanged,
+        bool ZoomChanged,
+        bool DaySwitchCompleted,
+        bool ReturnedToOriginalDay,
+        double DaySwitchMilliseconds,
         DateTimeOffset RecordedAtUtc);
 }
