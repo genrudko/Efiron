@@ -42,6 +42,11 @@ public sealed partial class ProgrammeGuideView
             _allRows.AddRange(cachedRows);
             ApplyFilters();
             PositionAfterProjection();
+            await RecordProjectionDiagnosticsAsync(
+                catalog,
+                cachedRows,
+                TimeSpan.Zero,
+                token);
             return;
         }
 
