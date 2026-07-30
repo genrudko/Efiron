@@ -24,6 +24,21 @@ public sealed partial class LiveTvView
         ApplyFullscreenSurfaceState(force: true);
     }
 
+    internal FullscreenSurfaceEvidence GetFullscreenSurfaceEvidence()
+    {
+        var background = LiveRoot.Background is SolidColorBrush brush
+            ? brush.Color.ToString()
+            : string.Empty;
+        return new FullscreenSurfaceEvidence(
+            _isFullscreen,
+            LiveRoot.RowSpacing,
+            PlayerWorkspace.RowSpacing,
+            PlayerSurfaceBorder.BorderThickness.Left,
+            background,
+            LiveRoot.ActualWidth,
+            LiveRoot.ActualHeight);
+    }
+
     private void FullscreenSurface_LiveRootLayoutUpdated(object? sender, object e) =>
         ApplyFullscreenSurfaceState(force: false);
 
@@ -44,4 +59,13 @@ public sealed partial class LiveTvView
             ? new SolidColorBrush(Microsoft.UI.Colors.Black)
             : _normalLiveRootBackground;
     }
+
+    internal sealed record FullscreenSurfaceEvidence(
+        bool IsFullscreen,
+        double LiveRootRowSpacing,
+        double PlayerWorkspaceRowSpacing,
+        double PlayerBorderThickness,
+        string LiveRootBackground,
+        double Width,
+        double Height);
 }
