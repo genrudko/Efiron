@@ -22,6 +22,7 @@
   <data name="WindowContextTitle.Text" xml:space="preserve"><value>Sources</value></data>
   <data name="WindowContextSourcesMessage" xml:space="preserve"><value>Sources</value></data>
   <data name="WindowContextLiveMessage" xml:space="preserve"><value>Live TV</value></data>
+  <data name="WindowContextProgrammeMessage" xml:space="preserve"><value>Programme</value></data>
 
   <data name="SourcesTitle.Text" xml:space="preserve"><value>Television sources</value></data>
   <data name="SourcesDescription.Text" xml:space="preserve"><value>Connect your channel playlist and TV guide. After saving, Efiron validates the sources and builds a working catalog immediately.</value></data>
