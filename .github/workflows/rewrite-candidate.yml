@@ -185,8 +185,8 @@ jobs:
                 -not [bool]$medium.CategoryRailVisible) {
               throw "Medium poster layout evidence is invalid."
             }
-            if ($compact.ChannelColumn -ne 0 -or $compact.ChannelRow -ne 1 -or
-                $compact.PlayerColumn -ne 0 -or $compact.PlayerRow -ne 0 -or
+            if ($compact.ChannelColumn -ne 0 -or $compact.ChannelRow -ne 0 -or
+                $compact.PlayerColumn -ne 1 -or $compact.PlayerRow -ne 0 -or
                 -not [bool]$compact.ProgrammeStacked -or
                 [bool]$compact.CategoryRailVisible) {
               throw "Compact poster layout evidence is invalid."
