@@ -37,29 +37,37 @@ public sealed partial class ProgrammeGuideView
         {
             case VirtualKey.Left:
             case VirtualKey.GamepadDPadLeft:
-                MoveProgrammeFocus(horizontalDelta: -1, verticalDelta: 0, e);
+                MoveProgrammeFocus(-1, 0, e);
                 break;
             case VirtualKey.Right:
             case VirtualKey.GamepadDPadRight:
-                MoveProgrammeFocus(horizontalDelta: 1, verticalDelta: 0, e);
+                MoveProgrammeFocus(1, 0, e);
                 break;
             case VirtualKey.Up:
             case VirtualKey.GamepadDPadUp:
-                MoveProgrammeFocus(horizontalDelta: 0, verticalDelta: -1, e);
+                MoveProgrammeFocus(0, -1, e);
                 break;
             case VirtualKey.Down:
             case VirtualKey.GamepadDPadDown:
-                MoveProgrammeFocus(horizontalDelta: 0, verticalDelta: 1, e);
+                MoveProgrammeFocus(0, 1, e);
                 break;
             case VirtualKey.GamepadLeftShoulder:
-                SelectDate(_selectedDate.AddDays(-1), jumpToNow: false);
+                _ = SelectDateAsync(_selectedDate.AddDays(-1), jumpToNow: false);
                 _keyboardProgramme = null;
                 e.Handled = true;
                 break;
             case VirtualKey.GamepadRightShoulder:
-                SelectDate(_selectedDate.AddDays(1), jumpToNow: false);
+                _ = SelectDateAsync(_selectedDate.AddDays(1), jumpToNow: false);
                 _keyboardProgramme = null;
                 e.Handled = true;
+                break;
+            case VirtualKey.Enter:
+            case VirtualKey.GamepadA:
+                if (_keyboardProgramme is not null)
+                {
+                    ShowProgrammeDetails(_keyboardProgramme);
+                    e.Handled = true;
+                }
                 break;
             case VirtualKey.GamepadB when ProgrammeDetailsCard.Visibility == Visibility.Visible:
                 ProgrammeDetailsCard.Visibility = Visibility.Collapsed;
@@ -128,11 +136,7 @@ public sealed partial class ProgrammeGuideView
             .OrderBy(static programme => programme.Programme.Start)
             .ToArray();
         var index = Array.FindIndex(ordered, programme => SameProgramme(programme, current));
-        if (index < 0)
-        {
-            index = 0;
-        }
-
+        index = index < 0 ? 0 : index;
         return ordered[Math.Clamp(index + delta, 0, ordered.Length - 1)];
     }
 
@@ -140,13 +144,15 @@ public sealed partial class ProgrammeGuideView
         EpgProgrammeBlockItem current,
         int delta)
     {
-        var rowIndex = _visibleRows
-            .Select((row, index) => (row, index))
-            .FirstOrDefault(candidate => string.Equals(
-                candidate.row.StableId,
-                current.ChannelStableId,
-                StringComparison.Ordinal))
-            .index;
+        var rowIndex = _visibleRows.FindIndex(row => string.Equals(
+            row.StableId,
+            current.ChannelStableId,
+            StringComparison.Ordinal));
+        if (rowIndex < 0)
+        {
+            return current;
+        }
+
         var targetRowIndex = Math.Clamp(
             rowIndex + delta,
             0,
@@ -157,10 +163,9 @@ public sealed partial class ProgrammeGuideView
             return current;
         }
 
+        var stop = current.Programme.Stop ?? current.Programme.Start.AddMinutes(30);
         var currentMiddle = current.Programme.Start +
-            TimeSpan.FromTicks(
-                ((current.Programme.Stop ?? current.Programme.Start.AddMinutes(30)) -
-                 current.Programme.Start).Ticks / 2);
+            TimeSpan.FromTicks((stop - current.Programme.Start).Ticks / 2);
         return targetRow.Programmes
             .OrderBy(programme => Math.Abs(
                 (programme.Programme.Start - currentMiddle).Ticks))
@@ -169,53 +174,49 @@ public sealed partial class ProgrammeGuideView
 
     private void FocusProgramme(EpgProgrammeBlockItem programme)
     {
-        var row = _visibleRows.FirstOrDefault(candidate => string.Equals(
-            candidate.StableId,
+        var rowIndex = _visibleRows.FindIndex(row => string.Equals(
+            row.StableId,
             programme.ChannelStableId,
             StringComparison.Ordinal));
-        if (row is not null)
+        if (rowIndex >= 0)
         {
-            ChannelRowsListView.ScrollIntoView(row);
-            TimelineRowsListView.ScrollIntoView(row);
+            SetVerticalOffset(
+                rowIndex * RowHeight - Math.Max(0, EpgRowsViewport.ActualHeight * 0.32));
         }
 
-        var targetOffset = Math.Clamp(
-            programme.Left - Math.Max(80, TimelineViewportGrid.ActualWidth * 0.24),
-            0,
-            Math.Max(0, TimelineWidth - TimelineViewportGrid.ActualWidth));
-        TimelineHorizontalScrollViewer.ChangeView(
-            targetOffset,
-            null,
-            null,
-            false);
+        var scale = _pixelsPerMinute / BasePixelsPerMinute;
+        var absoluteLeft = programme.Left * scale;
+        SetHorizontalOffset(
+            absoluteLeft - Math.Max(80, TimelineViewportWidth * 0.24));
+        QueueViewportRender();
 
         DispatcherQueue.TryEnqueue(
             DispatcherQueuePriority.Low,
-            () => FindProgrammeButton(TimelineRowsListView, programme)?
-                .Focus(FocusState.Keyboard));
+            () =>
+            {
+                if (_realizedProgrammeButtons.TryGetValue(
+                        ProgrammeVisualKey.From(programme),
+                        out var button))
+                {
+                    button.Focus(FocusState.Keyboard);
+                }
+            });
     }
 
-    private static Button? FindProgrammeButton(
-        DependencyObject root,
-        EpgProgrammeBlockItem programme)
+    private void ShowProgrammeDetails(EpgProgrammeBlockItem programme)
     {
-        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
-        {
-            var child = VisualTreeHelper.GetChild(root, index);
-            if (child is Button { Tag: EpgProgrammeBlockItem candidate } button &&
-                SameProgramme(candidate, programme))
-            {
-                return button;
-            }
-
-            var nested = FindProgrammeButton(child, programme);
-            if (nested is not null)
-            {
-                return nested;
-            }
-        }
-
-        return null;
+        _selectedProgramme = programme;
+        var channel = _catalog?.Channels.FirstOrDefault(snapshot => string.Equals(
+            snapshot.Channel.StableId,
+            programme.ChannelStableId,
+            StringComparison.Ordinal));
+        DetailsTimeText.Text = programme.TimeText;
+        DetailsChannelText.Text = channel?.Channel.Name ?? string.Empty;
+        DetailsTitleText.Text = programme.Title;
+        DetailsDescriptionText.Text = string.IsNullOrWhiteSpace(programme.Description)
+            ? "Описание передачи не предоставлено"
+            : programme.Description;
+        ProgrammeDetailsCard.Visibility = Visibility.Visible;
     }
 
     private static EpgProgrammeBlockItem? FindProgrammeFromOrigin(
@@ -238,7 +239,7 @@ public sealed partial class ProgrammeGuideView
     {
         while (source is not null)
         {
-            if (source is TextBox or ComboBox)
+            if (source is TextBox or ComboBox or Slider)
             {
                 return true;
             }
