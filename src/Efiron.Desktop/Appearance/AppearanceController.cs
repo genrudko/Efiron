@@ -61,7 +61,6 @@ internal sealed class AppearanceController(
         SetBrush(dictionary, "AccentTextFillColorSecondaryBrush", hover);
         SetBrush(dictionary, "ProgressBarForeground", accent);
         SetBrush(dictionary, "ProgressRingForeground", accent);
-        SetBrush(dictionary, "TextControlSelectionHighlightColor", WithAlpha(accent, 0x99));
     }
 
     private static void SetBrush(
