@@ -18,6 +18,8 @@ public sealed partial class MainWindow
         ShellRoot.LayoutUpdated += ShellRoot_LayoutUpdated;
         LiveTvWorkspace.EnablePresentationPolish();
         LiveTvWorkspace.EnableCategoryController();
+        LiveTvWorkspace.EnableFullscreenSurfaceFix();
+        EnableFullscreenWindowSurfaceFix();
         ProgrammeGuideWorkspace.PlayChannelRequested +=
             ProgrammeGuideWorkspace_PlayChannelRequested;
         EnableTitleBarContrast();
