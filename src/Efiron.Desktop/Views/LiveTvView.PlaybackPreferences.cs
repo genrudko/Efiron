@@ -1,6 +1,7 @@
 using Efiron.Application.Playback;
 using Efiron.Domain.Playback;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 
 namespace Efiron.Desktop.Views;
 
@@ -28,6 +29,7 @@ public sealed partial class LiveTvView
         }
 
         _playbackPreferencesLoadStarted = true;
+        ChannelListView.ItemClick += PlaybackPreferences_ChannelListView_ItemClick;
         _ = LoadPlaybackPreferencesAsync();
     }
 
@@ -132,17 +134,22 @@ public sealed partial class LiveTvView
         }
     }
 
-    private void RememberSelectedChannelPreference(string stableId)
+    private void PlaybackPreferences_ChannelListView_ItemClick(
+        object sender,
+        ItemClickEventArgs e)
     {
-        if (!_playbackPreferencesLoaded || string.IsNullOrWhiteSpace(stableId))
+        if (e.ClickedItem is not LiveChannelItem item ||
+            !_playbackPreferencesLoaded)
         {
             return;
         }
 
-        UpdatePlaybackPreferences(new PlaybackPreferences(
-            stableId,
-            _playbackPreferences.Volume,
-            _playbackPreferences.IsMuted));
+        UpdatePlaybackPreferences(
+            new PlaybackPreferences(
+                item.Snapshot.Channel.StableId,
+                _playbackPreferences.Volume,
+                _playbackPreferences.IsMuted),
+            saveImmediately: true);
     }
 
     private void HandlePlaybackPreferencesSnapshot(
@@ -156,14 +163,18 @@ public sealed partial class LiveTvView
             return;
         }
 
-        UpdatePlaybackPreferences(new PlaybackPreferences(
-            snapshot.ChannelStableId ??
-                _playbackPreferences.SelectedChannelStableId,
-            snapshot.Volume,
-            snapshot.IsMuted));
+        UpdatePlaybackPreferences(
+            new PlaybackPreferences(
+                snapshot.ChannelStableId ??
+                    _playbackPreferences.SelectedChannelStableId,
+                snapshot.Volume,
+                snapshot.IsMuted),
+            saveImmediately: false);
     }
 
-    private void UpdatePlaybackPreferences(PlaybackPreferences next)
+    private void UpdatePlaybackPreferences(
+        PlaybackPreferences next,
+        bool saveImmediately)
     {
         if (next == _playbackPreferences)
         {
@@ -171,11 +182,12 @@ public sealed partial class LiveTvView
         }
 
         _playbackPreferences = next;
-        SchedulePlaybackPreferencesSave(next);
+        SchedulePlaybackPreferencesSave(next, saveImmediately);
     }
 
     private void SchedulePlaybackPreferencesSave(
-        PlaybackPreferences preferences)
+        PlaybackPreferences preferences,
+        bool saveImmediately)
     {
         CancellationTokenSource cancellation;
         lock (_playbackPreferencesSync)
@@ -186,20 +198,26 @@ public sealed partial class LiveTvView
             cancellation = _playbackPreferencesSave;
         }
 
-        _ = SavePlaybackPreferencesAfterDelayAsync(
+        _ = SavePlaybackPreferencesAsync(
             preferences,
+            saveImmediately,
             cancellation.Token);
     }
 
-    private async Task SavePlaybackPreferencesAfterDelayAsync(
+    private async Task SavePlaybackPreferencesAsync(
         PlaybackPreferences preferences,
+        bool saveImmediately,
         CancellationToken cancellationToken)
     {
         try
         {
-            await Task.Delay(
-                TimeSpan.FromMilliseconds(350),
-                cancellationToken);
+            if (!saveImmediately)
+            {
+                await Task.Delay(
+                    TimeSpan.FromMilliseconds(350),
+                    cancellationToken);
+            }
+
             await SavePlaybackPreferencesCoreAsync(
                 preferences,
                 cancellationToken);
@@ -283,6 +301,7 @@ public sealed partial class LiveTvView
 
     private void DisposePlaybackPreferencesHooks()
     {
+        ChannelListView.ItemClick -= PlaybackPreferences_ChannelListView_ItemClick;
         FlushPlaybackPreferencesOnShutdown();
 
         lock (_playbackPreferencesSync)
