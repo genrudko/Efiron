@@ -14,7 +14,7 @@ public sealed record EpgChannelRowItem(
 
     public string Category => Snapshot.Channel.Category ?? string.Empty;
 
-    public Uri? LogoUri => Snapshot.Channel.LogoUri;
+    public Uri? LogoUrl => Snapshot.Channel.LogoUri;
 
     public string Initials
     {
