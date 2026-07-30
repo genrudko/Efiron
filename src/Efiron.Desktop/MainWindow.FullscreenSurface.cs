@@ -1,9 +1,14 @@
+using System.Runtime.InteropServices;
 using Microsoft.UI.Xaml.Media;
 
 namespace Efiron.Desktop;
 
 public sealed partial class MainWindow
 {
+    private const int DwmwaBorderColor = 34;
+    private const int DwmColorDefault = unchecked((int)0xFFFFFFFF);
+    private const int DwmColorNone = unchecked((int)0xFFFFFFFE);
+
     private bool _fullscreenWindowSurfaceFixEnabled;
     private bool? _fullscreenWindowSurfaceApplied;
     private Brush? _normalWindowRootBackground;
@@ -38,5 +43,26 @@ public sealed partial class MainWindow
         ShellRoot.Background = _isFullscreen
             ? new SolidColorBrush(Microsoft.UI.Colors.Black)
             : null;
+        ApplyDwmBorderState();
     }
+
+    private void ApplyDwmBorderState()
+    {
+        var windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        var borderColor = _isFullscreen
+            ? DwmColorNone
+            : DwmColorDefault;
+        _ = DwmSetWindowAttribute(
+            windowHandle,
+            DwmwaBorderColor,
+            ref borderColor,
+            Marshal.SizeOf<int>());
+    }
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(
+        nint hwnd,
+        int attribute,
+        ref int attributeValue,
+        int attributeSize);
 }
