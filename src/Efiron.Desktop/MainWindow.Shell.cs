@@ -67,8 +67,14 @@ public sealed partial class MainWindow
 
     private void LiveWorkspace_VisibilityChanged(
         DependencyObject sender,
-        DependencyProperty property) =>
+        DependencyProperty property)
+    {
         UpdateShellNavigation();
+        if (LiveTvWorkspace.Visibility == Visibility.Visible)
+        {
+            _ = CapturePresentationPreviewAsync();
+        }
+    }
 
     private void ShellRoot_LayoutUpdated(object? sender, object e) =>
         ApplyShellFullscreenState();
