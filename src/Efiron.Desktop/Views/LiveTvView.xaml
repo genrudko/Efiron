@@ -94,7 +94,7 @@
                     <Border Grid.Column="1" Width="42" Height="42" Background="{ThemeResource EfironSurfaceRaisedBrush}" BorderBrush="{ThemeResource EfironStrokeSubtleBrush}" BorderThickness="1" CornerRadius="9">
                       <Grid>
                         <TextBlock Text="{Binding Initials}" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{ThemeResource EfironAccentBrush}" FontWeight="Bold" FontSize="12" />
-                        <Image Source="{Binding LogoUrl}" Stretch="Uniform" Margin="4" IsHitTestVisible="False" />
+                        <Image Source="{Binding LogoUrl}" Stretch="Uniform" Margin="4" IsHitTestVisible="False" ImageOpened="PiconImage_ImageOpened" ImageFailed="PiconImage_ImageFailed" />
                       </Grid>
                     </Border>
                     <Grid Grid.Column="2" RowSpacing="3" VerticalAlignment="Center">
@@ -138,7 +138,7 @@
                   <Border Padding="7,2" Background="{ThemeResource EfironAccentBrush}" CornerRadius="5" VerticalAlignment="Center"><TextBlock Text="LIVE" Foreground="White" FontSize="10" FontWeight="Bold" /></Border>
                 </StackPanel>
                 <TextBlock x:Name="SelectedProgrammeText" Foreground="#E4E9F1" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                <Grid Margin="0,5,0,0" ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="{Binding SelectedItem.CurrentTime, ElementName=ChannelListView}" Foreground="#C2CAD5" FontSize="11" /><ProgressBar Grid.Column="1" Height="3" Minimum="0" Maximum="100" Value="{Binding SelectedItem.Progress, ElementName=ChannelListView}" VerticalAlignment="Center" /><TextBlock Grid.Column="2" Text="{Binding SelectedItem.NextTime, ElementName=ChannelListView}" Foreground="#C2CAD5" FontSize="11" /></Grid>
+                <Grid Margin="0,7,0,0" ColumnSpacing="10"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="{Binding SelectedItem.CurrentTime, ElementName=ChannelListView}" Foreground="#F2F5F9" FontSize="15" FontWeight="SemiBold" /><ProgressBar Grid.Column="1" Height="5" Minimum="0" Maximum="100" Value="{Binding SelectedItem.Progress, ElementName=ChannelListView}" VerticalAlignment="Center" /><TextBlock Grid.Column="2" Text="{Binding SelectedItem.NextTime, ElementName=ChannelListView}" Foreground="#F2F5F9" FontSize="15" FontWeight="SemiBold" /></Grid>
               </StackPanel>
             </Grid>
             <Border x:Name="PlayerControlsBorder" Margin="12" Padding="8" Background="#D90B1018" BorderBrush="#40FFFFFF" BorderThickness="1" CornerRadius="9" VerticalAlignment="Bottom">
