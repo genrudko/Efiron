@@ -41,6 +41,7 @@ public sealed partial class LiveTvView
             $"template-applied visibility={Visibility}",
             snapshot: null);
 
+        _ = ApplyPlaybackPreferencesAsync();
         QueueVisibleActivation("template-visible");
     }
 
@@ -52,6 +53,7 @@ public sealed partial class LiveTvView
         _ = TracePlaybackStageAsync(
             $"measure visibility={Visibility} available={availableSize.Width}x{availableSize.Height}",
             _playbackSession?.Snapshot);
+        _ = ApplyPlaybackPreferencesAsync();
         QueueVisibleActivation("measure-visible");
 
         return measured;
@@ -65,6 +67,7 @@ public sealed partial class LiveTvView
         }
 
         _playbackEvidenceHooksAttached = true;
+        EnsurePlaybackPreferencesHooks();
         PlaybackSnapshotChanged += LiveTvView_PlaybackSnapshotChanged;
         VideoView.Initialized += PlaybackEvidence_VideoViewInitialized;
         Loaded += LiveTvView_Loaded;
@@ -84,6 +87,7 @@ public sealed partial class LiveTvView
         _visibleActivationQueued = true;
         if (!DispatcherQueue.TryEnqueue(async () =>
             {
+                await ApplyPlaybackPreferencesAsync();
                 await ActivateAndTraceAsync(trigger);
             }))
         {
@@ -96,6 +100,7 @@ public sealed partial class LiveTvView
         _ = TracePlaybackStageAsync(
             $"loaded visibility={Visibility}",
             snapshot: null);
+        _ = ApplyPlaybackPreferencesAsync();
         QueueVisibleActivation("loaded-visible");
     }
 
@@ -103,9 +108,11 @@ public sealed partial class LiveTvView
         object? sender,
         InitializedEventArgs e)
     {
+        ApplyPlaybackPreferencesToSession();
+        await ApplyPlaybackPreferencesAsync();
         await TracePlaybackStageAsync(
             $"video-view-initialized visibility={Visibility}",
-            snapshot: null);
+            _playbackSession?.Snapshot);
         QueueVisibleActivation("video-view-initialized");
     }
 
@@ -123,6 +130,7 @@ public sealed partial class LiveTvView
             return;
         }
 
+        _ = ApplyPlaybackPreferencesAsync();
         QueueVisibleActivation("visibility-visible");
     }
 
@@ -152,6 +160,7 @@ public sealed partial class LiveTvView
         object? sender,
         PlaybackSnapshotChangedEventArgs e)
     {
+        HandlePlaybackPreferencesSnapshot(e.Snapshot);
         _ = TracePlaybackStageAsync(
             "snapshot",
             e.Snapshot);
@@ -461,6 +470,7 @@ public sealed partial class LiveTvView
         VideoView.Initialized -= PlaybackEvidence_VideoViewInitialized;
         Loaded -= LiveTvView_Loaded;
         Unloaded -= LiveTvView_Unloaded;
+        DisposePlaybackPreferencesHooks();
         _playbackEvidenceHooksAttached = false;
         _visibleActivationQueued = false;
     }
