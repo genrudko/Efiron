@@ -11,6 +11,9 @@ import time
 from typing import Final
 
 BOUNDARY: Final[bytes] = b"efiron-frame"
+STREAM_PATHS: Final[frozenset[str]] = frozenset(
+    {"/stream.mjpg", "/stream.mpjpeg"}
+)
 
 
 class MjpegHandler(http.server.BaseHTTPRequestHandler):
@@ -36,7 +39,7 @@ class MjpegHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(self.frame)
             return
 
-        if self.path != "/stream.mjpg":
+        if self.path not in STREAM_PATHS:
             self.send_error(404)
             return
 
