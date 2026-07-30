@@ -12,7 +12,7 @@ public sealed partial class MainWindow
     {
         ShellRoot.Loaded -= ShellRoot_Loaded;
         _shellVisibilityToken = LiveTvWorkspace.RegisterPropertyChangedCallback(
-            VisibilityProperty,
+            UIElement.VisibilityProperty,
             LiveWorkspace_VisibilityChanged);
 
         _shellClockTimer = DispatcherQueue.CreateTimer();
