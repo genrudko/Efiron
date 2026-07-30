@@ -7,6 +7,7 @@ public sealed partial class MainWindow
 {
     private DispatcherQueueTimer? _shellClockTimer;
     private long _shellVisibilityToken;
+    private bool? _shellFullscreenApplied;
 
     private void ShellRoot_Loaded(object sender, RoutedEventArgs e)
     {
@@ -14,6 +15,7 @@ public sealed partial class MainWindow
         _shellVisibilityToken = LiveTvWorkspace.RegisterPropertyChangedCallback(
             UIElement.VisibilityProperty,
             LiveWorkspace_VisibilityChanged);
+        ShellRoot.LayoutUpdated += ShellRoot_LayoutUpdated;
 
         _shellClockTimer = DispatcherQueue.CreateTimer();
         _shellClockTimer.Interval = TimeSpan.FromSeconds(15);
@@ -21,6 +23,7 @@ public sealed partial class MainWindow
         _shellClockTimer.Start();
         UpdateShellClock();
         UpdateShellNavigation();
+        ApplyShellFullscreenState();
     }
 
     private async void LiveNavigationButton_Click(object sender, RoutedEventArgs e)
@@ -66,6 +69,25 @@ public sealed partial class MainWindow
         DependencyObject sender,
         DependencyProperty property) =>
         UpdateShellNavigation();
+
+    private void ShellRoot_LayoutUpdated(object? sender, object e) =>
+        ApplyShellFullscreenState();
+
+    private void ApplyShellFullscreenState()
+    {
+        if (_shellFullscreenApplied == _isFullscreen)
+        {
+            return;
+        }
+
+        _shellFullscreenApplied = _isFullscreen;
+        AppNavigationRail.Visibility = _isFullscreen
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        ShellNavigationColumn.Width = _isFullscreen
+            ? new GridLength(0)
+            : new GridLength(216);
+    }
 
     private void UpdateShellNavigation()
     {
