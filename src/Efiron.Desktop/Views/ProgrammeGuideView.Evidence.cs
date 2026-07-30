@@ -81,13 +81,22 @@ public sealed partial class ProgrammeGuideView
                     row.Category,
                     selectedCategory,
                     StringComparison.CurrentCultureIgnoreCase)));
-        var initialProgramme = FindInitialProgramme();
-        var horizontalProgramme = initialProgramme is null
+
+        var initialProgramme = FindNavigationEvidenceProgramme();
+        var initialRowIndex = initialProgramme is null
+            ? -1
+            : _visibleRows.FindIndex(row => string.Equals(
+                row.StableId,
+                initialProgramme.ChannelStableId,
+                StringComparison.Ordinal));
+        var horizontalDelta = ResolveHorizontalEvidenceDelta(initialProgramme);
+        var verticalDelta = initialRowIndex >= _visibleRows.Count - 1 ? -1 : 1;
+        var horizontalProgramme = initialProgramme is null || horizontalDelta == 0
             ? null
-            : FindHorizontalProgramme(initialProgramme, 1);
-        var verticalProgramme = initialProgramme is null
+            : FindHorizontalProgramme(initialProgramme, horizontalDelta);
+        var verticalProgramme = initialProgramme is null || initialRowIndex < 0
             ? null
-            : FindVerticalProgramme(initialProgramme, 1);
+            : FindVerticalProgramme(initialProgramme, verticalDelta);
         var directionalNavigationValid =
             initialProgramme is not null &&
             horizontalProgramme is not null &&
@@ -212,6 +221,48 @@ public sealed partial class ProgrammeGuideView
             returnedToOriginalDay,
             daySwitchMilliseconds,
             DateTimeOffset.UtcNow);
+    }
+
+    private EpgProgrammeBlockItem? FindNavigationEvidenceProgramme()
+    {
+        foreach (var row in _visibleRows)
+        {
+            if (row.Programmes.Count < 2)
+            {
+                continue;
+            }
+
+            return row.Programmes
+                .OrderBy(static programme => programme.Programme.Start)
+                .First();
+        }
+
+        return FindInitialProgramme();
+    }
+
+    private int ResolveHorizontalEvidenceDelta(EpgProgrammeBlockItem? programme)
+    {
+        if (programme is null)
+        {
+            return 0;
+        }
+
+        var row = _visibleRows.FirstOrDefault(candidate => string.Equals(
+            candidate.StableId,
+            programme.ChannelStableId,
+            StringComparison.Ordinal));
+        if (row is null || row.Programmes.Count < 2)
+        {
+            return 0;
+        }
+
+        var ordered = row.Programmes
+            .OrderBy(static candidate => candidate.Programme.Start)
+            .ToArray();
+        var index = Array.FindIndex(
+            ordered,
+            candidate => SameProgramme(candidate, programme));
+        return index >= ordered.Length - 1 ? -1 : 1;
     }
 
     internal sealed record ProgrammeGuideRuntimeEvidence(
