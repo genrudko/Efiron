@@ -89,6 +89,11 @@ public sealed partial class MainWindow
         UpdateShellNavigation();
         if (LiveTvWorkspace.Visibility == Visibility.Visible)
         {
+            if (TryOpenEpgVerificationWorkspace())
+            {
+                return;
+            }
+
             _ = CapturePresentationPreviewAsync();
         }
     }
