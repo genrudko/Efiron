@@ -215,7 +215,7 @@ public sealed partial class ProgrammeGuideView
         }
         else if (width < 96)
         {
-            button.Padding = new Thickness(7, 5);
+            button.Padding = new Thickness(7, 5, 7, 5);
             button.Content = new TextBlock
             {
                 Text = block.Title,
@@ -231,8 +231,8 @@ public sealed partial class ProgrammeGuideView
         {
             var showFullMetadata = width >= 150;
             button.Padding = showFullMetadata
-                ? new Thickness(10, 7)
-                : new Thickness(8, 6);
+                ? new Thickness(10, 7, 10, 7)
+                : new Thickness(8, 6, 8, 6);
 
             var content = new Grid { RowSpacing = showFullMetadata ? 3 : 2 };
             content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
