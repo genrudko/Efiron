@@ -75,6 +75,8 @@ public sealed partial class ProgrammeGuideView
             VerticalAlignment = VerticalAlignment.Center,
         };
         var logo = new Image { Stretch = Stretch.Uniform };
+        logo.ImageOpened += (_, _) => initials.Visibility = Visibility.Collapsed;
+        logo.ImageFailed += (_, _) => initials.Visibility = Visibility.Visible;
         logoHost.Children.Add(initials);
         logoHost.Children.Add(logo);
         channelGrid.Children.Add(logoHost);
@@ -141,6 +143,7 @@ public sealed partial class ProgrammeGuideView
         visual.Name.Text = row.Name;
         visual.Category.Text = row.Category;
         visual.Initials.Text = row.Initials;
+        visual.Initials.Visibility = Visibility.Visible;
         visual.Logo.Source = row.LogoUrl;
 
         var timelineWidth = Math.Max(0, viewportWidth - _channelColumnWidth);
@@ -205,56 +208,86 @@ public sealed partial class ProgrammeGuideView
         };
         button.Click += ProgrammeButton_Click;
 
-        var content = new Grid { RowSpacing = 3 };
-        content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        content.RowDefinitions.Add(new RowDefinition
+        if (width < 52)
         {
-            Height = new GridLength(1, GridUnitType.Star),
-        });
-        var meta = new StackPanel
+            button.Padding = new Thickness(0);
+            button.Content = null;
+        }
+        else if (width < 96)
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 6,
-        };
-        if (block.IsCurrent)
-        {
-            meta.Children.Add(new Border
+            button.Padding = new Thickness(7, 5);
+            button.Content = new TextBlock
             {
-                Padding = new Thickness(5, 1, 5, 1),
-                Background = ResolveEpgBrush("EfironAccentBrush"),
-                CornerRadius = new CornerRadius(5),
-                Child = new TextBlock
-                {
-                    Text = "LIVE",
-                    Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
-                    FontSize = 9,
-                    FontWeight = FontWeights.Bold,
-                },
+                Text = block.Title,
+                Foreground = ResolveEpgBrush("EfironTextBrush"),
+                FontWeight = FontWeights.SemiBold,
+                FontSize = 11.5,
+                TextWrapping = TextWrapping.NoWrap,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+        }
+        else
+        {
+            var showFullMetadata = width >= 150;
+            button.Padding = showFullMetadata
+                ? new Thickness(10, 7)
+                : new Thickness(8, 6);
+
+            var content = new Grid { RowSpacing = showFullMetadata ? 3 : 2 };
+            content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            content.RowDefinitions.Add(new RowDefinition
+            {
+                Height = new GridLength(1, GridUnitType.Star),
             });
+            var meta = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 6,
+            };
+            if (block.IsCurrent && showFullMetadata)
+            {
+                meta.Children.Add(new Border
+                {
+                    Padding = new Thickness(5, 1, 5, 1),
+                    Background = ResolveEpgBrush("EfironAccentBrush"),
+                    CornerRadius = new CornerRadius(5),
+                    Child = new TextBlock
+                    {
+                        Text = "LIVE",
+                        Foreground = new SolidColorBrush(Microsoft.UI.Colors.White),
+                        FontSize = 9,
+                        FontWeight = FontWeights.Bold,
+                    },
+                });
+            }
+
+            meta.Children.Add(new TextBlock
+            {
+                Text = block.TimeText,
+                Foreground = ResolveEpgBrush("EfironTextSecondaryBrush"),
+                FontSize = showFullMetadata ? 10.5 : 10,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+            });
+            content.Children.Add(meta);
+            var title = new TextBlock
+            {
+                Text = block.Title,
+                Foreground = ResolveEpgBrush("EfironTextBrush"),
+                FontWeight = FontWeights.SemiBold,
+                FontSize = showFullMetadata ? 12.5 : 12,
+                TextWrapping = showFullMetadata
+                    ? TextWrapping.Wrap
+                    : TextWrapping.NoWrap,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                MaxLines = showFullMetadata ? 3 : 1,
+                VerticalAlignment = VerticalAlignment.Top,
+            };
+            Grid.SetRow(title, 1);
+            content.Children.Add(title);
+            button.Content = content;
         }
 
-        meta.Children.Add(new TextBlock
-        {
-            Text = block.TimeText,
-            Foreground = ResolveEpgBrush("EfironTextSecondaryBrush"),
-            FontSize = 10.5,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-        });
-        content.Children.Add(meta);
-        var title = new TextBlock
-        {
-            Text = block.Title,
-            Foreground = ResolveEpgBrush("EfironTextBrush"),
-            FontWeight = FontWeights.SemiBold,
-            FontSize = 12.5,
-            TextWrapping = TextWrapping.Wrap,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-            MaxLines = 3,
-            VerticalAlignment = VerticalAlignment.Top,
-        };
-        Grid.SetRow(title, 1);
-        content.Children.Add(title);
-        button.Content = content;
         ToolTipService.SetToolTip(
             button,
             string.IsNullOrWhiteSpace(block.Description)
