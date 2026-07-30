@@ -13,7 +13,8 @@ public sealed partial class LiveTvView
     private static readonly TimeSpan PlayerChromeHideDelay = TimeSpan.FromSeconds(3.2);
 
     private bool _presentationPolishEnabled;
-    private bool _pointerOverPlayerChrome;
+    private bool _floatingPlayerControlsConfigured;
+    private bool _pointerOverPlayerControls;
     private DispatcherQueueTimer? _playerChromeTimer;
     private UIElement? _playerProgrammeOverlay;
     private UIElement? _playerOverlayScrim;
@@ -78,27 +79,33 @@ public sealed partial class LiveTvView
 
     private void ConfigureFloatingPlayerControls()
     {
-        PlayerControlsBorder.HorizontalAlignment = HorizontalAlignment.Center;
-        PlayerControlsBorder.Background = new SolidColorBrush(
-            Microsoft.UI.ColorHelper.FromArgb(218, 7, 11, 17));
-        PlayerControlsBorder.BorderThickness = new Thickness(0);
-        PlayerControlsBorder.CornerRadius = new CornerRadius(24);
-        PlayerControlsBorder.Padding = new Thickness(8, 6, 8, 6);
-        PlayerControlsBorder.Margin = new Thickness(0, 0, 0, 14);
+        if (!_floatingPlayerControlsConfigured)
+        {
+            _floatingPlayerControlsConfigured = true;
+            PlayerControlsBorder.HorizontalAlignment = HorizontalAlignment.Center;
+            PlayerControlsBorder.Background = new SolidColorBrush(
+                Microsoft.UI.ColorHelper.FromArgb(218, 7, 11, 17));
+            PlayerControlsBorder.BorderThickness = new Thickness(0);
+            PlayerControlsBorder.CornerRadius = new CornerRadius(24);
+            PlayerControlsBorder.Padding = new Thickness(8, 6, 8, 6);
+            PlayerControlsBorder.Margin = new Thickness(0, 0, 0, 14);
 
+            foreach (var button in PlaybackControlsGrid.Children.OfType<Button>())
+            {
+                button.Background = new SolidColorBrush(
+                    Microsoft.UI.ColorHelper.FromArgb(34, 255, 255, 255));
+                button.BorderThickness = new Thickness(0);
+                button.CornerRadius = new CornerRadius(18);
+                button.Width = 36;
+                button.Height = 36;
+            }
+        }
+
+        // Responsive layout must not turn the floating player controls back into
+        // a full-width information bar.
         SelectedChannelPanel.Visibility = Visibility.Collapsed;
         SelectedInfoColumn.Width = new GridLength(0);
         VolumeColumn.Width = new GridLength(112);
-
-        foreach (var button in PlaybackControlsGrid.Children.OfType<Button>())
-        {
-            button.Background = new SolidColorBrush(
-                Microsoft.UI.ColorHelper.FromArgb(34, 255, 255, 255));
-            button.BorderThickness = new Thickness(0);
-            button.CornerRadius = new CornerRadius(18);
-            button.Width = 36;
-            button.Height = 36;
-        }
     }
 
     private void PresentationPolish_PlaybackSnapshotChanged(
@@ -159,11 +166,8 @@ public sealed partial class LiveTvView
 
     private void PlayerSurface_PointerEntered(
         object sender,
-        PointerRoutedEventArgs e)
-    {
-        _pointerOverPlayerChrome = true;
-        ShowPlayerChrome(restartAutoHide: false);
-    }
+        PointerRoutedEventArgs e) =>
+        ShowPlayerChrome(restartAutoHide: true);
 
     private void PlayerSurface_PointerMoved(
         object sender,
@@ -179,7 +183,7 @@ public sealed partial class LiveTvView
         object sender,
         PointerRoutedEventArgs e)
     {
-        _pointerOverPlayerChrome = false;
+        _pointerOverPlayerControls = false;
         RestartPlayerChromeTimer();
     }
 
@@ -187,7 +191,7 @@ public sealed partial class LiveTvView
         object sender,
         PointerRoutedEventArgs e)
     {
-        _pointerOverPlayerChrome = true;
+        _pointerOverPlayerControls = true;
         _playerChromeTimer?.Stop();
     }
 
@@ -195,7 +199,7 @@ public sealed partial class LiveTvView
         object sender,
         PointerRoutedEventArgs e)
     {
-        _pointerOverPlayerChrome = false;
+        _pointerOverPlayerControls = false;
         RestartPlayerChromeTimer();
     }
 
@@ -204,7 +208,7 @@ public sealed partial class LiveTvView
         object args)
     {
         if (_playerChromePlaybackState == PlaybackState.Playing &&
-            !_pointerOverPlayerChrome)
+            !_pointerOverPlayerControls)
         {
             SetPlayerChromeVisibility(Visibility.Collapsed);
         }
@@ -226,7 +230,8 @@ public sealed partial class LiveTvView
     private void RestartPlayerChromeTimer()
     {
         _playerChromeTimer?.Stop();
-        if (_playerChromePlaybackState == PlaybackState.Playing)
+        if (_playerChromePlaybackState == PlaybackState.Playing &&
+            !_pointerOverPlayerControls)
         {
             _playerChromeTimer?.Start();
         }
