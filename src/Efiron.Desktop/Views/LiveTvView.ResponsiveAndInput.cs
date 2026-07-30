@@ -62,27 +62,51 @@ public sealed partial class LiveTvView
 
     private void SyncCategoryRail()
     {
-        if (_categoryRailSyncing ||
-            CategoryRailListView.Items.Count == CategoryComboBox.Items.Count)
+        if (_categoryRailSyncing)
         {
             return;
+        }
+
+        var labels = CategoryComboBox.Items
+            .Select(static item => item is ComboBoxItem comboBoxItem
+                ? comboBoxItem.Content?.ToString() ?? string.Empty
+                : item?.ToString() ?? string.Empty)
+            .ToArray();
+        var requiresRebuild = CategoryRailListView.Items.Count != labels.Length;
+        if (!requiresRebuild)
+        {
+            for (var index = 0; index < labels.Length; index++)
+            {
+                if (!string.Equals(
+                        CategoryRailListView.Items[index]?.ToString(),
+                        labels[index],
+                        StringComparison.CurrentCulture))
+                {
+                    requiresRebuild = true;
+                    break;
+                }
+            }
         }
 
         _categoryRailSyncing = true;
         try
         {
-            CategoryRailListView.Items.Clear();
-            foreach (var item in CategoryComboBox.Items)
+            if (requiresRebuild)
             {
-                CategoryRailListView.Items.Add(
-                    item is ComboBoxItem comboBoxItem
-                        ? comboBoxItem.Content?.ToString() ?? string.Empty
-                        : item?.ToString() ?? string.Empty);
+                CategoryRailListView.Items.Clear();
+                foreach (var label in labels)
+                {
+                    CategoryRailListView.Items.Add(label);
+                }
             }
 
-            CategoryRailListView.SelectedIndex = Math.Max(
-                0,
-                CategoryComboBox.SelectedIndex);
+            var selectedIndex = labels.Length == 0
+                ? -1
+                : Math.Clamp(CategoryComboBox.SelectedIndex, 0, labels.Length - 1);
+            if (CategoryRailListView.SelectedIndex != selectedIndex)
+            {
+                CategoryRailListView.SelectedIndex = selectedIndex;
+            }
         }
         finally
         {
@@ -112,9 +136,9 @@ public sealed partial class LiveTvView
 
     private void ApplyResponsiveLayout(double width, bool force)
     {
-        var layout = width >= 1180
+        var layout = width >= 1160
             ? LiveLayoutKind.Wide
-            : width >= 880
+            : width >= 760
                 ? LiveLayoutKind.Medium
                 : LiveLayoutKind.Compact;
 
@@ -168,6 +192,7 @@ public sealed partial class LiveTvView
                 LivePrimaryRow.Height = new GridLength(1, GridUnitType.Star);
                 LiveSecondaryRow.Height = new GridLength(0);
                 LiveContentGrid.ColumnSpacing = 10;
+                LiveContentGrid.RowSpacing = 0;
                 Grid.SetColumn(CategoryRailCard, 0);
                 Grid.SetRow(CategoryRailCard, 0);
                 Grid.SetColumn(ChannelBrowserCard, 1);
@@ -181,44 +206,66 @@ public sealed partial class LiveTvView
                 break;
 
             case LiveLayoutKind.Medium:
-                LiveRoot.Padding = new Thickness(14, 12, 14, 12);
-                CategoryRailColumn.Width = new GridLength(132);
-                ChannelBrowserColumn.Width = new GridLength(286);
+                var narrowMedium = width < 860;
+                LiveRoot.Padding = new Thickness(12, 11, 12, 11);
+                CategoryRailColumn.Width = new GridLength(narrowMedium ? 110 : 132);
+                ChannelBrowserColumn.Width = new GridLength(narrowMedium ? 245 : 286);
                 PlayerColumn.Width = new GridLength(1, GridUnitType.Star);
                 LivePrimaryRow.Height = new GridLength(1, GridUnitType.Star);
                 LiveSecondaryRow.Height = new GridLength(0);
                 LiveContentGrid.ColumnSpacing = 8;
+                LiveContentGrid.RowSpacing = 0;
                 Grid.SetColumn(CategoryRailCard, 0);
                 Grid.SetRow(CategoryRailCard, 0);
                 Grid.SetColumn(ChannelBrowserCard, 1);
                 Grid.SetRow(ChannelBrowserCard, 0);
                 Grid.SetColumn(PlayerWorkspace, 2);
                 Grid.SetRow(PlayerWorkspace, 0);
-                PlayerSurfaceBorder.MinHeight = 300;
+                PlayerSurfaceBorder.MinHeight = 280;
                 SetProgrammeLayout(stacked: width < 1040);
                 ApplyControlDensity(compact: false, medium: true);
                 LiveSummaryText.Visibility = Visibility.Collapsed;
                 break;
 
             default:
+                var sideBySide = width >= 620;
                 LiveRoot.Padding = new Thickness(10, 10, 10, 10);
-                CategoryRailColumn.Width = new GridLength(1, GridUnitType.Star);
-                ChannelBrowserColumn.Width = new GridLength(0);
-                PlayerColumn.Width = new GridLength(0);
-                LivePrimaryRow.Height = new GridLength(3, GridUnitType.Star);
-                LiveSecondaryRow.Height = new GridLength(2, GridUnitType.Star);
-                LiveContentGrid.ColumnSpacing = 0;
-                LiveContentGrid.RowSpacing = 9;
-                Grid.SetColumn(PlayerWorkspace, 0);
-                Grid.SetColumnSpan(PlayerWorkspace, 3);
-                Grid.SetRow(PlayerWorkspace, 0);
-                Grid.SetColumn(ChannelBrowserCard, 0);
-                Grid.SetColumnSpan(ChannelBrowserCard, 3);
-                Grid.SetRow(ChannelBrowserCard, 1);
-                PlayerSurfaceBorder.MinHeight = 220;
+                LiveContentGrid.ColumnSpacing = sideBySide ? 8 : 0;
+                LiveContentGrid.RowSpacing = sideBySide ? 0 : 9;
                 SetProgrammeLayout(stacked: true);
                 ApplyControlDensity(compact: true, medium: false);
                 LiveSummaryText.Visibility = Visibility.Collapsed;
+
+                if (sideBySide)
+                {
+                    CategoryRailColumn.Width = new GridLength(255);
+                    ChannelBrowserColumn.Width = new GridLength(1, GridUnitType.Star);
+                    PlayerColumn.Width = new GridLength(0);
+                    LivePrimaryRow.Height = new GridLength(1, GridUnitType.Star);
+                    LiveSecondaryRow.Height = new GridLength(0);
+                    Grid.SetColumn(ChannelBrowserCard, 0);
+                    Grid.SetColumnSpan(ChannelBrowserCard, 1);
+                    Grid.SetRow(ChannelBrowserCard, 0);
+                    Grid.SetColumn(PlayerWorkspace, 1);
+                    Grid.SetColumnSpan(PlayerWorkspace, 2);
+                    Grid.SetRow(PlayerWorkspace, 0);
+                    PlayerSurfaceBorder.MinHeight = 230;
+                }
+                else
+                {
+                    CategoryRailColumn.Width = new GridLength(1, GridUnitType.Star);
+                    ChannelBrowserColumn.Width = new GridLength(0);
+                    PlayerColumn.Width = new GridLength(0);
+                    LivePrimaryRow.Height = new GridLength(3, GridUnitType.Star);
+                    LiveSecondaryRow.Height = new GridLength(2, GridUnitType.Star);
+                    Grid.SetColumn(PlayerWorkspace, 0);
+                    Grid.SetColumnSpan(PlayerWorkspace, 3);
+                    Grid.SetRow(PlayerWorkspace, 0);
+                    Grid.SetColumn(ChannelBrowserCard, 0);
+                    Grid.SetColumnSpan(ChannelBrowserCard, 3);
+                    Grid.SetRow(ChannelBrowserCard, 1);
+                    PlayerSurfaceBorder.MinHeight = 220;
+                }
                 break;
         }
     }
