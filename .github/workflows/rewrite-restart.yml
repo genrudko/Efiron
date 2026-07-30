@@ -50,6 +50,7 @@ jobs:
           path: |
             rewrite-restart.log
             ${{ runner.temp }}/efiron-restart-fixture/
+            ~/AppData/Local/Efiron/
           if-no-files-found: warn
           retention-days: 7
 
