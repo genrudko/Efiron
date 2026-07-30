@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Efiron.Application.Playback;
 using Efiron.Domain.Playback;
 using Microsoft.UI.Xaml;
@@ -7,6 +8,9 @@ namespace Efiron.Desktop.Views;
 
 public sealed partial class LiveTvView
 {
+    private const string RestartVerificationEnvironmentVariable =
+        "EFIRON_CI_RESTART_VERIFICATION";
+
     private readonly object _playbackPreferencesSync = new();
     private readonly SemaphoreSlim _playbackPreferencesSaveGate = new(1, 1);
 
@@ -17,9 +21,17 @@ public sealed partial class LiveTvView
     private bool _playbackPreferencesLoaded;
     private bool _playbackPreferencesApplyRunning;
     private bool _playbackPreferencesAppliedToSession;
+    private bool _playbackRestartEvidenceWritten;
 
     private IPlaybackPreferencesStore? PlaybackPreferencesStore =>
         (Microsoft.UI.Xaml.Application.Current as App)?.PlaybackPreferencesStore;
+
+    private static bool RestartVerificationEnabled =>
+        string.Equals(
+            Environment.GetEnvironmentVariable(
+                RestartVerificationEnvironmentVariable),
+            "1",
+            StringComparison.Ordinal);
 
     private void EnsurePlaybackPreferencesHooks()
     {
@@ -30,6 +42,7 @@ public sealed partial class LiveTvView
 
         _playbackPreferencesLoadStarted = true;
         ChannelListView.ItemClick += PlaybackPreferences_ChannelListView_ItemClick;
+        PlaybackSnapshotChanged += PlaybackPreferences_RestartSnapshotChanged;
         _ = LoadPlaybackPreferencesAsync();
     }
 
@@ -299,9 +312,52 @@ public sealed partial class LiveTvView
         }
     }
 
+    private async void PlaybackPreferences_RestartSnapshotChanged(
+        object? sender,
+        PlaybackSnapshotChangedEventArgs e)
+    {
+        if (!RestartVerificationEnabled ||
+            _playbackRestartEvidenceWritten ||
+            !_playbackPreferencesLoaded ||
+            e.Snapshot.State != PlaybackState.Playing)
+        {
+            return;
+        }
+
+        _playbackRestartEvidenceWritten = true;
+        try
+        {
+            var path = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Efiron",
+                "diagnostics",
+                "playback-restart.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            var evidence = new PlaybackRestartEvidence(
+                e.Snapshot.State.ToString(),
+                e.Snapshot.ChannelStableId,
+                e.Snapshot.Volume,
+                e.Snapshot.IsMuted,
+                _playbackPreferences.SelectedChannelStableId,
+                _playbackPreferences.Volume,
+                _playbackPreferences.IsMuted,
+                DateTimeOffset.UtcNow);
+            await File.WriteAllTextAsync(
+                path,
+                JsonSerializer.Serialize(evidence));
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
+
     private void DisposePlaybackPreferencesHooks()
     {
         ChannelListView.ItemClick -= PlaybackPreferences_ChannelListView_ItemClick;
+        PlaybackSnapshotChanged -= PlaybackPreferences_RestartSnapshotChanged;
         FlushPlaybackPreferencesOnShutdown();
 
         lock (_playbackPreferencesSync)
@@ -311,4 +367,14 @@ public sealed partial class LiveTvView
             _playbackPreferencesSave = null;
         }
     }
+
+    private sealed record PlaybackRestartEvidence(
+        string State,
+        string? ChannelStableId,
+        int Volume,
+        bool IsMuted,
+        string? StoredChannelStableId,
+        int StoredVolume,
+        bool StoredIsMuted,
+        DateTimeOffset RecordedAtUtc);
 }
