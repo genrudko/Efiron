@@ -5,7 +5,7 @@ namespace Efiron.Desktop;
 
 public sealed partial class MainWindow
 {
-    private void ShowProgrammeWorkspace()
+    private async void ShowProgrammeWorkspace()
     {
         if (_catalog is null || _catalog.Channels.Count == 0)
         {
@@ -19,13 +19,22 @@ public sealed partial class MainWindow
             SetFullscreen(false);
         }
 
-        ProgrammeGuideWorkspace.SetCatalog(_catalog);
         SourcesWorkspace.Visibility = Visibility.Collapsed;
         LiveTvWorkspace.Visibility = Visibility.Collapsed;
         ProgrammeGuideWorkspace.Visibility = Visibility.Visible;
         WindowContextTitle.Text = _resources.GetString(
             "WindowContextProgrammeMessage");
-        _ = CaptureEpgEvidenceAsync();
+
+        try
+        {
+            await ProgrammeGuideWorkspace.SetCatalogProgressivelyAsync(
+                _catalog,
+                _lifetime.Token);
+            _ = CaptureEpgEvidenceAsync();
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+        }
     }
 
     private async void ProgrammeGuideWorkspace_PlayChannelRequested(
