@@ -1,4 +1,6 @@
 using Efiron.Application.Live;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 
 namespace Efiron.Desktop.Presentation;
 
@@ -14,7 +16,9 @@ public sealed record EpgChannelRowItem(
 
     public string Category => Snapshot.Channel.Category ?? string.Empty;
 
-    public Uri? LogoUrl => Snapshot.Channel.LogoUri;
+    public ImageSource? LogoUrl => Snapshot.Channel.LogoUri is { } uri
+        ? new BitmapImage(uri)
+        : null;
 
     public string Initials
     {
