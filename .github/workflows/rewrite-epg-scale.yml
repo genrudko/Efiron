@@ -86,15 +86,21 @@ jobs:
           }
           finally { $playlistWriter.Dispose() }
 
-          $now = [DateTimeOffset]::UtcNow
+          $now = [DateTimeOffset]::Now
+          $dayStart = [DateTimeOffset]::new(
+            $now.Year,$now.Month,$now.Day,0,0,0,$now.Offset)
+          $latestStart = $dayStart.AddDays(1).AddHours(-3)
+          $fixtureStart = $now.AddMinutes(-30)
+          if ($fixtureStart -lt $dayStart) { $fixtureStart = $dayStart }
+          if ($fixtureStart -gt $latestStart) { $fixtureStart = $latestStart }
           $starts = @(
-            $now.AddMinutes(-30),
-            $now.AddMinutes(30),
-            $now.AddMinutes(90))
+            $fixtureStart,
+            $fixtureStart.AddHours(1),
+            $fixtureStart.AddHours(2))
           $stops = @(
-            $now.AddMinutes(30),
-            $now.AddMinutes(90),
-            $now.AddMinutes(150))
+            $fixtureStart.AddHours(1),
+            $fixtureStart.AddHours(2),
+            $fixtureStart.AddHours(3))
           $guideWriter = [IO.StreamWriter]::new(
             (Join-Path $fixture "guide.xml"),
             $false,
@@ -107,8 +113,8 @@ jobs:
             }
             for ($index = 1; $index -le 1500; $index++) {
               for ($slot = 0; $slot -lt 3; $slot++) {
-                $start = $starts[$slot].ToString("yyyyMMddHHmmss +0000")
-                $stop = $stops[$slot].ToString("yyyyMMddHHmmss +0000")
+                $start = $starts[$slot].ToString("yyyyMMddHHmmss zzz").Replace(":", "")
+                $stop = $stops[$slot].ToString("yyyyMMddHHmmss zzz").Replace(":", "")
                 $guideWriter.WriteLine(
                   "  <programme channel=`"scale.$index`" start=`"$start`" stop=`"$stop`"><title>Programme $index-$slot</title><desc>Provider scale fixture.</desc></programme>")
               }
@@ -176,6 +182,11 @@ jobs:
             if (-not (Test-Path $projectionPath) -or -not (Test-Path $interactionPath)) {
               throw "Provider-scale interaction evidence did not finish within 180 seconds."
             }
+
+            New-Item -ItemType Directory -Path scale-artifacts -Force | Out-Null
+            Copy-Item $projectionPath scale-artifacts/ -Force
+            Copy-Item $interactionPath scale-artifacts/ -Force
+            if (Test-Path $previewPath) { Copy-Item $previewPath scale-artifacts/ -Force }
 
             $projection = Get-Content $projectionPath -Raw | ConvertFrom-Json
             $interaction = Get-Content $interactionPath -Raw | ConvertFrom-Json
@@ -252,11 +263,7 @@ jobs:
               UnresponsiveSamples = $unresponsiveSamples
               PeakWorkingSetBytes = $peakWorkingSet
             }
-            New-Item -ItemType Directory -Path scale-artifacts -Force | Out-Null
             $result | ConvertTo-Json | Set-Content scale-artifacts/epg-scale-runtime.json -Encoding utf8
-            Copy-Item $projectionPath scale-artifacts/ -Force
-            Copy-Item $interactionPath scale-artifacts/ -Force
-            if (Test-Path $previewPath) { Copy-Item $previewPath scale-artifacts/ -Force }
             $result | ConvertTo-Json -Compress
           }
           finally {
