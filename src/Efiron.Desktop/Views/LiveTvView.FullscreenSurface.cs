@@ -9,6 +9,7 @@ public sealed partial class LiveTvView
     private bool? _fullscreenSurfaceApplied;
     private Brush? _normalLiveRootBackground;
     private Thickness _normalPlayerBorderThickness;
+    private string? _appliedVideoCropGeometry;
 
     internal void EnableFullscreenSurfaceFix()
     {
@@ -36,7 +37,8 @@ public sealed partial class LiveTvView
             PlayerSurfaceBorder.BorderThickness.Left,
             background,
             LiveRoot.ActualWidth,
-            LiveRoot.ActualHeight);
+            LiveRoot.ActualHeight,
+            _appliedVideoCropGeometry ?? string.Empty);
     }
 
     private void FullscreenSurface_LiveRootLayoutUpdated(object? sender, object e) =>
@@ -44,20 +46,74 @@ public sealed partial class LiveTvView
 
     private void ApplyFullscreenSurfaceState(bool force)
     {
-        if (!force && _fullscreenSurfaceApplied == _isFullscreen)
+        var stateChanged = _fullscreenSurfaceApplied != _isFullscreen;
+        if (force || stateChanged)
+        {
+            _fullscreenSurfaceApplied = _isFullscreen;
+            LiveRoot.RowSpacing = _isFullscreen ? 0 : 12;
+            PlayerWorkspace.RowSpacing = _isFullscreen ? 0 : 9;
+            PlayerSurfaceBorder.BorderThickness = _isFullscreen
+                ? new Thickness(0)
+                : _normalPlayerBorderThickness;
+            LiveRoot.Background = _isFullscreen
+                ? new SolidColorBrush(Microsoft.UI.Colors.Black)
+                : _normalLiveRootBackground;
+        }
+
+        ApplyVideoGeometry();
+    }
+
+    private void ApplyVideoGeometry()
+    {
+        if (_playbackSession is null)
         {
             return;
         }
 
-        _fullscreenSurfaceApplied = _isFullscreen;
-        LiveRoot.RowSpacing = _isFullscreen ? 0 : 12;
-        PlayerWorkspace.RowSpacing = _isFullscreen ? 0 : 9;
-        PlayerSurfaceBorder.BorderThickness = _isFullscreen
-            ? new Thickness(0)
-            : _normalPlayerBorderThickness;
-        LiveRoot.Background = _isFullscreen
-            ? new SolidColorBrush(Microsoft.UI.Colors.Black)
-            : _normalLiveRootBackground;
+        if (!_isFullscreen)
+        {
+            if (_appliedVideoCropGeometry is not null)
+            {
+                _playbackSession.MediaPlayer.CropGeometry = null;
+                _playbackSession.MediaPlayer.AspectRatio = null;
+                _playbackSession.MediaPlayer.Scale = 0;
+                _appliedVideoCropGeometry = null;
+            }
+
+            return;
+        }
+
+        var width = Math.Max(1, (int)Math.Round(PlayerSurfaceBorder.ActualWidth));
+        var height = Math.Max(1, (int)Math.Round(PlayerSurfaceBorder.ActualHeight));
+        if (width <= 1 || height <= 1)
+        {
+            return;
+        }
+
+        var divisor = GreatestCommonDivisor(width, height);
+        var geometry = $"{width / divisor}:{height / divisor}";
+        if (string.Equals(
+                geometry,
+                _appliedVideoCropGeometry,
+                StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _playbackSession.MediaPlayer.AspectRatio = null;
+        _playbackSession.MediaPlayer.Scale = 0;
+        _playbackSession.MediaPlayer.CropGeometry = geometry;
+        _appliedVideoCropGeometry = geometry;
+    }
+
+    private static int GreatestCommonDivisor(int left, int right)
+    {
+        while (right != 0)
+        {
+            (left, right) = (right, left % right);
+        }
+
+        return Math.Max(1, Math.Abs(left));
     }
 
     internal sealed record FullscreenSurfaceEvidence(
@@ -67,5 +123,6 @@ public sealed partial class LiveTvView
         double PlayerBorderThickness,
         string LiveRootBackground,
         double Width,
-        double Height);
+        double Height,
+        string VideoCropGeometry);
 }
