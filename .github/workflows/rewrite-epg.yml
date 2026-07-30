@@ -109,7 +109,7 @@ jobs:
           @{ version = 1; theme = 2; accent = 1 } |
             ConvertTo-Json | Set-Content (Join-Path $data "appearance.json") -Encoding utf8
 
-      - name: Verify full-width EPG runtime
+      - name: Verify virtualized EPG runtime
         shell: pwsh
         env:
           EFIRON_CI_EPG_VERIFICATION: "1"
@@ -164,12 +164,20 @@ jobs:
                 [int]$evidence.ProgrammeBlockCount -lt 9) {
               throw "Full EPG schedules were not retained."
             }
-            if ([int]$evidence.RealizedProgrammeButtonCount -le 0) {
-              throw "EPG programme controls were not realized in the visual tree."
+            if ([int]$evidence.RealizedProgrammeButtonCount -le 0 -or
+                [int]$evidence.RealizedRowCount -le 0 -or
+                [int]$evidence.RealizedRowCount -gt [int]$evidence.VisibleRowCount + 2) {
+              throw "Virtualized EPG controls were not realized correctly."
             }
+            $expectedWidth = 1440 * [double]$evidence.PixelsPerMinute
             if ([int]$evidence.TimeSlotCount -ne 48 -or
-                [math]::Abs([double]$evidence.TimelineWidth - 2880) -gt 0.5) {
-              throw "24-hour timeline geometry is invalid."
+                [math]::Abs([double]$evidence.TimelineWidth - $expectedWidth) -gt 1 -or
+                [double]$evidence.PixelsPerMinute -lt 0.7 -or
+                [double]$evidence.PixelsPerMinute -gt 4) {
+              throw "Zoomable 24-hour timeline geometry is invalid."
+            }
+            if ($evidence.RenderingArchitecture -ne "manual-two-axis-virtualization") {
+              throw "Unexpected EPG rendering architecture."
             }
             if ([int]$evidence.ExpectedCategoryCount -le 0 -or
                 [int]$evidence.ExpectedCategoryCount -ge [int]$evidence.TotalRowCount -or
@@ -178,8 +186,9 @@ jobs:
               throw "EPG category filtering is not stable."
             }
             if (-not [bool]$evidence.ProgrammeGeometryValid -or
-                -not [bool]$evidence.HeaderScrollAligned) {
-              throw "EPG programme/header geometry is invalid."
+                -not [bool]$evidence.HeaderScrollAligned -or
+                -not [bool]$evidence.DirectionalNavigationValid) {
+              throw "EPG programme/header/navigation geometry is invalid."
             }
             if (-not [bool]$evidence.CurrentTimeMarkerVisible -or
                 [double]$evidence.HorizontalOffset -le 0) {
