@@ -10,15 +10,31 @@ public sealed record EpgChannelRowItem(
     IReadOnlyList<EpgProgrammeBlockItem> Programmes,
     double TimelineWidth)
 {
+    private ImageSource? _logoUrl;
+    private bool _logoUrlResolved;
+
     public string StableId => Snapshot.Channel.StableId;
 
     public string Name => Snapshot.Channel.Name;
 
     public string Category => Snapshot.Channel.Category ?? string.Empty;
 
-    public ImageSource? LogoUrl => Snapshot.Channel.LogoUri is { } uri
-        ? new BitmapImage(uri)
-        : null;
+    public ImageSource? LogoUrl
+    {
+        get
+        {
+            if (_logoUrlResolved)
+            {
+                return _logoUrl;
+            }
+
+            _logoUrlResolved = true;
+            _logoUrl = Snapshot.Channel.LogoUri is { } uri
+                ? new BitmapImage(uri)
+                : null;
+            return _logoUrl;
+        }
+    }
 
     public string Initials
     {
