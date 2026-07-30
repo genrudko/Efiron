@@ -57,7 +57,9 @@ public sealed partial class LiveTvView
     {
         if (!_isFullscreen && width is >= 620 and < 760)
         {
-            ChannelBrowserColumn.Width = new GridLength(292);
+            CategoryRailColumn.Width = new GridLength(292);
+            ChannelBrowserColumn.Width = new GridLength(1, GridUnitType.Star);
+            PlayerColumn.Width = new GridLength(0);
         }
     }
 }
