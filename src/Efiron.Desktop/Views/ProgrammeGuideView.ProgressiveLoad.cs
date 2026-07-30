@@ -41,7 +41,7 @@ public sealed partial class ProgrammeGuideView
             _allRows.Clear();
             _allRows.AddRange(cachedRows);
             ApplyFilters();
-            QueueJumpToNow();
+            PositionAfterProjection();
             return;
         }
 
@@ -63,7 +63,7 @@ public sealed partial class ProgrammeGuideView
             _allRows.Clear();
             _allRows.AddRange(rows);
             ApplyFilters();
-            QueueJumpToNow();
+            PositionAfterProjection();
             await Task.Yield();
             await RecordProjectionDiagnosticsAsync(
                 catalog,
@@ -85,6 +85,18 @@ public sealed partial class ProgrammeGuideView
     }
 
     internal bool IsProjectionBusy => _projectionBusy;
+
+    private void PositionAfterProjection()
+    {
+        if (_selectedDate == DateOnly.FromDateTime(DateTime.Today))
+        {
+            QueueJumpToNow();
+        }
+        else
+        {
+            SetHorizontalOffset(0);
+        }
+    }
 
     private static EpgChannelRowItem[] ProjectRows(
         LiveCatalogSnapshot catalog,
