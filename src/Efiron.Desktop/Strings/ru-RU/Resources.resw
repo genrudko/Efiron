@@ -40,6 +40,20 @@
   <data name="StorageDescription.Text" xml:space="preserve"><value>Источники и пользовательские настройки записываются атомарно в профиль Windows.</value></data>
   <data name="SaveSourcesButton.Content" xml:space="preserve"><value>Сохранить и проверить</value></data>
   <data name="OpenLiveButton.Content" xml:space="preserve"><value>Открыть эфир</value></data>
+  <data name="AppearanceTitle.Text" xml:space="preserve"><value>Оформление</value></data>
+  <data name="AppearanceDescription.Text" xml:space="preserve"><value>Тема и акцент применяются сразу ко всему интерфейсу и сохраняются для следующих запусков.</value></data>
+  <data name="AppearanceThemeLabel.Text" xml:space="preserve"><value>Тема</value></data>
+  <data name="AppearanceAccentLabel.Text" xml:space="preserve"><value>Акцент</value></data>
+  <data name="AppearanceThemeSystemMessage" xml:space="preserve"><value>Как в Windows</value></data>
+  <data name="AppearanceThemeLightMessage" xml:space="preserve"><value>Светлая</value></data>
+  <data name="AppearanceThemeDarkMessage" xml:space="preserve"><value>Тёмная</value></data>
+  <data name="AppearanceAccentBlueMessage" xml:space="preserve"><value>Синий</value></data>
+  <data name="AppearanceAccentVioletMessage" xml:space="preserve"><value>Фиолетовый</value></data>
+  <data name="AppearanceAccentTealMessage" xml:space="preserve"><value>Бирюзовый</value></data>
+  <data name="AppearanceAccentOrangeMessage" xml:space="preserve"><value>Оранжевый</value></data>
+  <data name="AppearanceAccentRoseMessage" xml:space="preserve"><value>Розовый</value></data>
+  <data name="AppearanceSaveErrorTitle" xml:space="preserve"><value>Не удалось сохранить оформление</value></data>
+  <data name="AppearanceSaveErrorMessage" xml:space="preserve"><value>Предыдущая тема восстановлена. Проверьте доступ к профилю Windows.</value></data>
   <data name="NextStepCaption.Text" xml:space="preserve"><value>После успешной проверки становится доступен новый экран «Эфир»: категории, поиск, избранное, Now/Next и управление воспроизведением.</value></data>
 
   <data name="StatusLoadingMessage" xml:space="preserve"><value>Проверяем настройки…</value></data>
