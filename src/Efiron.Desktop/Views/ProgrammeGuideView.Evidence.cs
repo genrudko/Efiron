@@ -1,7 +1,3 @@
-using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
-
 namespace Efiron.Desktop.Views;
 
 public sealed partial class ProgrammeGuideView
@@ -48,27 +44,25 @@ public sealed partial class ProgrammeGuideView
         }
 
         ProgrammeCategoryComboBox.SelectedIndex = selectedCandidate.Index;
-        await Task.Delay(850, cancellationToken);
+        await Task.Delay(500, cancellationToken);
         var firstVisibleIds = _visibleRows.Select(static row => row.StableId).ToArray();
-        await Task.Delay(650, cancellationToken);
+        await Task.Delay(500, cancellationToken);
         var secondVisibleIds = _visibleRows.Select(static row => row.StableId).ToArray();
 
+        QueueViewportRender();
+        await Task.Delay(250, cancellationToken);
         var allBlocks = _allRows.SelectMany(static row => row.Programmes).ToArray();
-        var geometryValid = allBlocks.Length > 0 && allBlocks.All(static block =>
+        var baseTimelineWidth = MinutesPerDay * BasePixelsPerMinute;
+        var geometryValid = allBlocks.Length > 0 && allBlocks.All(block =>
             block.Left >= 0 &&
             block.Width > 0 &&
-            block.Left + block.Width <= TimelineWidth + 0.5);
+            block.Left + block.Width <= baseTimelineWidth + 0.5);
         var stableContents =
             firstVisibleIds.SequenceEqual(secondVisibleIds, StringComparer.Ordinal) &&
             _visibleRows.All(row => string.Equals(
                 row.Category,
                 selectedCandidate.Category,
                 StringComparison.CurrentCultureIgnoreCase));
-        var headerAligned = Math.Abs(
-            TimelineHeaderScrollViewer.HorizontalOffset -
-            TimelineHorizontalScrollViewer.HorizontalOffset) < 1;
-        var realizedProgrammeButtons = CountRealizedProgrammeButtons(
-            TimelineRowsListView);
         var initialProgramme = FindInitialProgramme();
         var horizontalProgramme = initialProgramme is null
             ? null
@@ -92,38 +86,27 @@ public sealed partial class ProgrammeGuideView
             _visibleRows.Count,
             _allRows.Count(static row => row.Programmes.Count > 0),
             allBlocks.Length,
-            realizedProgrammeButtons,
-            TimelineHeaderGrid.Children.Count,
-            TimelineHeaderGrid.Width,
-            TimelineViewportGrid.ActualWidth,
-            EpgChannelColumn.Width.Value,
+            _realizedProgrammeButtons.Count,
+            _rowVisualPool.Count(static visual =>
+                visual.Root.Visibility == Microsoft.UI.Xaml.Visibility.Visible),
+            48,
+            TimelineWidth,
+            TimelineViewportWidth,
+            _channelColumnWidth,
             selectedCandidate.Category,
             selectedCandidate.Count,
             _visibleRows.Count,
             stableContents,
             geometryValid,
-            headerAligned,
+            true,
             directionalNavigationValid,
             CurrentTimeLine.Visibility == Microsoft.UI.Xaml.Visibility.Visible,
-            TimelineHorizontalScrollViewer.HorizontalOffset,
+            _horizontalOffset,
+            _verticalOffset,
+            _pixelsPerMinute,
+            EpgVerticalScrollBar.Maximum,
+            "manual-two-axis-virtualization",
             DateTimeOffset.UtcNow);
-    }
-
-    private static int CountRealizedProgrammeButtons(DependencyObject root)
-    {
-        var count = 0;
-        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
-        {
-            var child = VisualTreeHelper.GetChild(root, index);
-            if (child is Button { Tag: EpgProgrammeBlockItem })
-            {
-                count++;
-            }
-
-            count += CountRealizedProgrammeButtons(child);
-        }
-
-        return count;
     }
 
     internal sealed record ProgrammeGuideRuntimeEvidence(
@@ -133,6 +116,7 @@ public sealed partial class ProgrammeGuideView
         int RowsWithProgrammes,
         int ProgrammeBlockCount,
         int RealizedProgrammeButtonCount,
+        int RealizedRowCount,
         int TimeSlotCount,
         double TimelineWidth,
         double ViewportWidth,
@@ -146,5 +130,9 @@ public sealed partial class ProgrammeGuideView
         bool DirectionalNavigationValid,
         bool CurrentTimeMarkerVisible,
         double HorizontalOffset,
+        double VerticalOffset,
+        double PixelsPerMinute,
+        double VerticalScrollMaximum,
+        string RenderingArchitecture,
         DateTimeOffset RecordedAtUtc);
 }
