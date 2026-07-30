@@ -253,6 +253,10 @@ public sealed partial class ProgrammeGuideView
 
         EpgRowsCanvas.Width = width;
         EpgRowsCanvas.Height = height;
+        EpgRowsCanvas.Clip = new RectangleGeometry
+        {
+            Rect = new Windows.Foundation.Rect(0, 0, width, height),
+        };
         RebuildRealizedProgrammeButtonIndex();
         UpdateCurrentTimeMarker();
     }
