@@ -40,6 +40,20 @@
   <data name="StorageDescription.Text" xml:space="preserve"><value>Sources and user preferences are written atomically to the Windows profile.</value></data>
   <data name="SaveSourcesButton.Content" xml:space="preserve"><value>Save and validate</value></data>
   <data name="OpenLiveButton.Content" xml:space="preserve"><value>Open Live TV</value></data>
+  <data name="AppearanceTitle.Text" xml:space="preserve"><value>Appearance</value></data>
+  <data name="AppearanceDescription.Text" xml:space="preserve"><value>Theme and accent are applied immediately across the interface and restored on future launches.</value></data>
+  <data name="AppearanceThemeLabel.Text" xml:space="preserve"><value>Theme</value></data>
+  <data name="AppearanceAccentLabel.Text" xml:space="preserve"><value>Accent</value></data>
+  <data name="AppearanceThemeSystemMessage" xml:space="preserve"><value>Use Windows setting</value></data>
+  <data name="AppearanceThemeLightMessage" xml:space="preserve"><value>Light</value></data>
+  <data name="AppearanceThemeDarkMessage" xml:space="preserve"><value>Dark</value></data>
+  <data name="AppearanceAccentBlueMessage" xml:space="preserve"><value>Blue</value></data>
+  <data name="AppearanceAccentVioletMessage" xml:space="preserve"><value>Violet</value></data>
+  <data name="AppearanceAccentTealMessage" xml:space="preserve"><value>Teal</value></data>
+  <data name="AppearanceAccentOrangeMessage" xml:space="preserve"><value>Orange</value></data>
+  <data name="AppearanceAccentRoseMessage" xml:space="preserve"><value>Rose</value></data>
+  <data name="AppearanceSaveErrorTitle" xml:space="preserve"><value>Appearance could not be saved</value></data>
+  <data name="AppearanceSaveErrorMessage" xml:space="preserve"><value>The previous appearance was restored. Check access to the Windows profile.</value></data>
   <data name="NextStepCaption.Text" xml:space="preserve"><value>After validation, the new Live TV screen becomes available with categories, search, favorites, Now/Next and playback controls.</value></data>
 
   <data name="StatusLoadingMessage" xml:space="preserve"><value>Checking settings…</value></data>
