@@ -194,16 +194,20 @@ jobs:
 
             $playing = Get-Content $playingPath -Raw | ConvertFrom-Json
             $controls = Get-Content $controlsPath -Raw | ConvertFrom-Json
-            if ($playing.State -ne "Playing" -or
-                -not [bool]$controls.Paused -or
-                -not [bool]$controls.Resumed -or
-                -not [bool]$controls.VolumeSetTo37 -or
-                -not [bool]$controls.Muted -or
-                -not [bool]$controls.Unmuted -or
-                -not [bool]$controls.Stopped -or
-                -not [bool]$controls.SwitchedToSecondChannel -or
-                -not [string]::IsNullOrWhiteSpace($controls.Error)) {
+            $playbackStateInvalid =
+              $playing.State -ne "Playing" -or
+              -not [bool]$controls.Paused -or
+              -not [bool]$controls.Resumed -or
+              -not [bool]$controls.VolumeSetTo37 -or
+              -not [bool]$controls.Muted -or
+              -not [bool]$controls.Unmuted -or
+              -not [bool]$controls.Stopped -or
+              -not [bool]$controls.SwitchedToSecondChannel
+            if ($playbackStateInvalid) {
               throw "Playback control evidence is incomplete."
+            }
+            if ([string]::IsNullOrWhiteSpace([string]$controls.Error) -eq $false) {
+              throw "Playback control evidence contains an error: $($controls.Error)"
             }
 
             Add-Type -AssemblyName System.Drawing
