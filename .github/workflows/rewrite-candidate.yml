@@ -139,10 +139,11 @@ jobs:
 
             $env:EFIRON_CI_PLAYBACK_VERIFICATION = "1"
             $env:EFIRON_CI_LAYOUT_VERIFICATION = "1"
-            $env:EFIRON_CI_PRESENTATION_PREVIEW = "1"
+            $env:EFIRON_CI_APPEARANCE_VERIFICATION = "1"
+            $env:EFIRON_CI_PRESENTATION_CAPTURE = "1"
             $process = Start-Process $exe -WorkingDirectory $output -PassThru
 
-            $deadline = [DateTime]::UtcNow.AddSeconds(100)
+            $deadline = [DateTime]::UtcNow.AddSeconds(75)
             while ([DateTime]::UtcNow -lt $deadline -and
                    (-not (Test-Path $appearancePath) -or
                     -not (Test-Path $layoutPath) -or
@@ -199,7 +200,8 @@ jobs:
           finally {
             Remove-Item Env:EFIRON_CI_PLAYBACK_VERIFICATION -ErrorAction SilentlyContinue
             Remove-Item Env:EFIRON_CI_LAYOUT_VERIFICATION -ErrorAction SilentlyContinue
-            Remove-Item Env:EFIRON_CI_PRESENTATION_PREVIEW -ErrorAction SilentlyContinue
+            Remove-Item Env:EFIRON_CI_APPEARANCE_VERIFICATION -ErrorAction SilentlyContinue
+            Remove-Item Env:EFIRON_CI_PRESENTATION_CAPTURE -ErrorAction SilentlyContinue
             if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force }
             if ($server -and -not $server.HasExited) { Stop-Process -Id $server.Id -Force }
           }
