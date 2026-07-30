@@ -28,7 +28,7 @@ public sealed partial class MainWindow
         _appearancePreferences = appearancePreferences ??
             throw new ArgumentNullException(nameof(appearancePreferences));
         _appearanceController = new AppearanceController(
-            Application.Current.Resources,
+            Microsoft.UI.Xaml.Application.Current.Resources,
             WindowRoot);
 
         PopulateAppearanceOptions();
@@ -162,16 +162,20 @@ public sealed partial class MainWindow
 
         try
         {
+            await Task.Yield();
             var path = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "Efiron",
                 "diagnostics",
                 "appearance-runtime.json");
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            var resources = Microsoft.UI.Xaml.Application.Current.Resources;
+            var dictionaryKey = WindowRoot.ActualTheme == ElementTheme.Light
+                ? "Light"
+                : "Default";
             var accentColor =
-                (Application.Current.Resources.ThemeDictionaries[
-                    WindowRoot.ActualTheme == ElementTheme.Light ? "Light" : "Default"]
-                    as ResourceDictionary)?["EfironAccentBrush"] is SolidColorBrush brush
+                resources.ThemeDictionaries[dictionaryKey] is ResourceDictionary dictionary &&
+                dictionary["EfironAccentBrush"] is SolidColorBrush brush
                     ? brush.Color.ToString()
                     : string.Empty;
             var evidence = new AppearanceEvidence(
