@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   epg-scale:
-    name: 1500-channel EPG interaction responsiveness
+    name: 1500-channel all-channel EPG responsiveness
     runs-on: windows-latest
     timeout-minutes: 30
 
@@ -124,7 +124,7 @@ jobs:
           @{ version = 1; theme = 2; accent = 1 } |
             ConvertTo-Json | Set-Content (Join-Path $data "appearance.json") -Encoding utf8
 
-      - name: Verify provider-scale scrolling zoom and day switching
+      - name: Verify all-channel scrolling zoom and day switching
         shell: pwsh
         env:
           EFIRON_CI_EPG_VERIFICATION: "1"
@@ -181,8 +181,15 @@ jobs:
             $interaction = Get-Content $interactionPath -Raw | ConvertFrom-Json
             if ([int]$projection.CatalogChannelCount -ne 1500 -or
                 [int]$projection.ProjectedRowCount -ne 1500 -or
-                [int]$interaction.CatalogChannelCount -ne 1500) {
-              throw "Scale row count is invalid."
+                [int]$interaction.CatalogChannelCount -ne 1500 -or
+                [int]$interaction.VisibleRowCount -ne 1500 -or
+                -not [bool]$interaction.AllChannelsMode) {
+              throw "Scale all-channel row count is invalid."
+            }
+            if ([int]$interaction.ExpectedCategoryCount -ne 1500 -or
+                [int]$interaction.ActualCategoryCount -ne 1500 -or
+                -not [bool]$interaction.StableCategoryContents) {
+              throw "All-channel mode did not remain stable."
             }
             if ([int]$projection.ProgrammeBlockCount -lt 4500 -or
                 [int]$interaction.ProgrammeBlockCount -lt 4500) {
@@ -193,8 +200,14 @@ jobs:
             }
             if ($interaction.RenderingArchitecture -ne "manual-two-axis-virtualization" -or
                 [double]$interaction.VerticalScrollMaximum -le 0 -or
-                -not [bool]$interaction.VerticalScrollChanged) {
-              throw "Provider-scale vertical virtualization/scrolling is invalid."
+                -not [bool]$interaction.VerticalScrollChanged -or
+                -not [bool]$interaction.RapidScrollCompleted -or
+                [int]$interaction.RapidScrollSamples -lt 7) {
+              throw "Provider-scale vertical virtualization/rapid scrolling is invalid."
+            }
+            if ([int]$interaction.MaxRealizedRowsDuringScroll -le 0 -or
+                [int]$interaction.MaxRealizedRowsDuringScroll -gt 40) {
+              throw "Rapid scrolling realized an unbounded row count."
             }
             if (-not [bool]$interaction.ZoomChanged -or
                 [double]$interaction.PixelsPerMinute -le 1.8) {
@@ -203,7 +216,7 @@ jobs:
             if (-not [bool]$interaction.DaySwitchCompleted -or
                 -not [bool]$interaction.ReturnedToOriginalDay -or
                 [double]$interaction.DaySwitchMilliseconds -gt 20000) {
-              throw "Provider-scale day switching is invalid or too slow."
+              throw "Provider-scale multi-day switching is invalid or too slow."
             }
             if ([int]$interaction.RealizedRowCount -le 0 -or
                 [int]$interaction.RealizedRowCount -ge [int]$interaction.VisibleRowCount -or
@@ -224,12 +237,16 @@ jobs:
             $result = [ordered]@{
               HeadSha = "${{ github.event.pull_request.head.sha || github.sha }}"
               Channels = [int]$projection.CatalogChannelCount
+              VisibleChannels = [int]$interaction.VisibleRowCount
               ProgrammeBlocks = [int]$projection.ProgrammeBlockCount
               ProjectionMilliseconds = [double]$projection.ProjectionMilliseconds
               DaySwitchMilliseconds = [double]$interaction.DaySwitchMilliseconds
               VerticalScrollChanged = [bool]$interaction.VerticalScrollChanged
+              RapidScrollCompleted = [bool]$interaction.RapidScrollCompleted
+              RapidScrollSamples = [int]$interaction.RapidScrollSamples
               ZoomChanged = [bool]$interaction.ZoomChanged
               RealizedRows = [int]$interaction.RealizedRowCount
+              MaxRealizedRowsDuringScroll = [int]$interaction.MaxRealizedRowsDuringScroll
               EndToEndMilliseconds = $clock.Elapsed.TotalMilliseconds
               ResponsiveSamples = $responsiveSamples
               UnresponsiveSamples = $unresponsiveSamples
