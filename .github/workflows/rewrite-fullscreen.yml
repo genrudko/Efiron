@@ -38,11 +38,10 @@ jobs:
           dotnet restore Efiron.Greenfield.sln
           dotnet build Efiron.Greenfield.sln -c Release --no-restore
 
-      - name: Prepare ultrawide fullscreen video fixture
+      - name: Prepare ultrawide fullscreen image-video fixture
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $PSNativeCommandUseErrorActionPreference = $true
           $fixture = Join-Path $env:RUNNER_TEMP "efiron-fullscreen-fixture"
           $localAppData = [Environment]::GetFolderPath(
             [Environment+SpecialFolder]::LocalApplicationData)
@@ -50,21 +49,39 @@ jobs:
           Remove-Item $fixture,$data -Recurse -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Path $fixture,$data -Force | Out-Null
 
-          $ffmpeg = (Get-Command ffmpeg -ErrorAction Stop).Source
-          $video = Join-Path $fixture "channel.mp4"
-          & $ffmpeg -hide_banner -loglevel error -y `
-            -f lavfi `
-            -i "color=c=0x3465A4:s=1680x720:r=15:d=30" `
-            -vf "drawbox=x=0:y=0:w=iw:h=110:color=0xE03131:t=fill,drawbox=x=0:y=ih-110:w=iw:h=110:color=0x12B886:t=fill" `
-            -c:v mpeg4 -q:v 4 -pix_fmt yuv420p -an $video
-          if (-not (Test-Path $video) -or (Get-Item $video).Length -lt 10000) {
+          Add-Type -AssemblyName System.Drawing
+          $imagePath = Join-Path $fixture "channel.png"
+          $bitmap = [System.Drawing.Bitmap]::new(1680,720)
+          $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+          try {
+            $graphics.Clear([System.Drawing.Color]::FromArgb(52,101,164))
+            $red = [System.Drawing.SolidBrush]::new(
+              [System.Drawing.Color]::FromArgb(224,49,49))
+            $green = [System.Drawing.SolidBrush]::new(
+              [System.Drawing.Color]::FromArgb(18,184,134))
+            try {
+              $graphics.FillRectangle($red,0,0,1680,110)
+              $graphics.FillRectangle($green,0,610,1680,110)
+            }
+            finally {
+              $red.Dispose()
+              $green.Dispose()
+            }
+            $bitmap.Save($imagePath,[System.Drawing.Imaging.ImageFormat]::Png)
+          }
+          finally {
+            $graphics.Dispose()
+            $bitmap.Dispose()
+          }
+          if (-not (Test-Path $imagePath) -or (Get-Item $imagePath).Length -lt 5000) {
             throw "Ultrawide fullscreen fixture was not created."
           }
 
           @'
           #EXTM3U
-          #EXTINF:-1 tvg-id="fullscreen.one" group-title="Fullscreen",Fullscreen One
-          http://127.0.0.1:18770/channel.mp4
+          #EXTINF:30 tvg-id="fullscreen.one" group-title="Fullscreen",Fullscreen One
+          #EXTVLCOPT:image-duration=30
+          http://127.0.0.1:18770/channel.png
           '@ | Set-Content (Join-Path $fixture "playlist.m3u") -Encoding utf8
 
           $now = [DateTimeOffset]::UtcNow
