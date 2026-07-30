@@ -64,6 +64,7 @@ public sealed partial class ProgrammeGuideView : UserControl
         }
 
         var blocks = new List<EpgProgrammeBlockItem>();
+        var baseTimelineWidth = MinutesPerDay * BasePixelsPerMinute;
         for (var index = 0; index < channel.Schedule.Count; index++)
         {
             var programme = channel.Schedule[index];
@@ -78,10 +79,20 @@ public sealed partial class ProgrammeGuideView : UserControl
 
             var clippedStart = programme.Start < dayStart ? dayStart : programme.Start;
             var clippedStop = effectiveStop > dayEnd ? dayEnd : effectiveStop;
-            var left = (clippedStart - dayStart).TotalMinutes * BasePixelsPerMinute;
-            var width = Math.Max(
-                4,
+            var left = Math.Clamp(
+                (clippedStart - dayStart).TotalMinutes * BasePixelsPerMinute,
+                0,
+                baseTimelineWidth);
+            var remainingWidth = Math.Max(0, baseTimelineWidth - left);
+            var durationWidth = Math.Max(
+                0,
                 (clippedStop - clippedStart).TotalMinutes * BasePixelsPerMinute);
+            var width = Math.Min(remainingWidth, Math.Max(4, durationWidth));
+            if (width <= 0)
+            {
+                continue;
+            }
+
             var localStart = programme.Start.ToLocalTime();
             var localStop = effectiveStop.ToLocalTime();
             blocks.Add(new EpgProgrammeBlockItem(
