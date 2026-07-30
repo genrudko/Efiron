@@ -71,6 +71,16 @@
                 </StackPanel>
               </Grid>
             </ToggleButton>
+            <ToggleButton x:Name="ProgrammeNavigationButton" Style="{StaticResource EfironNavigationToggleStyle}" Click="ProgrammeNavigationButton_Click">
+              <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="24" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                <FontIcon Glyph="&#xE787;" FontSize="17" />
+                <StackPanel Grid.Column="1" Spacing="1">
+                  <TextBlock Text="Программа" FontWeight="SemiBold" />
+                  <TextBlock Text="Сетка передач" Style="{StaticResource EfironCaptionStyle}" />
+                </StackPanel>
+              </Grid>
+            </ToggleButton>
             <ToggleButton x:Name="SettingsNavigationButton" Style="{StaticResource EfironNavigationToggleStyle}" Click="SettingsNavigationButton_Click">
               <Grid ColumnSpacing="12">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="24" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
@@ -160,6 +170,7 @@
             </Grid>
           </Grid>
         </ScrollViewer>
+        <views:ProgrammeGuideView x:Name="ProgrammeGuideWorkspace" Visibility="Collapsed" />
         <views:LiveTvView x:Name="LiveTvWorkspace" Visibility="Collapsed" />
       </Grid>
     </Grid>
