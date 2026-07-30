@@ -100,6 +100,35 @@ public sealed class GreenfieldBoundaryTests
         Assert.Equal(new[] { "Efiron.Domain" }, references);
     }
 
+    [Fact]
+    public void Desktop_presentation_must_preserve_approved_poster_composition()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var desktopDirectory = Path.Combine(repositoryRoot, "src", "Efiron.Desktop");
+        var shell = File.ReadAllText(Path.Combine(desktopDirectory, "MainWindow.xaml"));
+        var live = File.ReadAllText(Path.Combine(
+            desktopDirectory,
+            "Views",
+            "LiveTvView.xaml"));
+        var channelPresentation = File.ReadAllText(Path.Combine(
+            desktopDirectory,
+            "Presentation",
+            "LiveChannelItem.cs"));
+
+        Assert.Contains("x:Name=\"AppNavigationRail\"", shell, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"LiveNavigationButton\"", shell, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"SettingsNavigationButton\"", shell, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"CategoryRailCard\"", live, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ChannelBrowserCard\"", live, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"PlayerWorkspace\"", live, StringComparison.Ordinal);
+        Assert.Contains("EfironVideoOverlayBrush", live, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ProgrammeCard\"", live, StringComparison.Ordinal);
+        Assert.Contains("Text=\"СЕЙЧАС\"", live, StringComparison.Ordinal);
+        Assert.Contains("Text=\"ДАЛЕЕ\"", live, StringComparison.Ordinal);
+        Assert.Contains("Source=\"{Binding LogoUrl}\"", live, StringComparison.Ordinal);
+        Assert.Contains("snapshot.Channel.LogoUri", channelPresentation, StringComparison.Ordinal);
+    }
+
     private static IEnumerable<string> EnumerateExistingGreenfieldProjects(
         string repositoryRoot)
     {
