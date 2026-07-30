@@ -21,12 +21,15 @@ public sealed partial class LiveTvView
     private bool _visibleActivationQueued;
     private bool _controlSequenceStarted;
 
-    private static bool PlaybackDiagnosticsEnabled =>
+    private static bool PlaybackControlSequenceEnabled =>
         string.Equals(
             Environment.GetEnvironmentVariable(
                 PlaybackSequenceEnvironmentVariable),
             "1",
-            StringComparison.Ordinal) ||
+            StringComparison.Ordinal);
+
+    private static bool PlaybackDiagnosticsEnabled =>
+        PlaybackControlSequenceEnabled ||
         string.Equals(
             Environment.GetEnvironmentVariable("GITHUB_ACTIONS"),
             "true",
@@ -165,9 +168,18 @@ public sealed partial class LiveTvView
             "snapshot",
             e.Snapshot);
 
-        if (PlaybackDiagnosticsEnabled &&
-            e.Snapshot.State == PlaybackState.Playing &&
-            !_controlSequenceStarted)
+        if (e.Snapshot.State != PlaybackState.Playing)
+        {
+            return;
+        }
+
+        if (!_playbackEvidenceWritten)
+        {
+            _playbackEvidenceWritten = true;
+            _ = RecordPlaybackEvidenceAsync(e.Snapshot);
+        }
+
+        if (PlaybackControlSequenceEnabled && !_controlSequenceStarted)
         {
             _controlSequenceStarted = true;
             DispatcherQueue.TryEnqueue(async () =>
@@ -295,20 +307,6 @@ public sealed partial class LiveTvView
             Error: error,
             RecordedAtUtc: DateTimeOffset.UtcNow);
         await RecordPlaybackControlEvidenceAsync(evidence);
-
-        if (error is null &&
-            paused &&
-            resumed &&
-            volumeSet &&
-            muted &&
-            unmuted &&
-            stopped &&
-            switched &&
-            !_playbackEvidenceWritten)
-        {
-            _playbackEvidenceWritten = true;
-            await RecordPlaybackEvidenceAsync(initialPlayingSnapshot);
-        }
     }
 
     private async Task<PlaybackSnapshot> WaitForSnapshotAsync(
