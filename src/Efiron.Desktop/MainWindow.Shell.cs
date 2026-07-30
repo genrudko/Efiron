@@ -18,6 +18,8 @@ public sealed partial class MainWindow
         ShellRoot.LayoutUpdated += ShellRoot_LayoutUpdated;
         LiveTvWorkspace.EnablePresentationPolish();
         LiveTvWorkspace.EnableCategoryController();
+        ProgrammeGuideWorkspace.PlayChannelRequested +=
+            ProgrammeGuideWorkspace_PlayChannelRequested;
         EnableTitleBarContrast();
 
         _shellClockTimer = DispatcherQueue.CreateTimer();
@@ -31,6 +33,7 @@ public sealed partial class MainWindow
 
     private async void LiveNavigationButton_Click(object sender, RoutedEventArgs e)
     {
+        ProgrammeGuideWorkspace.Visibility = Visibility.Collapsed;
         if (_catalog is { Channels.Count: > 0 })
         {
             await ShowLiveWorkspaceAsync();
@@ -44,8 +47,15 @@ public sealed partial class MainWindow
         UpdateShellNavigation();
     }
 
+    private void ProgrammeNavigationButton_Click(object sender, RoutedEventArgs e)
+    {
+        ShowProgrammeWorkspace();
+        UpdateShellNavigation();
+    }
+
     private void SettingsNavigationButton_Click(object sender, RoutedEventArgs e)
     {
+        ProgrammeGuideWorkspace.Visibility = Visibility.Collapsed;
         ShowSourcesWorkspace();
         UpdateShellNavigation();
     }
@@ -55,6 +65,10 @@ public sealed partial class MainWindow
         if (LiveTvWorkspace.Visibility == Visibility.Visible)
         {
             LiveTvWorkspace.FocusSearch();
+        }
+        else if (ProgrammeGuideWorkspace.Visibility == Visibility.Visible)
+        {
+            ProgrammeGuideWorkspace.FocusSearch();
         }
         else
         {
@@ -101,12 +115,16 @@ public sealed partial class MainWindow
     private void UpdateShellNavigation()
     {
         var liveVisible = LiveTvWorkspace.Visibility == Visibility.Visible;
+        var programmeVisible = ProgrammeGuideWorkspace.Visibility == Visibility.Visible;
         LiveNavigationButton.IsChecked = liveVisible;
-        SettingsNavigationButton.IsChecked = !liveVisible;
+        ProgrammeNavigationButton.IsChecked = programmeVisible;
+        SettingsNavigationButton.IsChecked = !liveVisible && !programmeVisible;
         WindowContextTitle.Text = _resources.GetString(
             liveVisible
                 ? "WindowContextLiveMessage"
-                : "WindowContextSourcesMessage");
+                : programmeVisible
+                    ? "WindowContextProgrammeMessage"
+                    : "WindowContextSourcesMessage");
     }
 
     private void ShellClockTimer_Tick(
