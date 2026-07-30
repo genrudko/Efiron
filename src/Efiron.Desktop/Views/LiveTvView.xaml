@@ -9,76 +9,53 @@
 
   <Grid
       x:Name="LiveRoot"
-      Padding="30,24,30,30"
+      Padding="18,14,18,14"
       Background="{ThemeResource EfironWindowBrush}"
-      RowSpacing="18"
+      RowSpacing="12"
       IsTabStop="True"
       XYFocusKeyboardNavigation="Enabled"
       KeyDown="LiveRoot_KeyDown"
       SizeChanged="LiveRoot_SizeChanged"
-      LayoutUpdated="LiveRoot_LayoutUpdated">
+      LayoutUpdated="LiveRoot_LayoutUpdated"
+      Loaded="LiveRoot_PresentationLoaded">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto" />
       <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
     </Grid.RowDefinitions>
 
-    <Grid x:Name="LiveHeader" ColumnSpacing="16">
+    <Grid x:Name="LiveHeader" ColumnSpacing="14">
       <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="Auto" />
         <ColumnDefinition Width="*" />
         <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="Auto" />
       </Grid.ColumnDefinitions>
-
-      <Button
-          x:Name="BackSourcesButton"
-          Width="42"
-          Height="42"
-          Padding="0"
-          Click="BackSourcesButton_Click">
-        <FontIcon Glyph="&#xE72B;" FontSize="17" />
-      </Button>
-
-      <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
-        <TextBlock
-            x:Uid="LiveTitle"
-            Style="{StaticResource EfironPageTitleStyle}" />
-        <TextBlock
-            x:Name="LiveSummaryText"
-            Style="{StaticResource EfironCaptionStyle}" />
+      <StackPanel Spacing="2" VerticalAlignment="Center">
+        <TextBlock Text="ЭФИР" Style="{StaticResource EfironEyebrowStyle}" />
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <TextBlock x:Uid="LiveTitle" Style="{StaticResource EfironPageTitleStyle}" />
+          <TextBlock x:Name="LiveSummaryText" Style="{StaticResource EfironCaptionStyle}" VerticalAlignment="Bottom" Margin="0,0,0,4" />
+        </StackPanel>
       </StackPanel>
-
-      <Border
-          x:Name="PlaybackStatusBadge"
-          Grid.Column="2"
-          Padding="12,7"
-          Background="{ThemeResource EfironSurfaceRaisedBrush}"
-          BorderBrush="{ThemeResource EfironStrokeBrush}"
-          BorderThickness="1"
-          CornerRadius="18"
-          VerticalAlignment="Center">
-        <StackPanel Orientation="Horizontal" Spacing="8">
-          <Ellipse
-              x:Name="PlaybackStatusDot"
-              Width="8"
-              Height="8"
-              Fill="{ThemeResource EfironTextTertiaryBrush}"
-              VerticalAlignment="Center" />
-          <TextBlock
-              x:Name="PlaybackStatusText"
-              x:Uid="PlaybackStatusReady"
-              Style="{StaticResource EfironCaptionStyle}"
-              FontWeight="SemiBold" />
+      <Border x:Name="PlaybackStatusBadge" Grid.Column="1" Padding="11,6" Background="{ThemeResource EfironSurfaceRaisedBrush}" BorderBrush="{ThemeResource EfironStrokeSubtleBrush}" BorderThickness="1" CornerRadius="16" VerticalAlignment="Center">
+        <StackPanel Orientation="Horizontal" Spacing="7">
+          <Ellipse x:Name="PlaybackStatusDot" Width="7" Height="7" Fill="{ThemeResource EfironTextTertiaryBrush}" VerticalAlignment="Center" />
+          <TextBlock x:Name="PlaybackStatusText" x:Uid="PlaybackStatusReady" Style="{StaticResource EfironCaptionStyle}" FontWeight="SemiBold" />
         </StackPanel>
       </Border>
+      <Button x:Name="BackSourcesButton" Grid.Column="2" Style="{StaticResource EfironIconButtonStyle}" Click="BackSourcesButton_Click" ToolTipService.ToolTip="Настройки">
+        <FontIcon Glyph="&#xE713;" FontSize="16" />
+      </Button>
     </Grid>
 
     <Grid
         x:Name="LiveContentGrid"
         Grid.Row="1"
-        ColumnSpacing="18"
-        RowSpacing="14">
+        ColumnSpacing="10"
+        RowSpacing="10">
       <Grid.ColumnDefinitions>
-        <ColumnDefinition x:Name="ChannelBrowserColumn" Width="390" />
+        <ColumnDefinition x:Name="CategoryRailColumn" Width="164" />
+        <ColumnDefinition x:Name="ChannelBrowserColumn" Width="330" />
         <ColumnDefinition x:Name="PlayerColumn" Width="*" />
       </Grid.ColumnDefinitions>
       <Grid.RowDefinitions>
@@ -86,356 +63,129 @@
         <RowDefinition x:Name="LiveSecondaryRow" Height="0" />
       </Grid.RowDefinitions>
 
-      <Border
-          x:Name="ChannelBrowserCard"
-          Style="{StaticResource EfironCardStyle}"
-          Padding="16">
-        <Grid RowSpacing="12">
-          <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-          </Grid.RowDefinitions>
+      <Border x:Name="CategoryRailCard" Background="{ThemeResource EfironSurfaceBrush}" BorderBrush="{ThemeResource EfironStrokeSubtleBrush}" BorderThickness="1" CornerRadius="10" Padding="9">
+        <Grid RowSpacing="8">
+          <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+          <ToggleButton x:Name="FavoritesOnlyButton" Style="{StaticResource EfironPillToggleStyle}" HorizontalContentAlignment="Left" Checked="FavoritesOnlyButton_Checked" Unchecked="FavoritesOnlyButton_Checked">
+            <StackPanel Orientation="Horizontal" Spacing="8"><TextBlock Text="★" Foreground="{ThemeResource EfironWarningBrush}" /><TextBlock Text="Избранное" /></StackPanel>
+          </ToggleButton>
+          <ListView x:Name="CategoryRailListView" Grid.Row="1" SelectionMode="Single" ItemContainerStyle="{StaticResource EfironCategoryItemStyle}" SelectionChanged="CategoryRailListView_SelectionChanged" />
+          <ComboBox x:Name="CategoryComboBox" Visibility="Collapsed" SelectionChanged="CategoryComboBox_SelectionChanged" />
+        </Grid>
+      </Border>
 
-          <TextBox
-              x:Name="ChannelSearchTextBox"
-              x:Uid="LiveChannelSearch"
-              TextChanged="ChannelSearchTextBox_TextChanged" />
-
-          <Grid Grid.Row="1" ColumnSpacing="10">
-            <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="*" />
-              <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <ComboBox
-                x:Name="CategoryComboBox"
-                x:Uid="LiveCategoryFilter"
-                HorizontalAlignment="Stretch"
-                SelectionChanged="CategoryComboBox_SelectionChanged" />
-            <ToggleButton
-                x:Name="FavoritesOnlyButton"
-                Grid.Column="1"
-                x:Uid="LiveFavoritesOnly"
-                MinWidth="106"
-                Checked="FavoritesOnlyButton_Checked"
-                Unchecked="FavoritesOnlyButton_Checked" />
+      <Border x:Name="ChannelBrowserCard" Grid.Column="1" Background="{ThemeResource EfironSurfaceBrush}" BorderBrush="{ThemeResource EfironStrokeSubtleBrush}" BorderThickness="1" CornerRadius="10" Padding="9">
+        <Grid RowSpacing="8">
+          <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+          <Grid>
+            <TextBox x:Name="ChannelSearchTextBox" x:Uid="LiveChannelSearch" Padding="34,7,10,7" TextChanged="ChannelSearchTextBox_TextChanged" />
+            <FontIcon Glyph="&#xE721;" FontSize="13" Foreground="{ThemeResource EfironTextTertiaryBrush}" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="11,0,0,0" IsHitTestVisible="False" />
           </Grid>
-
-          <Grid Grid.Row="2">
-            <ListView
-                x:Name="ChannelListView"
-                IsItemClickEnabled="True"
-                ItemClick="ChannelListView_ItemClick"
-                SelectionMode="Single"
-                HorizontalContentAlignment="Stretch">
-              <ListView.ItemContainerStyle>
-                <Style TargetType="ListViewItem">
-                  <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                  <Setter Property="Padding" Value="0" />
-                  <Setter Property="Margin" Value="0,0,0,8" />
-                  <Setter Property="CornerRadius" Value="12" />
-                </Style>
-              </ListView.ItemContainerStyle>
+          <Grid Grid.Row="1">
+            <ListView x:Name="ChannelListView" IsItemClickEnabled="True" ItemClick="ChannelListView_ItemClick" SelectionMode="Single" HorizontalContentAlignment="Stretch" ItemContainerStyle="{StaticResource EfironChannelItemStyle}">
               <ListView.ItemTemplate>
                 <DataTemplate>
-                  <Grid Padding="11" ColumnSpacing="11">
-                    <Grid.ColumnDefinitions>
-                      <ColumnDefinition Width="34" />
-                      <ColumnDefinition Width="44" />
-                      <ColumnDefinition Width="*" />
-                      <ColumnDefinition Width="38" />
-                    </Grid.ColumnDefinitions>
-
+                  <Grid MinHeight="66" Padding="8,7" ColumnSpacing="8">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="24" /><ColumnDefinition Width="42" /><ColumnDefinition Width="*" /><ColumnDefinition Width="30" /></Grid.ColumnDefinitions>
                     <Grid VerticalAlignment="Center">
-                      <TextBlock
-                          Text="{Binding Number}"
-                          HorizontalAlignment="Center"
-                          Foreground="{ThemeResource EfironTextTertiaryBrush}"
-                          FontWeight="SemiBold" />
-                      <TextBlock
-                          Text="{Binding PlayingIndicator}"
-                          HorizontalAlignment="Left"
-                          VerticalAlignment="Top"
-                          Foreground="{ThemeResource EfironAccentBrush}"
-                          FontSize="8" />
+                      <TextBlock Text="{Binding Number}" HorizontalAlignment="Center" Foreground="{ThemeResource EfironTextTertiaryBrush}" FontSize="12" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding PlayingIndicator}" HorizontalAlignment="Center" VerticalAlignment="Bottom" Foreground="{ThemeResource EfironAccentBrush}" FontSize="7" Margin="0,0,0,-5" />
                     </Grid>
-
-                    <Border
-                        Grid.Column="1"
-                        Width="44"
-                        Height="44"
-                        Background="{ThemeResource EfironAccentSubtleBrush}"
-                        CornerRadius="12">
-                      <TextBlock
-                          Text="{Binding Initials}"
-                          HorizontalAlignment="Center"
-                          VerticalAlignment="Center"
-                          Foreground="{ThemeResource EfironAccentBrush}"
-                          FontWeight="Bold" />
-                    </Border>
-
-                    <StackPanel Grid.Column="2" Spacing="3" VerticalAlignment="Center">
-                      <Grid ColumnSpacing="8">
-                        <Grid.ColumnDefinitions>
-                          <ColumnDefinition Width="*" />
-                          <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock
-                            Text="{Binding Name}"
-                            Foreground="{ThemeResource EfironTextBrush}"
-                            FontWeight="SemiBold"
-                            TextTrimming="CharacterEllipsis" />
-                        <TextBlock
-                            Grid.Column="1"
-                            Text="{Binding CurrentTime}"
-                            Style="{StaticResource EfironCaptionStyle}" />
+                    <Border Grid.Column="1" Width="42" Height="42" Background="{ThemeResource EfironSurfaceRaisedBrush}" BorderBrush="{ThemeResource EfironStrokeSubtleBrush}" BorderThickness="1" CornerRadius="9">
+                      <Grid>
+                        <TextBlock Text="{Binding Initials}" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{ThemeResource EfironAccentBrush}" FontWeight="Bold" FontSize="12" />
+                        <Image Source="{Binding LogoUrl}" Stretch="Uniform" Margin="4" IsHitTestVisible="False" />
                       </Grid>
-                      <TextBlock
-                          Text="{Binding CurrentProgramme}"
-                          Style="{StaticResource EfironCaptionStyle}"
-                          TextTrimming="CharacterEllipsis" />
-                      <ProgressBar
-                          Height="3"
-                          Minimum="0"
-                          Maximum="100"
-                          Value="{Binding Progress}" />
-                      <TextBlock
-                          Text="{Binding NextProgramme}"
-                          Style="{StaticResource EfironCaptionStyle}"
-                          TextTrimming="CharacterEllipsis" />
-                    </StackPanel>
-
-                    <Button
-                        Grid.Column="3"
-                        Width="34"
-                        Height="34"
-                        Padding="0"
-                        Tag="{Binding}"
-                        Click="FavoriteButton_Click">
-                      <TextBlock
-                          Text="{Binding FavoriteGlyph}"
-                          FontSize="19"
-                          Foreground="{ThemeResource EfironAccentBrush}" />
+                    </Border>
+                    <Grid Grid.Column="2" RowSpacing="3" VerticalAlignment="Center">
+                      <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="3" /></Grid.RowDefinitions>
+                      <Grid ColumnSpacing="6"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="{Binding Name}" Foreground="{ThemeResource EfironTextBrush}" FontWeight="SemiBold" FontSize="13" TextTrimming="CharacterEllipsis" /><TextBlock Grid.Column="1" Text="{Binding CurrentTime}" Style="{StaticResource EfironCaptionStyle}" /></Grid>
+                      <TextBlock Grid.Row="1" Text="{Binding CurrentProgramme}" Style="{StaticResource EfironCaptionStyle}" TextTrimming="CharacterEllipsis" />
+                      <ProgressBar Grid.Row="2" Height="2" Minimum="0" Maximum="100" Value="{Binding Progress}" />
+                    </Grid>
+                    <Button Grid.Column="3" Width="28" Height="28" Padding="0" Background="Transparent" BorderThickness="0" Tag="{Binding}" Click="FavoriteButton_Click">
+                      <TextBlock Text="{Binding FavoriteGlyph}" FontSize="16" Foreground="{ThemeResource EfironWarningBrush}" />
                     </Button>
                   </Grid>
                 </DataTemplate>
               </ListView.ItemTemplate>
             </ListView>
-
-            <StackPanel
-                x:Name="ChannelEmptyState"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                Spacing="10"
-                IsHitTestVisible="False">
-              <FontIcon
-                  Glyph="&#xE8A5;"
-                  FontSize="34"
-                  Foreground="{ThemeResource EfironTextTertiaryBrush}" />
-              <TextBlock
-                  x:Name="ChannelEmptyText"
-                  x:Uid="LiveChannelEmpty"
-                  MaxWidth="260"
-                  Style="{StaticResource EfironBodyStyle}"
-                  TextAlignment="Center"
-                  TextWrapping="Wrap" />
+            <StackPanel x:Name="ChannelEmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="9" IsHitTestVisible="False">
+              <FontIcon Glyph="&#xE8A5;" FontSize="30" Foreground="{ThemeResource EfironTextTertiaryBrush}" />
+              <TextBlock x:Name="ChannelEmptyText" x:Uid="LiveChannelEmpty" MaxWidth="230" Style="{StaticResource EfironBodyStyle}" TextAlignment="Center" TextWrapping="Wrap" />
             </StackPanel>
           </Grid>
         </Grid>
       </Border>
 
-      <Grid
-          x:Name="PlayerWorkspace"
-          Grid.Column="1"
-          RowSpacing="14">
-        <Grid.RowDefinitions>
-          <RowDefinition Height="*" />
-          <RowDefinition Height="Auto" />
-          <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
-
-        <Border
-            x:Name="PlayerSurfaceBorder"
-            MinHeight="360"
-            Background="Black"
-            BorderBrush="{ThemeResource EfironStrokeBrush}"
-            BorderThickness="1"
-            CornerRadius="16">
+      <Grid x:Name="PlayerWorkspace" Grid.Column="2" RowSpacing="9">
+        <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+        <Border x:Name="PlayerSurfaceBorder" MinHeight="350" Background="Black" BorderBrush="{ThemeResource EfironStrokeSubtleBrush}" BorderThickness="1" CornerRadius="10">
           <Grid>
-            <lvs:VideoView
-                x:Name="VideoView"
-                Initialized="VideoView_Initialized" />
-
-            <Grid
-                Background="Transparent"
-                DoubleTapped="PlayerInputSurface_DoubleTapped" />
-
-            <StackPanel
-                x:Name="PlayerEmptyState"
-                Margin="24"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                Spacing="12"
-                IsHitTestVisible="False">
-              <Border
-                  Width="64"
-                  Height="64"
-                  Background="{ThemeResource EfironAccentSubtleBrush}"
-                  CornerRadius="20">
-                <FontIcon
-                    Glyph="&#xE768;"
-                    FontSize="25"
-                    Foreground="White"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center" />
-              </Border>
-              <TextBlock
-                  x:Uid="LivePlayerEmpty"
-                  MaxWidth="360"
-                  Foreground="White"
-                  TextAlignment="Center"
-                  TextWrapping="Wrap" />
+            <lvs:VideoView x:Name="VideoView" Initialized="VideoView_Initialized" />
+            <Grid Background="Transparent" DoubleTapped="PlayerInputSurface_DoubleTapped" />
+            <StackPanel x:Name="PlayerEmptyState" Margin="24" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10" IsHitTestVisible="False">
+              <Viewbox Width="58" Height="58"><Grid Width="32" Height="32"><Path Data="M2,1 L30,16 L2,31 Z" Fill="{StaticResource EfironBrandGradient}" /><Path Data="M10,9 L23,16 L10,23 Z" Fill="Black" /></Grid></Viewbox>
+              <TextBlock x:Uid="LivePlayerEmpty" MaxWidth="340" Foreground="#DCE4EF" TextAlignment="Center" TextWrapping="Wrap" />
             </StackPanel>
+            <ProgressRing x:Name="PlayerOpeningIndicator" Width="46" Height="46" HorizontalAlignment="Center" VerticalAlignment="Center" IsActive="False" Visibility="Collapsed" />
 
-            <ProgressRing
-                x:Name="PlayerOpeningIndicator"
-                Width="48"
-                Height="48"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                IsActive="False"
-                Visibility="Collapsed" />
+            <Grid VerticalAlignment="Bottom" Height="190" Background="{StaticResource EfironVideoOverlayBrush}" IsHitTestVisible="False" />
+            <Grid Margin="22,18,22,66" VerticalAlignment="Bottom" ColumnSpacing="12" IsHitTestVisible="False">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+              <StackPanel Spacing="4" VerticalAlignment="Bottom">
+                <StackPanel Orientation="Horizontal" Spacing="9">
+                  <TextBlock x:Name="SelectedChannelText" x:Uid="LiveNoChannelSelected" Foreground="White" FontFamily="Segoe UI Variable Display" FontSize="23" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
+                  <Border Padding="7,2" Background="{ThemeResource EfironAccentBrush}" CornerRadius="5" VerticalAlignment="Center"><TextBlock Text="LIVE" Foreground="White" FontSize="10" FontWeight="Bold" /></Border>
+                </StackPanel>
+                <TextBlock x:Name="SelectedProgrammeText" Foreground="#E4E9F1" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                <Grid Margin="0,5,0,0" ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="{Binding SelectedItem.CurrentTime, ElementName=ChannelListView}" Foreground="#C2CAD5" FontSize="11" /><ProgressBar Grid.Column="1" Height="3" Minimum="0" Maximum="100" Value="{Binding SelectedItem.Progress, ElementName=ChannelListView}" VerticalAlignment="Center" /><TextBlock Grid.Column="2" Text="{Binding SelectedItem.NextTime, ElementName=ChannelListView}" Foreground="#C2CAD5" FontSize="11" /></Grid>
+              </StackPanel>
+            </Grid>
+
+            <Border x:Name="PlayerControlsBorder" Margin="12" Padding="8" Background="#D90B1018" BorderBrush="#402FFFFFF" BorderThickness="1" CornerRadius="9" VerticalAlignment="Bottom">
+              <Grid x:Name="PlaybackControlsGrid" ColumnSpacing="7">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition x:Name="SelectedInfoColumn" Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition x:Name="VolumeColumn" Width="120" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <Button x:Name="PlayPauseButton" Style="{StaticResource EfironIconButtonStyle}" Click="PlayPauseButton_Click"><FontIcon x:Name="PlayPauseIcon" Glyph="&#xE768;" FontSize="17" /></Button>
+                <Button Grid.Column="1" Style="{StaticResource EfironIconButtonStyle}" Click="StopButton_Click"><FontIcon Glyph="&#xE71A;" FontSize="15" /></Button>
+                <StackPanel x:Name="SelectedChannelPanel" Grid.Column="2" Margin="5,0" VerticalAlignment="Center"><TextBlock Text="{Binding Text, ElementName=SelectedChannelText}" Foreground="White" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" /><TextBlock Text="{Binding Text, ElementName=SelectedProgrammeText}" Foreground="#AEB8C7" FontSize="11" TextTrimming="CharacterEllipsis" /></StackPanel>
+                <Button x:Name="MuteButton" Grid.Column="3" Style="{StaticResource EfironIconButtonStyle}" Click="MuteButton_Click"><FontIcon x:Name="MuteIcon" Glyph="&#xE767;" FontSize="17" /></Button>
+                <Slider x:Name="VolumeSlider" Grid.Column="4" Minimum="0" Maximum="100" Value="100" VerticalAlignment="Center" ValueChanged="VolumeSlider_ValueChanged" />
+                <Button Grid.Column="5" Style="{StaticResource EfironIconButtonStyle}" Click="FullscreenButton_Click"><FontIcon x:Name="FullscreenIcon" Glyph="&#xE740;" FontSize="16" /></Button>
+              </Grid>
+            </Border>
           </Grid>
         </Border>
 
-        <Border
-            x:Name="PlayerControlsBorder"
-            Grid.Row="1"
-            Padding="12"
-            Background="{ThemeResource EfironSurfaceBrush}"
-            BorderBrush="{ThemeResource EfironStrokeBrush}"
-            BorderThickness="1"
-            CornerRadius="12">
-          <Grid x:Name="PlaybackControlsGrid" ColumnSpacing="10">
-            <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="Auto" />
-              <ColumnDefinition Width="Auto" />
-              <ColumnDefinition x:Name="SelectedInfoColumn" Width="*" />
-              <ColumnDefinition Width="Auto" />
-              <ColumnDefinition x:Name="VolumeColumn" Width="150" />
-              <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-
-            <Button
-                x:Name="PlayPauseButton"
-                Width="40"
-                Height="40"
-                Padding="0"
-                Click="PlayPauseButton_Click">
-              <FontIcon x:Name="PlayPauseIcon" Glyph="&#xE768;" FontSize="18" />
-            </Button>
-
-            <Button
-                Grid.Column="1"
-                Width="40"
-                Height="40"
-                Padding="0"
-                Click="StopButton_Click">
-              <FontIcon Glyph="&#xE71A;" FontSize="17" />
-            </Button>
-
-            <StackPanel
-                x:Name="SelectedChannelPanel"
-                Grid.Column="2"
-                Margin="6,0"
-                VerticalAlignment="Center">
-              <TextBlock
-                  x:Name="SelectedChannelText"
-                  x:Uid="LiveNoChannelSelected"
-                  Foreground="{ThemeResource EfironTextBrush}"
-                  FontWeight="SemiBold"
-                  TextTrimming="CharacterEllipsis" />
-              <TextBlock
-                  x:Name="SelectedProgrammeText"
-                  Style="{StaticResource EfironCaptionStyle}"
-                  TextTrimming="CharacterEllipsis" />
+        <Border x:Name="ProgrammeCard" Grid.Row="1" Background="{ThemeResource EfironSurfaceBrush}" BorderBrush="{ThemeResource EfironStrokeSubtleBrush}" BorderThickness="1" CornerRadius="10" Padding="15">
+          <Grid x:Name="ProgrammeGrid" ColumnSpacing="20" RowSpacing="10">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition x:Name="ProgrammeSecondColumn" Width="*" /></Grid.ColumnDefinitions>
+            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition x:Name="ProgrammeSecondRow" Height="0" /></Grid.RowDefinitions>
+            <StackPanel Spacing="3">
+              <TextBlock Text="СЕЙЧАС" Style="{StaticResource EfironEyebrowStyle}" Foreground="{ThemeResource EfironAccentBrush}" />
+              <TextBlock x:Name="NowProgrammeTime" Style="{StaticResource EfironCaptionStyle}" />
+              <TextBlock x:Name="NowProgrammeTitle" x:Uid="LiveProgrammeUnavailable" Style="{StaticResource EfironSectionTitleStyle}" TextWrapping="Wrap" />
+              <TextBlock Text="{Binding SelectedItem.CurrentDescription, ElementName=ChannelListView}" Style="{StaticResource EfironCaptionStyle}" MaxLines="2" TextTrimming="CharacterEllipsis" TextWrapping="Wrap" />
             </StackPanel>
-
-            <Button
-                x:Name="MuteButton"
-                Grid.Column="3"
-                Width="40"
-                Height="40"
-                Padding="0"
-                Click="MuteButton_Click">
-              <FontIcon x:Name="MuteIcon" Glyph="&#xE767;" FontSize="18" />
-            </Button>
-
-            <Slider
-                x:Name="VolumeSlider"
-                Grid.Column="4"
-                Minimum="0"
-                Maximum="100"
-                Value="100"
-                VerticalAlignment="Center"
-                ValueChanged="VolumeSlider_ValueChanged" />
-
-            <Button
-                Grid.Column="5"
-                Width="40"
-                Height="40"
-                Padding="0"
-                Click="FullscreenButton_Click">
-              <FontIcon x:Name="FullscreenIcon" Glyph="&#xE740;" FontSize="17" />
-            </Button>
-          </Grid>
-        </Border>
-
-        <Border
-            x:Name="ProgrammeCard"
-            Grid.Row="2"
-            Style="{StaticResource EfironCardStyle}"
-            Padding="18">
-          <Grid
-              x:Name="ProgrammeGrid"
-              ColumnSpacing="24"
-              RowSpacing="12">
-            <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="*" />
-              <ColumnDefinition x:Name="ProgrammeSecondColumn" Width="*" />
-            </Grid.ColumnDefinitions>
-            <Grid.RowDefinitions>
-              <RowDefinition Height="Auto" />
-              <RowDefinition x:Name="ProgrammeSecondRow" Height="0" />
-            </Grid.RowDefinitions>
-            <StackPanel Spacing="4">
-              <TextBlock x:Uid="LiveNowLabel" Style="{StaticResource EfironCaptionStyle}" />
-              <TextBlock
-                  x:Name="NowProgrammeTitle"
-                  x:Uid="LiveProgrammeUnavailable"
-                  Style="{StaticResource EfironSectionTitleStyle}"
-                  TextWrapping="Wrap" />
-              <TextBlock
-                  x:Name="NowProgrammeTime"
-                  Style="{StaticResource EfironCaptionStyle}" />
-            </StackPanel>
-            <StackPanel
-                x:Name="NextProgrammePanel"
-                Grid.Column="1"
-                Spacing="4">
-              <TextBlock x:Uid="LiveNextLabel" Style="{StaticResource EfironCaptionStyle}" />
-              <TextBlock
-                  x:Name="NextProgrammeTitle"
-                  x:Uid="LiveProgrammeUnavailable"
-                  Style="{StaticResource EfironSectionTitleStyle}"
-                  TextWrapping="Wrap" />
-              <TextBlock
-                  x:Name="NextProgrammeTime"
-                  Style="{StaticResource EfironCaptionStyle}" />
+            <StackPanel x:Name="NextProgrammePanel" Grid.Column="1" Spacing="3">
+              <TextBlock Text="ДАЛЕЕ" Style="{StaticResource EfironEyebrowStyle}" />
+              <TextBlock x:Name="NextProgrammeTime" Style="{StaticResource EfironCaptionStyle}" />
+              <TextBlock x:Name="NextProgrammeTitle" x:Uid="LiveProgrammeUnavailable" Style="{StaticResource EfironSectionTitleStyle}" TextWrapping="Wrap" />
+              <TextBlock Text="{Binding SelectedItem.NextDescription, ElementName=ChannelListView}" Style="{StaticResource EfironCaptionStyle}" MaxLines="2" TextTrimming="CharacterEllipsis" TextWrapping="Wrap" />
             </StackPanel>
           </Grid>
         </Border>
       </Grid>
+    </Grid>
+
+    <Grid Grid.Row="2" Height="28">
+      <StackPanel Orientation="Horizontal" Spacing="18" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <TextBlock Text="ENTER  Сменить канал" Style="{StaticResource EfironCaptionStyle}" />
+        <TextBlock Text="★  В избранное" Style="{StaticResource EfironCaptionStyle}" />
+        <TextBlock Text="SPACE  Пауза" Style="{StaticResource EfironCaptionStyle}" />
+        <TextBlock Text="F11  Полный экран" Style="{StaticResource EfironCaptionStyle}" />
+        <TextBlock Text="ESC  Назад" Style="{StaticResource EfironCaptionStyle}" />
+      </StackPanel>
     </Grid>
   </Grid>
 </UserControl>
