@@ -1,4 +1,6 @@
+using Efiron.Application.Playback;
 using Efiron.Desktop.Diagnostics;
+using Efiron.Infrastructure.Playback;
 using Microsoft.UI.Xaml;
 
 namespace Efiron.Desktop;
@@ -12,7 +14,15 @@ public sealed partial class App : Microsoft.UI.Xaml.Application
         StartupDiagnostics.ResetCrashEvidence();
         UnhandledException += App_UnhandledException;
         InitializeComponent();
+
+        var localDataDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Efiron");
+        PlaybackPreferencesStore = new JsonPlaybackPreferencesStore(
+            Path.Combine(localDataDirectory, "playback.json"));
     }
+
+    internal IPlaybackPreferencesStore PlaybackPreferencesStore { get; }
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
