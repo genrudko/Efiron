@@ -232,8 +232,6 @@ public sealed partial class ProgrammeGuideView
     {
         ProgrammeSearchTextBox.IsEnabled = !isBusy;
         ProgrammeCategoryComboBox.IsEnabled = !isBusy;
-        PreviousDayButton.IsEnabled = !isBusy;
-        NextDayButton.IsEnabled = !isBusy;
         JumpNowButton.IsEnabled = !isBusy;
 
         if (!isBusy)
