@@ -15,37 +15,51 @@ public sealed partial class ProgrammeGuideView
         JumpToNow();
         await Task.Delay(350, cancellationToken);
 
-        var categoryCandidates = new List<(int Index, string Category, int Count)>();
-        for (var index = 1; index < ProgrammeCategoryComboBox.Items.Count; index++)
+        var isProviderScale = _catalog.Channels.Count >= 100;
+        var selectedCategory = string.Empty;
+        var expectedCategoryCount = _allRows.Count;
+
+        if (isProviderScale)
         {
-            if (ProgrammeCategoryComboBox.Items[index] is not EpgCategoryOption option ||
-                string.IsNullOrWhiteSpace(option.Value))
+            ProgrammeCategoryComboBox.SelectedIndex = 0;
+        }
+        else
+        {
+            var categoryCandidates = new List<(int Index, string Category, int Count)>();
+            for (var index = 1; index < ProgrammeCategoryComboBox.Items.Count; index++)
             {
-                continue;
+                if (ProgrammeCategoryComboBox.Items[index] is not EpgCategoryOption option ||
+                    string.IsNullOrWhiteSpace(option.Value))
+                {
+                    continue;
+                }
+
+                var count = _allRows.Count(row => string.Equals(
+                    row.Category,
+                    option.Value,
+                    StringComparison.CurrentCultureIgnoreCase));
+                if (count > 0 && count < _allRows.Count)
+                {
+                    categoryCandidates.Add((index, option.Value, count));
+                }
             }
 
-            var count = _allRows.Count(row => string.Equals(
-                row.Category,
-                option.Value,
-                StringComparison.CurrentCultureIgnoreCase));
-            if (count > 0 && count < _allRows.Count)
+            var selectedCandidate = categoryCandidates
+                .OrderByDescending(static candidate => candidate.Count)
+                .ThenBy(static candidate => candidate.Category, StringComparer.CurrentCultureIgnoreCase)
+                .FirstOrDefault();
+            if (selectedCandidate.Index <= 0 ||
+                string.IsNullOrWhiteSpace(selectedCandidate.Category))
             {
-                categoryCandidates.Add((index, option.Value, count));
+                throw new InvalidOperationException(
+                    "EPG fixture does not contain a partial category filter.");
             }
+
+            selectedCategory = selectedCandidate.Category;
+            expectedCategoryCount = selectedCandidate.Count;
+            ProgrammeCategoryComboBox.SelectedIndex = selectedCandidate.Index;
         }
 
-        var selectedCandidate = categoryCandidates
-            .OrderByDescending(static candidate => candidate.Count)
-            .ThenBy(static candidate => candidate.Category, StringComparer.CurrentCultureIgnoreCase)
-            .FirstOrDefault();
-        if (selectedCandidate.Index <= 0 ||
-            string.IsNullOrWhiteSpace(selectedCandidate.Category))
-        {
-            throw new InvalidOperationException(
-                "EPG fixture does not contain a partial category filter.");
-        }
-
-        ProgrammeCategoryComboBox.SelectedIndex = selectedCandidate.Index;
         await Task.Delay(500, cancellationToken);
         var firstVisibleIds = _visibleRows.Select(static row => row.StableId).ToArray();
         await Task.Delay(500, cancellationToken);
@@ -61,10 +75,12 @@ public sealed partial class ProgrammeGuideView
             block.Left + block.Width <= baseTimelineWidth + 0.5);
         var stableContents =
             firstVisibleIds.SequenceEqual(secondVisibleIds, StringComparer.Ordinal) &&
-            _visibleRows.All(row => string.Equals(
-                row.Category,
-                selectedCandidate.Category,
-                StringComparison.CurrentCultureIgnoreCase));
+            (isProviderScale
+                ? _visibleRows.Count == _allRows.Count
+                : _visibleRows.All(row => string.Equals(
+                    row.Category,
+                    selectedCategory,
+                    StringComparison.CurrentCultureIgnoreCase)));
         var initialProgramme = FindInitialProgramme();
         var horizontalProgramme = initialProgramme is null
             ? null
@@ -83,22 +99,48 @@ public sealed partial class ProgrammeGuideView
                 StringComparison.Ordinal);
 
         var verticalScrollChanged = false;
+        var rapidScrollCompleted = false;
+        var rapidScrollSamples = 0;
+        var maxRealizedRowsDuringScroll = 0;
         var zoomChanged = false;
         var daySwitchCompleted = false;
         var returnedToOriginalDay = true;
         var daySwitchMilliseconds = 0d;
 
-        if (_catalog.Channels.Count >= 100)
+        if (isProviderScale)
         {
             var oldVerticalOffset = _verticalOffset;
-            SetVerticalOffset(Math.Min(
-                EpgVerticalScrollBar.Maximum,
-                Math.Max(RowHeight * 12, EpgRowsViewport.ActualHeight * 1.4)));
-            await Task.Delay(300, cancellationToken);
+            var maximum = EpgVerticalScrollBar.Maximum;
+            var offsets = new[]
+            {
+                0d,
+                maximum * 0.20,
+                maximum * 0.55,
+                maximum,
+                maximum * 0.35,
+                maximum * 0.85,
+                0d,
+            };
+
+            foreach (var offset in offsets)
+            {
+                SetVerticalOffset(offset);
+                await Task.Delay(90, cancellationToken);
+                rapidScrollSamples++;
+                maxRealizedRowsDuringScroll = Math.Max(
+                    maxRealizedRowsDuringScroll,
+                    _rowVisualPool.Count(static visual =>
+                        visual.Root.Visibility == Microsoft.UI.Xaml.Visibility.Visible));
+            }
+
             verticalScrollChanged =
-                _verticalOffset > oldVerticalOffset + RowHeight &&
-                _rowVisualPool.Any(static visual =>
-                    visual.Root.Visibility == Microsoft.UI.Xaml.Visibility.Visible);
+                maximum > RowHeight * 20 &&
+                offsets.Any(offset => offset > oldVerticalOffset + RowHeight);
+            rapidScrollCompleted =
+                _verticalOffset <= RowHeight &&
+                rapidScrollSamples == offsets.Length &&
+                maxRealizedRowsDuringScroll > 0 &&
+                maxRealizedRowsDuringScroll <= 40;
 
             var oldPixelsPerMinute = _pixelsPerMinute;
             var oldTimelineWidth = TimelineWidth;
@@ -109,11 +151,17 @@ public sealed partial class ProgrammeGuideView
                 TimelineWidth > oldTimelineWidth + 500;
 
             var originalDate = _selectedDate;
-            var targetDate = originalDate.AddDays(1);
             var dayClock = Stopwatch.StartNew();
-            await SelectDateAsync(targetDate, jumpToNow: false);
-            daySwitchCompleted =
-                _selectedDate == targetDate &&
+            var nextDate = originalDate.AddDays(1);
+            var previousDate = originalDate.AddDays(-1);
+            await SelectDateAsync(nextDate, jumpToNow: false);
+            var nextDayCompleted =
+                _selectedDate == nextDate &&
+                !_projectionBusy &&
+                _allRows.Count == _catalog.Channels.Count;
+            await SelectDateAsync(previousDate, jumpToNow: false);
+            var previousDayCompleted =
+                _selectedDate == previousDate &&
                 !_projectionBusy &&
                 _allRows.Count == _catalog.Channels.Count;
             await SelectDateAsync(originalDate, jumpToNow: true);
@@ -123,6 +171,8 @@ public sealed partial class ProgrammeGuideView
                 _selectedDate == originalDate &&
                 !_projectionBusy &&
                 _allRows.Count == _catalog.Channels.Count;
+            daySwitchCompleted =
+                nextDayCompleted && previousDayCompleted && returnedToOriginalDay;
             await Task.Delay(300, cancellationToken);
         }
 
@@ -139,8 +189,8 @@ public sealed partial class ProgrammeGuideView
             TimelineWidth,
             TimelineViewportWidth,
             _channelColumnWidth,
-            selectedCandidate.Category,
-            selectedCandidate.Count,
+            selectedCategory,
+            expectedCategoryCount,
             _visibleRows.Count,
             stableContents,
             geometryValid,
@@ -152,7 +202,11 @@ public sealed partial class ProgrammeGuideView
             _pixelsPerMinute,
             EpgVerticalScrollBar.Maximum,
             "manual-two-axis-virtualization",
+            isProviderScale,
             verticalScrollChanged,
+            rapidScrollCompleted,
+            rapidScrollSamples,
+            maxRealizedRowsDuringScroll,
             zoomChanged,
             daySwitchCompleted,
             returnedToOriginalDay,
@@ -185,7 +239,11 @@ public sealed partial class ProgrammeGuideView
         double PixelsPerMinute,
         double VerticalScrollMaximum,
         string RenderingArchitecture,
+        bool AllChannelsMode,
         bool VerticalScrollChanged,
+        bool RapidScrollCompleted,
+        int RapidScrollSamples,
+        int MaxRealizedRowsDuringScroll,
         bool ZoomChanged,
         bool DaySwitchCompleted,
         bool ReturnedToOriginalDay,
