@@ -12,7 +12,7 @@ namespace Efiron.Infrastructure.Tests.Live;
 public sealed class LiveCatalogRefreshServiceTests
 {
     [Fact]
-    public async Task RefreshAsync_builds_categories_matches_and_now_next()
+    public async Task RefreshAsync_builds_categories_matches_now_next_and_schedule()
     {
         const string playlist = """
             #EXTM3U
@@ -69,11 +69,13 @@ public sealed class LiveCatalogRefreshServiceTests
         Assert.Equal("guide.one", first.ProgrammeGuideChannelId);
         Assert.Equal("Новости", first.CurrentProgramme?.Title);
         Assert.Equal("Вечер", first.NextProgramme?.Title);
+        Assert.Equal(["Новости", "Вечер"], first.Schedule.Select(static programme => programme.Title));
 
         var second = result.Channels[1];
         Assert.Equal("guide.two", second.ProgrammeGuideChannelId);
         Assert.Equal("Фильм", second.CurrentProgramme?.Title);
         Assert.Null(second.NextProgramme);
+        Assert.Equal("Фильм", Assert.Single(second.Schedule).Title);
     }
 
     [Fact]
@@ -101,6 +103,7 @@ public sealed class LiveCatalogRefreshServiceTests
         Assert.Equal("Канал", channel.Channel.Name);
         Assert.Null(channel.ProgrammeGuideChannelId);
         Assert.Null(channel.CurrentProgramme);
+        Assert.Empty(channel.Schedule);
         Assert.Equal(["Общие"], result.Categories);
     }
 
