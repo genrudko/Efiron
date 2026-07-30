@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Efiron.Application.Playback;
 using Efiron.Domain.Playback;
 using Microsoft.UI.Dispatching;
@@ -10,11 +11,14 @@ namespace Efiron.Desktop.Views;
 
 public sealed partial class LiveTvView
 {
+    private const string InteractionVerificationEnvironmentVariable =
+        "EFIRON_CI_INTERACTION_VERIFICATION";
     private static readonly TimeSpan PlayerChromeHideDelay = TimeSpan.FromSeconds(3.2);
 
     private bool _presentationPolishEnabled;
     private bool _floatingPlayerControlsConfigured;
     private bool _pointerOverPlayerControls;
+    private bool _interactionEvidenceStarted;
     private DispatcherQueueTimer? _playerChromeTimer;
     private UIElement? _playerProgrammeOverlay;
     private UIElement? _playerOverlayScrim;
@@ -186,7 +190,7 @@ public sealed partial class LiveTvView
     private void ApplyPresentationFilters()
     {
         var search = ChannelSearchTextBox.Text.Trim();
-        IEnumerable<Presentation.LiveChannelItem> query = _allItems;
+        IEnumerable<Efiron.Desktop.Presentation.LiveChannelItem> query = _allItems;
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -243,6 +247,95 @@ public sealed partial class LiveTvView
     {
         ApplyCompactChannelWidth(LiveRoot.ActualWidth);
         ConfigureFloatingPlayerControls();
+        TryStartInteractionEvidence();
+    }
+
+    private void TryStartInteractionEvidence()
+    {
+        if (_interactionEvidenceStarted ||
+            !string.Equals(
+                Environment.GetEnvironmentVariable(
+                    InteractionVerificationEnvironmentVariable),
+                "1",
+                StringComparison.Ordinal) ||
+            CategoryRailListView.Items.Count < 3 ||
+            _allItems.Count < 2)
+        {
+            return;
+        }
+
+        _interactionEvidenceStarted = true;
+        _ = RecordInteractionEvidenceAsync();
+    }
+
+    private async Task RecordInteractionEvidenceAsync()
+    {
+        try
+        {
+            var categoryIndex = -1;
+            string? category = null;
+            var expectedCount = 0;
+            for (var index = 1; index < CategoryRailListView.Items.Count; index++)
+            {
+                var candidate = CategoryRailListView.Items[index]?.ToString();
+                if (string.IsNullOrWhiteSpace(candidate))
+                {
+                    continue;
+                }
+
+                var count = _allItems.Count(item => string.Equals(
+                    item.Category,
+                    candidate,
+                    StringComparison.CurrentCultureIgnoreCase));
+                if (count > 0 && count < _allItems.Count)
+                {
+                    categoryIndex = index;
+                    category = candidate;
+                    expectedCount = count;
+                    break;
+                }
+            }
+
+            if (categoryIndex < 0 || category is null)
+            {
+                return;
+            }
+
+            CategoryRailListView.SelectedIndex = categoryIndex;
+            await Task.Yield();
+
+            var glyphColors = PlaybackControlsGrid.Children
+                .OfType<Button>()
+                .Select(button => button.Content is FontIcon icon &&
+                                  icon.Foreground is SolidColorBrush brush
+                    ? brush.Color.ToString()
+                    : string.Empty)
+                .ToArray();
+            var evidence = new InteractionEvidence(
+                _allItems.Count,
+                category,
+                expectedCount,
+                _visibleItems.Count,
+                _selectedCategory,
+                glyphColors,
+                glyphColors.Length > 0 && glyphColors.All(static color =>
+                    string.Equals(color, "#FFF7F9FC", StringComparison.OrdinalIgnoreCase)),
+                DateTimeOffset.UtcNow);
+
+            var path = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Efiron",
+                "diagnostics",
+                "interaction-runtime.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            await File.WriteAllTextAsync(path, JsonSerializer.Serialize(evidence));
+
+            CategoryRailListView.SelectedIndex = 0;
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException)
+        {
+        }
     }
 
     private void PresentationPolish_LiveRootKeyDown(
@@ -347,4 +440,14 @@ public sealed partial class LiveTvView
             PlayerColumn.Width = new GridLength(0);
         }
     }
+
+    private sealed record InteractionEvidence(
+        int AllChannelCount,
+        string Category,
+        int ExpectedCategoryCount,
+        int VisibleCategoryCount,
+        string? SelectedCategory,
+        IReadOnlyList<string> OverlayGlyphColors,
+        bool AllOverlayGlyphsReadable,
+        DateTimeOffset RecordedAtUtc);
 }
