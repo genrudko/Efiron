@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Text.Json;
 using Microsoft.UI.Windowing;
@@ -51,7 +52,39 @@ public sealed partial class MainWindow
         {
             await Task.Delay(450, _lifetime.Token);
             SetFullscreen(true);
-            await Task.Delay(950, _lifetime.Token);
+
+            var readinessClock = Stopwatch.StartNew();
+            Views.LiveTvView.FullscreenSurfaceEvidence? surface = null;
+            while (readinessClock.Elapsed < TimeSpan.FromSeconds(20))
+            {
+                surface = LiveTvWorkspace.GetFullscreenSurfaceEvidence();
+                if (string.Equals(
+                        surface.PlaybackState,
+                        "Playing",
+                        StringComparison.Ordinal) &&
+                    !string.IsNullOrWhiteSpace(surface.PlaybackSource) &&
+                    !string.IsNullOrWhiteSpace(surface.VideoCropGeometry))
+                {
+                    break;
+                }
+
+                await Task.Delay(200, _lifetime.Token);
+            }
+
+            surface = LiveTvWorkspace.GetFullscreenSurfaceEvidence();
+            if (!string.Equals(
+                    surface.PlaybackState,
+                    "Playing",
+                    StringComparison.Ordinal) ||
+                string.IsNullOrWhiteSpace(surface.PlaybackSource) ||
+                string.IsNullOrWhiteSpace(surface.VideoCropGeometry))
+            {
+                throw new InvalidOperationException(
+                    $"Fullscreen video was not ready: state={surface.PlaybackState}, " +
+                    $"source={surface.PlaybackSource}, crop={surface.VideoCropGeometry}.");
+            }
+
+            await Task.Delay(900, _lifetime.Token);
 
             var bitmap = new RenderTargetBitmap();
             await bitmap.RenderAsync(WindowRoot);
@@ -67,7 +100,7 @@ public sealed partial class MainWindow
                 bitmap.PixelWidth,
                 bitmap.PixelHeight,
                 rowsPerEdge: 6);
-            var surface = LiveTvWorkspace.GetFullscreenSurfaceEvidence();
+            surface = LiveTvWorkspace.GetFullscreenSurfaceEvidence();
             var evidence = new
             {
                 PresenterKind = AppWindow.Presenter.Kind.ToString(),
@@ -82,6 +115,7 @@ public sealed partial class MainWindow
                 PixelHeight = bitmap.PixelHeight,
                 edge.TopWhitePixelRatio,
                 edge.BottomWhitePixelRatio,
+                VideoReadyMilliseconds = readinessClock.Elapsed.TotalMilliseconds,
                 RecordedAtUtc = DateTimeOffset.UtcNow,
             };
 
@@ -115,10 +149,10 @@ public sealed partial class MainWindow
 
     private static (double TopWhitePixelRatio, double BottomWhitePixelRatio)
         MeasureHorizontalEdges(
-            IReadOnlyList<byte> pixels,
-            int width,
-            int height,
-            int rowsPerEdge)
+        IReadOnlyList<byte> pixels,
+        int width,
+        int height,
+        int rowsPerEdge)
     {
         var rowCount = Math.Min(rowsPerEdge, Math.Max(1, height / 2));
         var topWhite = 0L;
