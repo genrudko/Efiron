@@ -69,6 +69,22 @@ public sealed partial class ProgrammeGuideView
             TimelineHorizontalScrollViewer.HorizontalOffset) < 1;
         var realizedProgrammeButtons = CountRealizedProgrammeButtons(
             TimelineRowsListView);
+        var initialProgramme = FindInitialProgramme();
+        var horizontalProgramme = initialProgramme is null
+            ? null
+            : FindHorizontalProgramme(initialProgramme, 1);
+        var verticalProgramme = initialProgramme is null
+            ? null
+            : FindVerticalProgramme(initialProgramme, 1);
+        var directionalNavigationValid =
+            initialProgramme is not null &&
+            horizontalProgramme is not null &&
+            verticalProgramme is not null &&
+            !SameProgramme(initialProgramme, horizontalProgramme) &&
+            !string.Equals(
+                initialProgramme.ChannelStableId,
+                verticalProgramme.ChannelStableId,
+                StringComparison.Ordinal);
 
         return new ProgrammeGuideRuntimeEvidence(
             _catalog.Channels.Count,
@@ -87,6 +103,7 @@ public sealed partial class ProgrammeGuideView
             stableContents,
             geometryValid,
             headerAligned,
+            directionalNavigationValid,
             CurrentTimeLine.Visibility == Microsoft.UI.Xaml.Visibility.Visible,
             TimelineHorizontalScrollViewer.HorizontalOffset,
             DateTimeOffset.UtcNow);
@@ -126,6 +143,7 @@ public sealed partial class ProgrammeGuideView
         bool StableCategoryContents,
         bool ProgrammeGeometryValid,
         bool HeaderScrollAligned,
+        bool DirectionalNavigationValid,
         bool CurrentTimeMarkerVisible,
         double HorizontalOffset,
         DateTimeOffset RecordedAtUtc);
