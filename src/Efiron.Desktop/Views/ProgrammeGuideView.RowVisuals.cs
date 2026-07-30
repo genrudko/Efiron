@@ -74,9 +74,11 @@ public sealed partial class ProgrammeGuideView
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
         };
-        var logo = new Image { Stretch = Stretch.Uniform };
-        logo.ImageOpened += (_, _) => initials.Visibility = Visibility.Collapsed;
-        logo.ImageFailed += (_, _) => initials.Visibility = Visibility.Visible;
+        var logo = new Image
+        {
+            Stretch = Stretch.Uniform,
+            Opacity = 0,
+        };
         logoHost.Children.Add(initials);
         logoHost.Children.Add(logo);
         channelGrid.Children.Add(logoHost);
@@ -114,7 +116,7 @@ public sealed partial class ProgrammeGuideView
         timelineClip.Children.Add(programmeCanvas);
         root.Children.Add(timelineClip);
 
-        return new EpgRowVisual(
+        var visual = new EpgRowVisual(
             root,
             channelButton,
             number,
@@ -124,6 +126,35 @@ public sealed partial class ProgrammeGuideView
             category,
             timelineClip,
             programmeCanvas);
+        logo.ImageOpened += (_, _) => HandleRowLogoOpened(visual);
+        logo.ImageFailed += (_, _) => HandleRowLogoFailed(visual);
+        return visual;
+    }
+
+    private static void HandleRowLogoOpened(EpgRowVisual visual)
+    {
+        if (visual.RequestedLogoSource is null ||
+            !ReferenceEquals(visual.Logo.Source, visual.RequestedLogoSource))
+        {
+            return;
+        }
+
+        visual.LogoOpened = true;
+        visual.Logo.Opacity = 1;
+        visual.Initials.Visibility = Visibility.Collapsed;
+    }
+
+    private static void HandleRowLogoFailed(EpgRowVisual visual)
+    {
+        if (visual.RequestedLogoSource is null ||
+            !ReferenceEquals(visual.Logo.Source, visual.RequestedLogoSource))
+        {
+            return;
+        }
+
+        visual.LogoOpened = false;
+        visual.Logo.Opacity = 0;
+        visual.Initials.Visibility = Visibility.Collapsed;
     }
 
     private void UpdateRowVisual(
@@ -133,6 +164,7 @@ public sealed partial class ProgrammeGuideView
         double viewportWidth)
     {
         visual.Row = row;
+        visual.BoundRowIndex = rowIndex;
         visual.Root.ColumnDefinitions[0].Width = new GridLength(_channelColumnWidth);
         visual.Root.Background = ResolveEpgBrush(
             rowIndex % 2 == 0
@@ -143,8 +175,33 @@ public sealed partial class ProgrammeGuideView
         visual.Name.Text = row.Name;
         visual.Category.Text = row.Category;
         visual.Initials.Text = row.Initials;
-        visual.Initials.Visibility = Visibility.Visible;
-        visual.Logo.Source = row.LogoUrl;
+
+        var logoSource = row.LogoUrl;
+        if (logoSource is null)
+        {
+            visual.RequestedLogoSource = null;
+            visual.LogoOpened = false;
+            visual.Logo.Opacity = 0;
+            visual.Logo.Source = null;
+            visual.Initials.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            visual.Initials.Visibility = Visibility.Collapsed;
+            if (!ReferenceEquals(visual.RequestedLogoSource, logoSource) ||
+                !ReferenceEquals(visual.Logo.Source, logoSource))
+            {
+                visual.RequestedLogoSource = logoSource;
+                visual.LogoOpened = false;
+                visual.Logo.Opacity = 0;
+                visual.Logo.Source = null;
+                visual.Logo.Source = logoSource;
+            }
+            else
+            {
+                visual.Logo.Opacity = visual.LogoOpened ? 1 : 0;
+            }
+        }
 
         var timelineWidth = Math.Max(0, viewportWidth - _channelColumnWidth);
         visual.TimelineClip.Width = timelineWidth;
@@ -343,5 +400,8 @@ public sealed partial class ProgrammeGuideView
         public Grid TimelineClip { get; } = timelineClip;
         public Canvas ProgrammeCanvas { get; } = programmeCanvas;
         public EpgChannelRowItem? Row { get; set; }
+        public int BoundRowIndex { get; set; } = -1;
+        public ImageSource? RequestedLogoSource { get; set; }
+        public bool LogoOpened { get; set; }
     }
 }
