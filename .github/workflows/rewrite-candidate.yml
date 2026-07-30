@@ -137,6 +137,7 @@ jobs:
             Start-Sleep -Seconds 2
             if ($server.HasExited) { throw "Candidate media server exited." }
 
+            $env:EFIRON_CI_PLAYBACK_SEQUENCE = "1"
             $env:EFIRON_CI_PLAYBACK_VERIFICATION = "1"
             $env:EFIRON_CI_LAYOUT_VERIFICATION = "1"
             $env:EFIRON_CI_APPEARANCE_VERIFICATION = "1"
@@ -240,6 +241,7 @@ jobs:
             New-Item -ItemType File -Path (Join-Path $diagnostics "candidate-runtime-ok.marker") -Force | Out-Null
           }
           finally {
+            Remove-Item Env:EFIRON_CI_PLAYBACK_SEQUENCE -ErrorAction SilentlyContinue
             Remove-Item Env:EFIRON_CI_PLAYBACK_VERIFICATION -ErrorAction SilentlyContinue
             Remove-Item Env:EFIRON_CI_LAYOUT_VERIFICATION -ErrorAction SilentlyContinue
             Remove-Item Env:EFIRON_CI_APPEARANCE_VERIFICATION -ErrorAction SilentlyContinue
