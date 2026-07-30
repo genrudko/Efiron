@@ -38,7 +38,7 @@ jobs:
           dotnet restore Efiron.Greenfield.sln
           dotnet build Efiron.Greenfield.sln -c Release --no-restore
 
-      - name: Prepare ultrawide MJPEG fullscreen fixture
+      - name: Prepare ultrawide uncompressed AVI fixture
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -50,15 +50,12 @@ jobs:
           New-Item -ItemType Directory -Path $fixture,$data -Force | Out-Null
 
           $videoPath = Join-Path $fixture "channel.avi"
-          & ./scripts/create-mjpeg-avi.ps1 `
+          & ./scripts/create-uncompressed-avi.ps1 `
             -OutputPath $videoPath `
-            -Width 1680 `
-            -Height 720 `
+            -Width 336 `
+            -Height 144 `
             -FramesPerSecond 10 `
             -FrameCount 300
-          if (-not (Test-Path $videoPath) -or (Get-Item $videoPath).Length -lt 1000000) {
-            throw "MJPEG fullscreen fixture was not created."
-          }
 
           @'
           #EXTM3U
@@ -79,9 +76,11 @@ jobs:
           @{
             playlist = @{ location = (Join-Path $fixture "playlist.m3u"); isEnabled = $true }
             programmeGuide = @{ location = (Join-Path $fixture "guide.xml"); isEnabled = $true }
-          } | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $data "sources.json") -Encoding utf8
+          } | ConvertTo-Json -Depth 4 |
+            Set-Content (Join-Path $data "sources.json") -Encoding utf8
           @{ version = 1; theme = 1; accent = 0 } |
-            ConvertTo-Json | Set-Content (Join-Path $data "appearance.json") -Encoding utf8
+            ConvertTo-Json |
+            Set-Content (Join-Path $data "appearance.json") -Encoding utf8
 
       - name: Verify real-video fullscreen fill and edge pixels
         shell: pwsh
@@ -90,168 +89,18 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $output = "src/Efiron.Desktop/bin/x64/Release/net10.0-windows10.0.22000.0/win-x64"
-          $exe = Join-Path $output "Efiron.exe"
-          if (-not (Test-Path $exe)) { throw "Efiron.exe not found: $exe" }
-
           $fixture = Join-Path $env:RUNNER_TEMP "efiron-fullscreen-fixture"
           $localAppData = [Environment]::GetFolderPath(
             [Environment+SpecialFolder]::LocalApplicationData)
           $diagnostics = Join-Path $localAppData "Efiron/diagnostics"
-          $evidencePath = Join-Path $diagnostics "fullscreen-runtime.json"
-          $previewPath = Join-Path $diagnostics "fullscreen-preview.png"
-          $errorPath = Join-Path $diagnostics "fullscreen-preview-error.log"
-          $crashPath = Join-Path $diagnostics "startup-crash.log"
-          $process = $null
-          $server = $null
-          New-Item -ItemType Directory -Path fullscreen-artifacts -Force | Out-Null
 
-          try {
-            $python = (Get-Command python -ErrorAction Stop).Source
-            $server = Start-Process $python -ArgumentList @(
-              "-m","http.server","18770","--bind","127.0.0.1","--directory",$fixture) `
-              -WindowStyle Hidden -PassThru
-            Start-Sleep -Seconds 2
-            if ($server.HasExited) { throw "Fullscreen media server exited." }
-
-            $process = Start-Process $exe -WorkingDirectory $output -PassThru
-            $deadline = [DateTime]::UtcNow.AddSeconds(100)
-            while ([DateTime]::UtcNow -lt $deadline -and
-                   (-not (Test-Path $evidencePath) -or -not (Test-Path $previewPath))) {
-              Start-Sleep -Milliseconds 300
-              $process.Refresh()
-              if ($process.HasExited) {
-                $crash = if (Test-Path $crashPath) { Get-Content $crashPath -Raw } else { "no crash log" }
-                throw "Efiron exited before fullscreen evidence. $crash"
-              }
-            }
-
-            if (Test-Path $errorPath) {
-              throw "Fullscreen capture failed: $(Get-Content $errorPath -Raw)"
-            }
-            if (-not (Test-Path $evidencePath) -or -not (Test-Path $previewPath)) {
-              throw "Fullscreen evidence is incomplete."
-            }
-
-            $evidence = Get-Content $evidencePath -Raw | ConvertFrom-Json
-            if ($evidence.PresenterKind -ne "FullScreen") {
-              throw "Unexpected presenter: $($evidence.PresenterKind)"
-            }
-            if ([double]$evidence.TitleBarRowHeight -ne 0 -or
-                [double]$evidence.NavigationColumnWidth -ne 0) {
-              throw "Shell chrome remains visible in fullscreen."
-            }
-            if (-not [bool]$evidence.Surface.IsFullscreen -or
-                [double]$evidence.Surface.LiveRootRowSpacing -ne 0 -or
-                [double]$evidence.Surface.PlayerWorkspaceRowSpacing -ne 0 -or
-                [double]$evidence.Surface.PlayerBorderThickness -ne 0) {
-              throw "Fullscreen surface geometry is invalid."
-            }
-            if ($evidence.Surface.PlaybackState -ne "Playing" -or
-                [string]::IsNullOrWhiteSpace([string]$evidence.Surface.PlaybackSource)) {
-              throw "Fullscreen fixture was not playing when evidence was recorded."
-            }
-            if ([string]::IsNullOrWhiteSpace([string]$evidence.Surface.VideoCropGeometry)) {
-              throw "Fullscreen video fill crop geometry was not applied."
-            }
-            if ($evidence.WindowBackground -ne "#FF000000" -or
-                $evidence.Surface.LiveRootBackground -ne "#FF000000") {
-              throw "Fullscreen root surfaces are not black."
-            }
-            if ([double]$evidence.TopWhitePixelRatio -gt 0.01 -or
-                [double]$evidence.BottomWhitePixelRatio -gt 0.01) {
-              throw "White fullscreen edge detected: top=$($evidence.TopWhitePixelRatio), bottom=$($evidence.BottomWhitePixelRatio)"
-            }
-
-            Start-Sleep -Seconds 2
-            Add-Type -AssemblyName System.Drawing
-            Add-Type -AssemblyName System.Windows.Forms
-            $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
-            $desktopPath = Join-Path $diagnostics "fullscreen-desktop.png"
-            $desktopEvidencePath = Join-Path $diagnostics "fullscreen-desktop-runtime.json"
-            $bitmap = [System.Drawing.Bitmap]::new(
-              $bounds.Width,
-              $bounds.Height,
-              [System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
-            $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-            try {
-              $graphics.CopyFromScreen(
-                $bounds.Location,
-                [System.Drawing.Point]::Empty,
-                $bounds.Size)
-              $bitmap.Save($desktopPath, [System.Drawing.Imaging.ImageFormat]::Png)
-
-              function Measure-NonBlackRatio(
-                [System.Drawing.Bitmap]$Image,
-                [int]$YStart,
-                [int]$YEnd) {
-                $xStart = [int]($Image.Width * 0.20)
-                $xEnd = [int]($Image.Width * 0.80)
-                $nonBlack = 0L
-                $samples = 0L
-                for ($y = $YStart; $y -lt $YEnd; $y += 2) {
-                  for ($x = $xStart; $x -lt $xEnd; $x += 2) {
-                    $pixel = $Image.GetPixel($x, $y)
-                    if ($pixel.R -gt 30 -or $pixel.G -gt 30 -or $pixel.B -gt 30) {
-                      $nonBlack++
-                    }
-                    $samples++
-                  }
-                }
-                if ($samples -eq 0) { return 0d }
-                return [double]$nonBlack / [double]$samples
-              }
-
-              $topContentRatio = Measure-NonBlackRatio `
-                $bitmap `
-                ([int]($bitmap.Height * 0.04)) `
-                ([int]($bitmap.Height * 0.16))
-              $lowerContentRatio = Measure-NonBlackRatio `
-                $bitmap `
-                ([int]($bitmap.Height * 0.62)) `
-                ([int]($bitmap.Height * 0.74))
-              if ($topContentRatio -lt 0.70 -or $lowerContentRatio -lt 0.70) {
-                throw "Decoded video did not fill fullscreen: top=$topContentRatio lower=$lowerContentRatio"
-              }
-
-              $desktopEvidence = [ordered]@{
-                HeadSha = "${{ github.event.pull_request.head.sha || github.sha }}"
-                Width = $bitmap.Width
-                Height = $bitmap.Height
-                TopContentRatio = $topContentRatio
-                LowerContentRatio = $lowerContentRatio
-                PlaybackState = [string]$evidence.Surface.PlaybackState
-                CropGeometry = [string]$evidence.Surface.VideoCropGeometry
-              }
-              $desktopEvidence | ConvertTo-Json |
-                Set-Content $desktopEvidencePath -Encoding utf8
-            }
-            finally {
-              $graphics.Dispose()
-              $bitmap.Dispose()
-            }
-
-            $image = [System.Drawing.Image]::FromFile($previewPath)
-            try {
-              if ($image.Width -lt 800 -or $image.Height -lt 500) {
-                throw "Fullscreen preview dimensions are too small: $($image.Width)x$($image.Height)."
-              }
-            }
-            finally { $image.Dispose() }
-
-            $artifactFiles = @(
-              $evidencePath,
-              $previewPath,
-              $desktopPath,
-              $desktopEvidencePath)
-            Copy-Item -Path $artifactFiles -Destination fullscreen-artifacts/ -Force
-            Get-Content $evidencePath -Raw
-          }
-          finally {
-            Get-ChildItem $diagnostics -Filter "fullscreen-*" -File -ErrorAction SilentlyContinue |
-              Copy-Item -Destination fullscreen-artifacts/ -Force -ErrorAction SilentlyContinue
-            if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force }
-            if ($server -and -not $server.HasExited) { Stop-Process -Id $server.Id -Force }
-          }
+          & ./scripts/verify-fullscreen-runtime.ps1 `
+            -OutputDirectory $output `
+            -FixtureDirectory $fixture `
+            -DiagnosticsDirectory $diagnostics `
+            -ArtifactDirectory "fullscreen-artifacts" `
+            -HeadSha "${{ github.event.pull_request.head.sha || github.sha }}" `
+            -Port 18770
 
       - name: Upload fullscreen evidence
         if: always()
