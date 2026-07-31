@@ -67,10 +67,12 @@ public sealed partial class ProgrammeGuideView
             Background = ResolveEpgBrush("EfironAccentQuietBrush"),
             CornerRadius = new CornerRadius(9),
         });
-        var initials = new TextBlock
+        var fallback = new TextBlock
         {
-            Foreground = ResolveEpgBrush("EfironAccentBrush"),
-            FontWeight = FontWeights.Bold,
+            Text = "\uE7F4",
+            FontFamily = new FontFamily("Segoe Fluent Icons"),
+            FontSize = 17,
+            Foreground = ResolveEpgBrush("EfironTextTertiaryBrush"),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
         };
@@ -79,7 +81,7 @@ public sealed partial class ProgrammeGuideView
             Stretch = Stretch.Uniform,
             Opacity = 0,
         };
-        logoHost.Children.Add(initials);
+        logoHost.Children.Add(fallback);
         logoHost.Children.Add(logo);
         channelGrid.Children.Add(logoHost);
 
@@ -121,7 +123,7 @@ public sealed partial class ProgrammeGuideView
             channelButton,
             number,
             logo,
-            initials,
+            fallback,
             name,
             category,
             timelineClip,
@@ -140,8 +142,9 @@ public sealed partial class ProgrammeGuideView
         }
 
         visual.LogoOpened = true;
+        visual.LogoFailed = false;
         visual.Logo.Opacity = 1;
-        visual.Initials.Visibility = Visibility.Collapsed;
+        visual.LogoFallback.Visibility = Visibility.Collapsed;
     }
 
     private static void HandleRowLogoFailed(EpgRowVisual visual)
@@ -153,8 +156,9 @@ public sealed partial class ProgrammeGuideView
         }
 
         visual.LogoOpened = false;
+        visual.LogoFailed = true;
         visual.Logo.Opacity = 0;
-        visual.Initials.Visibility = Visibility.Collapsed;
+        visual.LogoFallback.Visibility = Visibility.Visible;
     }
 
     private void UpdateRowVisual(
@@ -174,33 +178,39 @@ public sealed partial class ProgrammeGuideView
         visual.Number.Text = row.Number.ToString(CultureInfo.CurrentCulture);
         visual.Name.Text = row.Name;
         visual.Category.Text = row.Category;
-        visual.Initials.Text = row.Initials;
 
         var logoSource = row.LogoUrl;
         if (logoSource is null)
         {
             visual.RequestedLogoSource = null;
             visual.LogoOpened = false;
+            visual.LogoFailed = false;
             visual.Logo.Opacity = 0;
             visual.Logo.Source = null;
-            visual.Initials.Visibility = Visibility.Visible;
+            visual.LogoFallback.Visibility = Visibility.Visible;
+        }
+        else if (!ReferenceEquals(visual.RequestedLogoSource, logoSource) ||
+                 !ReferenceEquals(visual.Logo.Source, logoSource))
+        {
+            visual.RequestedLogoSource = logoSource;
+            visual.LogoOpened = false;
+            visual.LogoFailed = false;
+            visual.Logo.Opacity = 0;
+            visual.LogoFallback.Visibility = Visibility.Collapsed;
+            visual.Logo.Source = null;
+            visual.Logo.Source = logoSource;
+        }
+        else if (visual.LogoOpened)
+        {
+            visual.Logo.Opacity = 1;
+            visual.LogoFallback.Visibility = Visibility.Collapsed;
         }
         else
         {
-            visual.Initials.Visibility = Visibility.Collapsed;
-            if (!ReferenceEquals(visual.RequestedLogoSource, logoSource) ||
-                !ReferenceEquals(visual.Logo.Source, logoSource))
-            {
-                visual.RequestedLogoSource = logoSource;
-                visual.LogoOpened = false;
-                visual.Logo.Opacity = 0;
-                visual.Logo.Source = null;
-                visual.Logo.Source = logoSource;
-            }
-            else
-            {
-                visual.Logo.Opacity = visual.LogoOpened ? 1 : 0;
-            }
+            visual.Logo.Opacity = 0;
+            visual.LogoFallback.Visibility = visual.LogoFailed
+                ? Visibility.Visible
+                : Visibility.Collapsed;
         }
 
         var timelineWidth = Math.Max(0, viewportWidth - _channelColumnWidth);
@@ -227,23 +237,39 @@ public sealed partial class ProgrammeGuideView
         {
             var absoluteLeft = block.Left * scale;
             var absoluteWidth = Math.Max(MinimumProgrammeWidth, block.Width * scale);
-            if (absoluteLeft + absoluteWidth < visibleStart - 20 ||
-                absoluteLeft > visibleEnd + 20)
+            var absoluteRight = absoluteLeft + absoluteWidth;
+            if (absoluteRight <= visibleStart || absoluteLeft >= visibleEnd)
             {
                 continue;
             }
 
+            var clippedLeft = Math.Max(absoluteLeft, visibleStart);
+            var clippedRight = Math.Min(absoluteRight, visibleEnd);
+            var visibleWidth = clippedRight - clippedLeft;
+            if (visibleWidth <= 1)
+            {
+                continue;
+            }
+
+            var continuesFromLeft = absoluteLeft < visibleStart;
+            var continuesToRight = absoluteRight > visibleEnd;
             var button = CreateProgrammeButton(
                 block,
-                Math.Max(MinimumProgrammeWidth, absoluteWidth - 6));
-            Canvas.SetLeft(button, absoluteLeft - _horizontalOffset + 3);
+                Math.Max(4, visibleWidth - 6),
+                continuesFromLeft,
+                continuesToRight);
+            Canvas.SetLeft(button, clippedLeft - visibleStart + 3);
             Canvas.SetTop(button, 6);
             visual.ProgrammeCanvas.Children.Add(button);
             _realizedProgrammeButtons[ProgrammeVisualKey.From(block)] = button;
         }
     }
 
-    private Button CreateProgrammeButton(EpgProgrammeBlockItem block, double width)
+    private Button CreateProgrammeButton(
+        EpgProgrammeBlockItem block,
+        double width,
+        bool continuesFromLeft,
+        bool continuesToRight)
     {
         var button = new Button
         {
@@ -265,6 +291,8 @@ public sealed partial class ProgrammeGuideView
         };
         button.Click += ProgrammeButton_Click;
 
+        var continuationPrefix = continuesFromLeft ? "← " : string.Empty;
+        var continuationSuffix = continuesToRight ? " →" : string.Empty;
         if (width < 52)
         {
             button.Padding = new Thickness(0);
@@ -275,7 +303,7 @@ public sealed partial class ProgrammeGuideView
             button.Padding = new Thickness(7, 5, 7, 5);
             button.Content = new TextBlock
             {
-                Text = block.Title,
+                Text = $"{continuationPrefix}{block.Title}{continuationSuffix}",
                 Foreground = ResolveEpgBrush("EfironTextBrush"),
                 FontWeight = FontWeights.SemiBold,
                 FontSize = 11.5,
@@ -321,7 +349,7 @@ public sealed partial class ProgrammeGuideView
 
             meta.Children.Add(new TextBlock
             {
-                Text = block.TimeText,
+                Text = $"{continuationPrefix}{block.TimeText}{continuationSuffix}",
                 Foreground = ResolveEpgBrush("EfironTextSecondaryBrush"),
                 FontSize = showFullMetadata ? 10.5 : 10,
                 TextTrimming = TextTrimming.CharacterEllipsis,
@@ -384,7 +412,7 @@ public sealed partial class ProgrammeGuideView
         Button channelButton,
         TextBlock number,
         Image logo,
-        TextBlock initials,
+        TextBlock logoFallback,
         TextBlock name,
         TextBlock category,
         Grid timelineClip,
@@ -394,7 +422,7 @@ public sealed partial class ProgrammeGuideView
         public Button ChannelButton { get; } = channelButton;
         public TextBlock Number { get; } = number;
         public Image Logo { get; } = logo;
-        public TextBlock Initials { get; } = initials;
+        public TextBlock LogoFallback { get; } = logoFallback;
         public TextBlock Name { get; } = name;
         public TextBlock Category { get; } = category;
         public Grid TimelineClip { get; } = timelineClip;
@@ -403,5 +431,6 @@ public sealed partial class ProgrammeGuideView
         public int BoundRowIndex { get; set; } = -1;
         public ImageSource? RequestedLogoSource { get; set; }
         public bool LogoOpened { get; set; }
+        public bool LogoFailed { get; set; }
     }
 }
