@@ -97,10 +97,33 @@ public sealed partial class MainWindow
             await Task.Delay(TimeSpan.FromMilliseconds(950), _lifetime.Token);
             var evidence = await ProgrammeGuideWorkspace.CreateRuntimeEvidenceAsync(
                 _lifetime.Token);
+            var persistentScrollBar =
+                ProgrammeGuideWorkspace.GetPersistentVerticalScrollBarEvidence();
+            if (evidence.AllChannelsMode &&
+                (!persistentScrollBar.IsVisible ||
+                 persistentScrollBar.RailWidth < 16 ||
+                 persistentScrollBar.RailHeight <= 100 ||
+                 persistentScrollBar.ThumbWidth < 8 ||
+                 persistentScrollBar.ThumbHeight < 35 ||
+                 persistentScrollBar.ThumbHeight >= persistentScrollBar.RailHeight ||
+                 persistentScrollBar.Maximum <= persistentScrollBar.Minimum ||
+                 persistentScrollBar.ViewportSize <= 0 ||
+                 Math.Abs(
+                     persistentScrollBar.Value - evidence.VerticalOffset) >= 1))
+            {
+                throw new InvalidOperationException(
+                    "The persistent EPG scrollbar rail/thumb was not rendered or synchronized: " +
+                    JsonSerializer.Serialize(persistentScrollBar));
+            }
+
             Directory.CreateDirectory(diagnosticsDirectory);
             await File.WriteAllTextAsync(
                 evidencePath,
-                JsonSerializer.Serialize(evidence),
+                JsonSerializer.Serialize(new
+                {
+                    Runtime = evidence,
+                    PersistentVerticalScrollBar = persistentScrollBar,
+                }),
                 _lifetime.Token);
 
             await Task.Delay(TimeSpan.FromMilliseconds(350), _lifetime.Token);
