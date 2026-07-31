@@ -9,7 +9,11 @@ public sealed partial class MainWindow
     {
         if (_catalog is null || _catalog.Channels.Count == 0)
         {
-            ProgrammeGuideWorkspace.Visibility = Visibility.Collapsed;
+            if (_programmeGuideWorkspace is not null)
+            {
+                _programmeGuideWorkspace.Visibility = Visibility.Collapsed;
+            }
+
             ShowSourcesWorkspace();
             return;
         }
@@ -19,15 +23,21 @@ public sealed partial class MainWindow
             SetFullscreen(false);
         }
 
+        var programmeWorkspace = EnsureProgrammeGuideWorkspace();
         SourcesWorkspace.Visibility = Visibility.Collapsed;
-        LiveTvWorkspace.Visibility = Visibility.Collapsed;
-        ProgrammeGuideWorkspace.Visibility = Visibility.Visible;
+        if (_liveTvWorkspace is not null)
+        {
+            _liveTvWorkspace.Visibility = Visibility.Collapsed;
+        }
+
+        programmeWorkspace.Visibility = Visibility.Visible;
         WindowContextTitle.Text = _resources.GetString(
             "WindowContextProgrammeMessage");
+        UpdateShellNavigation();
 
         try
         {
-            await ProgrammeGuideWorkspace.SetCatalogProgressivelyAsync(
+            await programmeWorkspace.SetCatalogProgressivelyAsync(
                 _catalog,
                 _lifetime.Token);
             _ = CaptureEpgEvidenceAsync();
@@ -41,9 +51,17 @@ public sealed partial class MainWindow
         object? sender,
         PlayChannelRequestedEventArgs e)
     {
-        ProgrammeGuideWorkspace.Visibility = Visibility.Collapsed;
+        if (_programmeGuideWorkspace is not null)
+        {
+            _programmeGuideWorkspace.Visibility = Visibility.Collapsed;
+        }
+
         await ShowLiveWorkspaceAsync();
-        await LiveTvWorkspace.PlayChannelByStableIdAsync(e.StableId);
+        if (_liveTvWorkspace is not null)
+        {
+            await _liveTvWorkspace.PlayChannelByStableIdAsync(e.StableId);
+        }
+
         UpdateShellNavigation();
     }
 }
