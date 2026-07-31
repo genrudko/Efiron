@@ -110,6 +110,11 @@ public sealed partial class LiveTvView : UserControl
             return;
         }
 
+        if (_playbackSession is null)
+        {
+            await EnsurePlaybackBackendAsync();
+        }
+
         var snapshot = _playbackSession?.Snapshot;
         if (snapshot?.Source == _selectedItem.Snapshot.Channel.StreamUri &&
             snapshot.State is PlaybackState.Opening or PlaybackState.Playing or PlaybackState.Paused)
@@ -313,7 +318,7 @@ public sealed partial class LiveTvView : UserControl
         InitializedEventArgs e)
     {
         _libVlcInitialization = e;
-        if (_playbackBackend is not null)
+        if (_playbackBackend is not null || Visibility != Visibility.Visible)
         {
             return;
         }
@@ -336,7 +341,7 @@ public sealed partial class LiveTvView : UserControl
         PlaybackSnapshotChangedEventArgs e)
     {
         PlaybackSnapshotChanged?.Invoke(this, e);
-        _ = _playbackDiagnosticsWriter.RecordNowAsync();
+        _playbackDiagnosticsWriter.RequestRecord();
         DispatcherQueue.TryEnqueue(() => ApplyPlaybackSnapshot(e.Snapshot));
     }
 
