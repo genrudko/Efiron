@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Runtime.InteropServices;
 
 namespace Efiron.Playback;
@@ -5,6 +6,13 @@ namespace Efiron.Playback;
 internal static class MpvNative
 {
     private const string LibraryName = "libmpv-2.dll";
+
+    static MpvNative()
+    {
+        NativeLibrary.SetDllImportResolver(
+            typeof(MpvNative).Assembly,
+            ResolveLibrary);
+    }
 
     internal enum Format
     {
@@ -219,5 +227,48 @@ internal static class MpvNative
             throw new InvalidOperationException(
                 $"libmpv failed to apply {operation}: {DescribeError(error)} ({error}).");
         }
+    }
+
+    private static nint ResolveLibrary(
+        string libraryName,
+        Assembly assembly,
+        DllImportSearchPath? searchPath)
+    {
+        if (!string.Equals(
+                libraryName,
+                LibraryName,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        var candidates = new[]
+        {
+            Path.Combine(AppContext.BaseDirectory, "libmpv-2.dll"),
+            Path.Combine(AppContext.BaseDirectory, "mpv-2.dll"),
+            Path.Combine(AppContext.BaseDirectory, "libmpv.dll"),
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "libmpv",
+                "win-x64",
+                "libmpv-2.dll"),
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "runtimes",
+                "win-x64",
+                "native",
+                "libmpv-2.dll"),
+        };
+
+        foreach (var candidate in candidates)
+        {
+            if (File.Exists(candidate) &&
+                NativeLibrary.TryLoad(candidate, out var handle))
+            {
+                return handle;
+            }
+        }
+
+        return 0;
     }
 }
