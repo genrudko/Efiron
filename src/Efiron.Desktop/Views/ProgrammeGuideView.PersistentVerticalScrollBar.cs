@@ -15,6 +15,7 @@ public sealed partial class ProgrammeGuideView
     private Border? _persistentVerticalScrollThumb;
     private bool _persistentVerticalScrollHooked;
     private bool _persistentVerticalScrollDragging;
+    private bool _persistentVerticalScrollPointerOver;
     private uint _persistentVerticalScrollPointerId;
     private double _persistentVerticalScrollDragOffset;
 
@@ -53,7 +54,7 @@ public sealed partial class ProgrammeGuideView
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Top,
             CornerRadius = new CornerRadius(PersistentScrollThumbWidth / 2),
-            Background = ResolveBrush("EfironAccentBrush"),
+            Background = ResolveBrush("EfironTextTertiaryBrush"),
         };
         _persistentVerticalScrollThumb.PointerPressed +=
             PersistentVerticalScrollThumb_PointerPressed;
@@ -132,10 +133,16 @@ public sealed partial class ProgrammeGuideView
 
         _persistentVerticalScrollRail.Background =
             ResolveBrush("EfironSurfaceRaisedBrush");
-        _persistentVerticalScrollThumb.Background =
-            ResolveBrush("EfironAccentBrush");
+        var active = _persistentVerticalScrollDragging ||
+            _persistentVerticalScrollPointerOver;
+        _persistentVerticalScrollThumb.Background = ResolveBrush(
+            active ? "EfironAccentBrush" : "EfironTextTertiaryBrush");
         _persistentVerticalScrollThumb.Opacity =
-            _persistentVerticalScrollDragging ? 1 : 0.82;
+            _persistentVerticalScrollDragging
+                ? 1
+                : _persistentVerticalScrollPointerOver
+                    ? 0.92
+                    : 0.72;
 
         var trackHeight = Math.Max(
             _persistentVerticalScrollRail.ActualHeight,
@@ -269,7 +276,7 @@ public sealed partial class ProgrammeGuideView
             point.Position.Y - _persistentVerticalScrollThumb.Margin.Top,
             0,
             _persistentVerticalScrollThumb.ActualHeight);
-        _persistentVerticalScrollThumb.Opacity = 1;
+        UpdatePersistentVerticalScrollBar();
         e.Handled = true;
     }
 
@@ -320,22 +327,16 @@ public sealed partial class ProgrammeGuideView
         object sender,
         PointerRoutedEventArgs e)
     {
-        if (!_persistentVerticalScrollDragging &&
-            _persistentVerticalScrollThumb is not null)
-        {
-            _persistentVerticalScrollThumb.Opacity = 1;
-        }
+        _persistentVerticalScrollPointerOver = true;
+        UpdatePersistentVerticalScrollBar();
     }
 
     private void PersistentVerticalScrollThumb_PointerExited(
         object sender,
         PointerRoutedEventArgs e)
     {
-        if (!_persistentVerticalScrollDragging &&
-            _persistentVerticalScrollThumb is not null)
-        {
-            _persistentVerticalScrollThumb.Opacity = 0.82;
-        }
+        _persistentVerticalScrollPointerOver = false;
+        UpdatePersistentVerticalScrollBar();
     }
 
     private void EndPersistentVerticalScrollDrag()
