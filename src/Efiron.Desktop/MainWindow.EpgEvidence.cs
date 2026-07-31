@@ -136,12 +136,6 @@ public sealed partial class MainWindow
                     }));
             }
 
-            Directory.CreateDirectory(diagnosticsDirectory);
-            await File.WriteAllTextAsync(
-                evidencePath,
-                JsonSerializer.Serialize(evidence),
-                _lifetime.Token);
-
             await Task.Delay(TimeSpan.FromMilliseconds(350), _lifetime.Token);
             var bitmap = new RenderTargetBitmap();
             await bitmap.RenderAsync(WindowRoot);
@@ -152,6 +146,7 @@ public sealed partial class MainWindow
                     "The EPG preview rendered with an empty pixel size.");
             }
 
+            Directory.CreateDirectory(diagnosticsDirectory);
             var pixelBytes = pixels.ToArray();
             if (evidence.AllChannelsMode)
             {
@@ -220,6 +215,10 @@ public sealed partial class MainWindow
                     _lifetime.Token);
             }
 
+            await File.WriteAllTextAsync(
+                evidencePath,
+                JsonSerializer.Serialize(evidence),
+                _lifetime.Token);
             await File.WriteAllBytesAsync(previewPath, [], _lifetime.Token);
             var file = await StorageFile.GetFileFromPathAsync(previewPath);
             await using var randomAccessStream = await file.OpenStreamForWriteAsync();
@@ -248,6 +247,14 @@ public sealed partial class MainWindow
                 exception);
             try
             {
+                if (File.Exists(evidencePath))
+                {
+                    File.Delete(evidencePath);
+                }
+                if (File.Exists(scrollbarPixelsPath))
+                {
+                    File.Delete(scrollbarPixelsPath);
+                }
                 Directory.CreateDirectory(diagnosticsDirectory);
                 await File.WriteAllTextAsync(
                     errorPath,
