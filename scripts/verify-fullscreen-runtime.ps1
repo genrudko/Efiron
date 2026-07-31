@@ -84,8 +84,8 @@ try {
     }
 
     $evidence = Get-Content $evidencePath -Raw | ConvertFrom-Json
-    if ($evidence.PresenterKind -ne "FullScreen") {
-        throw "Unexpected presenter: $($evidence.PresenterKind)"
+    if ($evidence.PresenterKind -ne "Overlapped") {
+        throw "Unexpected native-popup presenter: $($evidence.PresenterKind)"
     }
     if ([double]$evidence.TitleBarRowHeight -ne 0 -or
         [double]$evidence.NavigationColumnWidth -ne 0) {
