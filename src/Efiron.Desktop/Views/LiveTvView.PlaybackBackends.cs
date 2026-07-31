@@ -30,6 +30,8 @@ public sealed partial class LiveTvView
     private PlaybackBackendId _selectedPlaybackBackend = PlaybackBackendId.Auto;
     private LibVlcPlaybackProfile _selectedLibVlcProfile = LibVlcPlaybackProfile.Auto;
     private MpvPlaybackProfile _selectedMpvProfile = MpvPlaybackProfile.Auto;
+    private nint _mpvAttachedSwapChain;
+    private int? _mpvLastAttachHresult;
     private bool _updatingPlaybackBackendSelectors;
     private bool _playbackBackendControllerDisposed;
 
@@ -58,7 +60,9 @@ public sealed partial class LiveTvView
             VerticalAlignment = VerticalAlignment.Stretch,
             Visibility = Visibility.Collapsed,
             IsHitTestVisible = false,
+            Opacity = 1,
         };
+        _mpvSurface.Loaded += MpvSurface_Loaded;
         _mpvSurface.SizeChanged += MpvSurface_SizeChanged;
         playerSurface.Children.Insert(2, _mpvSurface);
 
@@ -275,8 +279,11 @@ public sealed partial class LiveTvView
             case MpvPlaybackBackend mpv when _mpvSurface is not null:
                 _mpvSurface.Visibility = Visibility.Visible;
                 mpv.DisplaySwapChainChanged += MpvBackend_DisplaySwapChainChanged;
-                UpdateMpvCompositionSize(mpv);
-                AttachMpvSwapChain(mpv.DisplaySwapChain);
+                if (_mpvSurface.IsLoaded)
+                {
+                    UpdateMpvCompositionSize(mpv);
+                    AttachMpvSwapChain(mpv.DisplaySwapChain);
+                }
                 break;
             case WindowsMediaPlaybackBackend windowsMedia
                 when _windowsMediaSurface is not null:
@@ -338,6 +345,7 @@ public sealed partial class LiveTvView
         _playbackBackendControllerDisposed = true;
         if (_mpvSurface is not null)
         {
+            _mpvSurface.Loaded -= MpvSurface_Loaded;
             _mpvSurface.SizeChanged -= MpvSurface_SizeChanged;
         }
 
@@ -446,7 +454,8 @@ public sealed partial class LiveTvView
         DispatcherQueue.TryEnqueue(() =>
         {
             if (ReferenceEquals(sender, _playbackBackend) &&
-                sender is MpvPlaybackBackend mpv)
+                sender is MpvPlaybackBackend mpv &&
+                _mpvSurface?.IsLoaded == true)
             {
                 UpdateMpvCompositionSize(mpv);
                 AttachMpvSwapChain(mpv.DisplaySwapChain);
@@ -454,9 +463,19 @@ public sealed partial class LiveTvView
         });
     }
 
-    private void MpvSurface_SizeChanged(object sender, SizeChangedEventArgs e)
+    private void MpvSurface_Loaded(object sender, RoutedEventArgs e)
     {
         if (_playbackBackend is MpvPlaybackBackend mpv)
+        {
+            UpdateMpvCompositionSize(mpv);
+            AttachMpvSwapChain(mpv.DisplaySwapChain);
+        }
+    }
+
+    private void MpvSurface_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (_playbackBackend is MpvPlaybackBackend mpv &&
+            _mpvSurface?.IsLoaded == true)
         {
             UpdateMpvCompositionSize(mpv);
         }
@@ -479,25 +498,42 @@ public sealed partial class LiveTvView
 
     private void AttachMpvSwapChain(nint swapChain)
     {
-        if (_mpvSurface is null)
+        if (_mpvSurface is null || !_mpvSurface.IsLoaded)
+        {
+            return;
+        }
+
+        if (_mpvAttachedSwapChain == swapChain)
         {
             return;
         }
 
         var nativePanel = _mpvSurface.As<ISwapChainPanelNative>();
-        Marshal.ThrowExceptionForHR(nativePanel.SetSwapChain(swapChain));
+        var hresult = nativePanel.SetSwapChain(swapChain);
+        _mpvLastAttachHresult = hresult;
+        Marshal.ThrowExceptionForHR(hresult);
+        _mpvAttachedSwapChain = swapChain;
+        if (swapChain != 0)
+        {
+            UpdatePlaybackBackendStatus(
+                $"mpv · {_selectedMpvProfile} · surface attached");
+        }
     }
 
     private void ClearMpvSwapChain()
     {
-        if (_mpvSurface is null)
+        if (_mpvSurface is null || !_mpvSurface.IsLoaded)
         {
+            _mpvAttachedSwapChain = 0;
             return;
         }
 
         try
         {
-            AttachMpvSwapChain(0);
+            var nativePanel = _mpvSurface.As<ISwapChainPanelNative>();
+            _mpvLastAttachHresult = nativePanel.SetSwapChain(0);
+            Marshal.ThrowExceptionForHR(_mpvLastAttachHresult.Value);
+            _mpvAttachedSwapChain = 0;
         }
         catch (Exception) when (_playbackBackendControllerDisposed)
         {
