@@ -2,11 +2,12 @@
 
 ## Status
 
-WIP. No Windows candidate is approved from this repair yet.
+WIP on branch `rewrite/001-greenfield-desktop`. No Windows candidate is approved
+from this repair yet.
 
 The Repair D candidate at exact head
 `36770234ae3b7a096c0ac7a9b616491abddf26ae` was rejected on a real Windows
-system.
+system and must not be distributed as a current candidate.
 
 ## User-observed failures
 
@@ -36,6 +37,26 @@ The supplied `diagnostics(2).zip` proved:
 - the EPG catalog contained 1235 channels and 27,407 projected programme blocks;
 - LibVLC Auto/D3D11VA used D3D11VA and still recorded dropped frames on real
   4K sessions.
+
+## Repair E implementation
+
+The current WIP includes:
+
+- a bounded coalescing diagnostics queue and 8 MiB JSONL rotation;
+- process working-set/private-memory/managed-heap/thread/handle samples;
+- asynchronous bounded media cleanup before the window is closed;
+- a true `CloseMainWindow` CI gate that requires process exit and no post-exit
+  diagnostics writes;
+- mpv `vo=gpu`, BGRA8/sRGB D3D11 composition, bounded cache and explicit
+  `SetSwapChain(null)` teardown;
+- physical desktop pixel verification for the mpv player region;
+- active-theme EPG scrollbar brushes, a dedicated 24 px column, 12 px thumb,
+  44 px minimum thumb height and physical pixel contrast verification;
+- EPG date projection cache reduced to two dates;
+- playlist/XMLTV parsing continuation moved off the UI context;
+- Live and EPG pages moved from eager XAML construction to lazy content hosts;
+- process-start-to-shell telemetry replacing the invalid type-initialization
+  stopwatch.
 
 ## Repair E gates
 
