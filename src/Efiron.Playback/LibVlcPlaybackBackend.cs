@@ -180,7 +180,7 @@ public sealed class LibVlcPlaybackBackend : IPlaybackBackend
             }
 
             var bytes = readBytes - _previousReadBytes.Value;
-            var rate = elapsed.TotalSeconds <= 0
+            double? rate = elapsed.TotalSeconds <= 0
                 ? null
                 : bytes * 8d / elapsed.TotalSeconds;
             _previousReadBytes = readBytes;
