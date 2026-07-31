@@ -24,7 +24,16 @@ $dllPath = Join-Path $runtimeRoot "libmpv-2.dll"
 $manifestPath = Join-Path $runtimeRoot "runtime-manifest.json"
 
 function Get-Sha256([string]$Path) {
-    (Get-FileHash -Path $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+    $stream = [IO.File]::OpenRead($Path)
+    $algorithm = [Security.Cryptography.SHA256]::Create()
+    try {
+        $hash = $algorithm.ComputeHash($stream)
+        return ([BitConverter]::ToString($hash) -replace "-", "").ToLowerInvariant()
+    }
+    finally {
+        $algorithm.Dispose()
+        $stream.Dispose()
+    }
 }
 
 function Resolve-SevenZip {
