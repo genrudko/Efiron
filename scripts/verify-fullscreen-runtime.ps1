@@ -113,7 +113,7 @@ try {
     if ([double]$evidence.TopWhitePixelRatio -gt 0.01 -or
         [double]$evidence.BottomWhitePixelRatio -gt 0.01) {
         throw (
-            "White fullscreen edge detected: " +
+            "White fullscreen edge detected inside XAML surface: " +
             "top=$($evidence.TopWhitePixelRatio), " +
             "bottom=$($evidence.BottomWhitePixelRatio)")
     }
@@ -190,6 +190,40 @@ try {
             return [double]$nonBlack / [double]$samples
         }
 
+        function Measure-WhiteRatio {
+            param(
+                [Parameter(Mandatory = $true)]
+                [System.Drawing.Bitmap]$Image,
+
+                [Parameter(Mandatory = $true)]
+                [int]$YStart,
+
+                [Parameter(Mandatory = $true)]
+                [int]$YEnd
+            )
+
+            $white = 0L
+            $samples = 0L
+            $boundedStart = [Math]::Max(0, $YStart)
+            $boundedEnd = [Math]::Min($Image.Height, $YEnd)
+            for ($y = $boundedStart; $y -lt $boundedEnd; $y++) {
+                for ($x = 0; $x -lt $Image.Width; $x++) {
+                    $pixel = $Image.GetPixel($x, $y)
+                    if ($pixel.R -ge 235 -and
+                        $pixel.G -ge 235 -and
+                        $pixel.B -ge 235) {
+                        $white++
+                    }
+                    $samples++
+                }
+            }
+
+            if ($samples -eq 0) {
+                return 0d
+            }
+            return [double]$white / [double]$samples
+        }
+
         $topContentRatio = Measure-NonBlackRatio `
             -Image $bitmap `
             -YStart ([int]($bitmap.Height * 0.04)) `
@@ -205,12 +239,49 @@ try {
                 "top=$topContentRatio lower=$lowerContentRatio")
         }
 
+        $topDesktopEdgeWhiteRatio = Measure-WhiteRatio `
+            -Image $bitmap `
+            -YStart 0 `
+            -YEnd 1
+        $topDesktopInteriorWhiteRatio = Measure-WhiteRatio `
+            -Image $bitmap `
+            -YStart 2 `
+            -YEnd 7
+        $bottomDesktopEdgeWhiteRatio = Measure-WhiteRatio `
+            -Image $bitmap `
+            -YStart ($bitmap.Height - 1) `
+            -YEnd $bitmap.Height
+        $bottomDesktopInteriorWhiteRatio = Measure-WhiteRatio `
+            -Image $bitmap `
+            -YStart ($bitmap.Height - 7) `
+            -YEnd ($bitmap.Height - 2)
+
+        $topEdgeDelta = $topDesktopEdgeWhiteRatio -
+            $topDesktopInteriorWhiteRatio
+        $bottomEdgeDelta = $bottomDesktopEdgeWhiteRatio -
+            $bottomDesktopInteriorWhiteRatio
+        if (($topDesktopEdgeWhiteRatio -gt 0.85 -and
+             $topEdgeDelta -gt 0.45) -or
+            ($bottomDesktopEdgeWhiteRatio -gt 0.85 -and
+             $bottomEdgeDelta -gt 0.45)) {
+            throw (
+                "Physical desktop edge line detected: " +
+                "top=$topDesktopEdgeWhiteRatio " +
+                "topInterior=$topDesktopInteriorWhiteRatio " +
+                "bottom=$bottomDesktopEdgeWhiteRatio " +
+                "bottomInterior=$bottomDesktopInteriorWhiteRatio")
+        }
+
         [ordered]@{
             HeadSha = $HeadSha
             Width = $bitmap.Width
             Height = $bitmap.Height
             TopContentRatio = $topContentRatio
             LowerContentRatio = $lowerContentRatio
+            TopDesktopEdgeWhiteRatio = $topDesktopEdgeWhiteRatio
+            TopDesktopInteriorWhiteRatio = $topDesktopInteriorWhiteRatio
+            BottomDesktopEdgeWhiteRatio = $bottomDesktopEdgeWhiteRatio
+            BottomDesktopInteriorWhiteRatio = $bottomDesktopInteriorWhiteRatio
             PlaybackState = [string]$evidence.Surface.PlaybackState
             CropGeometry = [string]$evidence.Surface.VideoCropGeometry
             WindowedCycleCount = $cycles.Count
