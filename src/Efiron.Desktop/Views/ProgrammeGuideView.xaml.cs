@@ -245,9 +245,21 @@ public sealed partial class ProgrammeGuideView : UserControl
         _visibleRows.Clear();
         _visibleRows.AddRange(query);
         _verticalOffset = 0;
-        ProgrammeEmptyState.Visibility = _visibleRows.Count == 0
+        _targetVerticalOffset = 0;
+        _realizedBandStart = -1;
+        _realizedBandEnd = -1;
+
+        var hasNoChannels = _visibleRows.Count == 0;
+        var hasNoProgrammeData =
+            !hasNoChannels &&
+            _visibleRows.All(static row => row.Programmes.Count == 0);
+        ProgrammeEmptyState.Visibility = hasNoChannels
             ? Visibility.Visible
             : Visibility.Collapsed;
+        ProgrammeNoScheduleState.Visibility = hasNoProgrammeData
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
         VisibleChannelCountText.Text = string.Format(
             CultureInfo.CurrentCulture,
             "{0} каналов",
