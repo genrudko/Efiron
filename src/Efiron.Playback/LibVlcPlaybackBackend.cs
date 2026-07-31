@@ -19,10 +19,15 @@ public sealed class LibVlcPlaybackBackend : IPlaybackBackend
         SubtitleTracks: false,
         MediaPosition: true);
 
+    private static readonly TimeSpan MinimumCounterSampleWindow =
+        TimeSpan.FromSeconds(1);
+
     private readonly object _diagnosticsSync = new();
     private readonly LibVlcPlaybackSession _session;
     private long? _previousDisplayedFrames;
     private DateTimeOffset? _previousFrameSampledAtUtc;
+    private long? _previousReadBytes;
+    private DateTimeOffset? _previousBitrateSampledAtUtc;
 
     public LibVlcPlaybackBackend(
         InitializedEventArgs initialization,
@@ -51,6 +56,7 @@ public sealed class LibVlcPlaybackBackend : IPlaybackBackend
     {
         var sample = _session.CaptureDiagnosticSnapshot();
         var renderedFramesPerSecond = CalculateRenderedFramesPerSecond(sample);
+        var inputBitrateBitsPerSecond = CalculateInputBitrateBitsPerSecond(sample);
         bool? hardwareDecodingRequested = _session.Profile switch
         {
             LibVlcPlaybackProfile.D3D11Va or LibVlcPlaybackProfile.Dxva2 => true,
@@ -81,17 +87,14 @@ public sealed class LibVlcPlaybackBackend : IPlaybackBackend
             DroppedFrames = sample.HasStatistics
                 ? sample.Statistics.LostPictures
                 : null,
-            InputBitrateBitsPerSecond = sample.HasStatistics
-                ? PlaybackDiagnosticsMath.BytesPerMicrosecondToBitsPerSecond(
-                    sample.Statistics.InputBitrate)
-                : null,
+            InputBitrateBitsPerSecond = inputBitrateBitsPerSecond,
             BufferedPercentage = sample.BufferedPercentage,
             RebufferCount = sample.RebufferCount,
             Discontinuities = sample.HasStatistics
                 ? sample.Statistics.DemuxDiscontinuity
                 : null,
             HardwareDecodingActive = sample.HardwareDecodingActive,
-            Decoder = sample.Decoder,
+            Decoder = DescribeDecoderCompliance(sample),
             GraphicsDevice = sample.GraphicsDevice,
             VideoRenderer = sample.VideoRenderer,
             StartupLatency = sample.StartupLatency,
@@ -114,20 +117,99 @@ public sealed class LibVlcPlaybackBackend : IPlaybackBackend
             }
 
             var displayedFrames = (long)sample.Statistics.DisplayedPictures;
-            double? rate = null;
-            if (_previousDisplayedFrames is { } previousFrames &&
-                _previousFrameSampledAtUtc is { } previousSampledAtUtc)
+            if (_previousDisplayedFrames is null ||
+                _previousFrameSampledAtUtc is null ||
+                displayedFrames < _previousDisplayedFrames)
             {
-                rate = PlaybackDiagnosticsMath.CalculateCounterRate(
-                    previousFrames,
-                    previousSampledAtUtc,
-                    displayedFrames,
-                    sample.SampledAtUtc);
+                _previousDisplayedFrames = displayedFrames;
+                _previousFrameSampledAtUtc = sample.SampledAtUtc;
+                return null;
             }
 
+            var elapsed = sample.SampledAtUtc -
+                _previousFrameSampledAtUtc.Value;
+            if (elapsed < MinimumCounterSampleWindow)
+            {
+                return null;
+            }
+
+            var rate = PlaybackDiagnosticsMath.CalculateCounterRate(
+                _previousDisplayedFrames.Value,
+                _previousFrameSampledAtUtc.Value,
+                displayedFrames,
+                sample.SampledAtUtc);
             _previousDisplayedFrames = displayedFrames;
             _previousFrameSampledAtUtc = sample.SampledAtUtc;
             return rate;
         }
+    }
+
+    private double? CalculateInputBitrateBitsPerSecond(
+        LibVlcDiagnosticSnapshot sample)
+    {
+        lock (_diagnosticsSync)
+        {
+            if (!sample.HasStatistics)
+            {
+                _previousReadBytes = null;
+                _previousBitrateSampledAtUtc = null;
+                return null;
+            }
+
+            var readBytes = Math.Max(
+                (long)sample.Statistics.ReadBytes,
+                sample.Statistics.DemuxReadBytes);
+            if (_previousReadBytes is null ||
+                _previousBitrateSampledAtUtc is null ||
+                readBytes < _previousReadBytes)
+            {
+                _previousReadBytes = readBytes;
+                _previousBitrateSampledAtUtc = sample.SampledAtUtc;
+                return null;
+            }
+
+            var elapsed = sample.SampledAtUtc -
+                _previousBitrateSampledAtUtc.Value;
+            if (elapsed < MinimumCounterSampleWindow)
+            {
+                return null;
+            }
+
+            var bytes = readBytes - _previousReadBytes.Value;
+            var rate = elapsed.TotalSeconds <= 0
+                ? null
+                : bytes * 8d / elapsed.TotalSeconds;
+            _previousReadBytes = readBytes;
+            _previousBitrateSampledAtUtc = sample.SampledAtUtc;
+            return rate;
+        }
+    }
+
+    private string? DescribeDecoderCompliance(LibVlcDiagnosticSnapshot sample)
+    {
+        var mismatch = _session.Profile switch
+        {
+            LibVlcPlaybackProfile.Software when
+                sample.HardwareDecodingActive == true =>
+                "requested software, but hardware decoding remained active",
+            LibVlcPlaybackProfile.Dxva2 when
+                sample.Decoder?.Contains(
+                    "D3D11VA",
+                    StringComparison.OrdinalIgnoreCase) == true =>
+                "requested DXVA2, but D3D11VA was selected",
+            LibVlcPlaybackProfile.D3D11Va when
+                sample.HardwareDecodingActive == false =>
+                "requested D3D11VA, but hardware decoding is inactive",
+            _ => null,
+        };
+
+        if (mismatch is null)
+        {
+            return sample.Decoder;
+        }
+
+        return string.IsNullOrWhiteSpace(sample.Decoder)
+            ? $"Profile mismatch: {mismatch}."
+            : $"{sample.Decoder}; profile mismatch: {mismatch}.";
     }
 }
