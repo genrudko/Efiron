@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Text.Json;
 using Microsoft.UI.Windowing;
@@ -12,6 +13,9 @@ public sealed partial class MainWindow
 {
     private const string FullscreenVerificationEnvironmentVariable =
         "EFIRON_CI_FULLSCREEN_VERIFICATION";
+    private const long WsSysMenuEvidence = 0x00080000L;
+    private const long WsMinimizeBoxEvidence = 0x00020000L;
+    private const long WsMaximizeBoxEvidence = 0x00010000L;
 
     private bool _fullscreenVerificationStarted;
 
@@ -51,27 +55,85 @@ public sealed partial class MainWindow
         try
         {
             await Task.Delay(450, _lifetime.Token);
-            SetFullscreen(true);
+            var windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(this);
+            var expectedNormalStyle = _normalWindowStyle.ToInt64();
+            var expectedNormalExStyle = _normalWindowExStyle.ToInt64();
+            var cycles = new List<WindowChromeCycleEvidence>();
 
-            var readinessClock = Stopwatch.StartNew();
-            Views.LiveTvView.FullscreenSurfaceEvidence? surface = null;
-            while (readinessClock.Elapsed < TimeSpan.FromSeconds(20))
+            SetFullscreen(true);
+            var readinessClock = await WaitForFullscreenVideoAsync();
+
+            for (var cycle = 1; cycle <= 3; cycle++)
             {
-                surface = LiveTvWorkspace.GetFullscreenSurfaceEvidence();
-                if (string.Equals(
-                        surface.PlaybackState,
-                        "Playing",
-                        StringComparison.Ordinal) &&
-                    !string.IsNullOrWhiteSpace(surface.PlaybackSource) &&
-                    !string.IsNullOrWhiteSpace(surface.VideoCropGeometry))
+                if (cycle > 1)
                 {
-                    break;
+                    SetFullscreen(true);
+                    await Task.Delay(650, _lifetime.Token);
                 }
 
-                await Task.Delay(200, _lifetime.Token);
+                SetFullscreen(false);
+                await Task.Delay(800, _lifetime.Token);
+
+                var style = GetWindowLongPtr(windowHandle, GwlStyle).ToInt64();
+                var exStyle = GetWindowLongPtr(windowHandle, GwlExStyle).ToInt64();
+                var dwmPolicy = ReadDwmNonClientPolicy(windowHandle);
+                var regionProbe = CreateRectRgn(0, 0, 1, 1);
+                var regionResult = regionProbe == 0
+                    ? -1
+                    : GetWindowRgn(windowHandle, regionProbe);
+                if (regionProbe != 0)
+                {
+                    _ = DeleteObject(regionProbe);
+                }
+
+                var captionStylesPresent =
+                    (style & WsSysMenuEvidence) != 0 &&
+                    (style & WsMinimizeBoxEvidence) != 0 &&
+                    (style & WsMaximizeBoxEvidence) != 0;
+                var cycleEvidence = new WindowChromeCycleEvidence(
+                    cycle,
+                    AppWindow.Presenter.Kind.ToString(),
+                    style,
+                    exStyle,
+                    expectedNormalStyle,
+                    expectedNormalExStyle,
+                    style == expectedNormalStyle,
+                    exStyle == expectedNormalExStyle,
+                    captionStylesPresent,
+                    regionResult == 0,
+                    dwmPolicy,
+                    dwmPolicy == DwmNcRenderingUseWindowStyle,
+                    ExtendsContentIntoTitleBar,
+                    TitleBarDragRegion.Visibility.ToString(),
+                    WindowRoot.RowDefinitions[0].Height.Value,
+                    DateTimeOffset.UtcNow);
+                cycles.Add(cycleEvidence);
+
+                if (!string.Equals(
+                        cycleEvidence.PresenterKind,
+                        AppWindowPresenterKind.Overlapped.ToString(),
+                        StringComparison.Ordinal) ||
+                    !cycleEvidence.NormalStyleRestored ||
+                    !cycleEvidence.NormalExStyleRestored ||
+                    !cycleEvidence.CaptionButtonStylesPresent ||
+                    !cycleEvidence.WindowRegionCleared ||
+                    !cycleEvidence.DwmWindowStyleRenderingRestored ||
+                    !cycleEvidence.ExtendsContentIntoTitleBar ||
+                    !string.Equals(
+                        cycleEvidence.TitleBarDragRegionVisibility,
+                        Microsoft.UI.Xaml.Visibility.Visible.ToString(),
+                        StringComparison.Ordinal) ||
+                    cycleEvidence.TitleBarRowHeight <= 0)
+                {
+                    throw new InvalidOperationException(
+                        $"Window chrome was not restored after fullscreen cycle {cycle}: " +
+                        JsonSerializer.Serialize(cycleEvidence));
+                }
             }
 
-            surface = LiveTvWorkspace.GetFullscreenSurfaceEvidence();
+            SetFullscreen(true);
+            await Task.Delay(900, _lifetime.Token);
+            var surface = LiveTvWorkspace.GetFullscreenSurfaceEvidence();
             if (!string.Equals(
                     surface.PlaybackState,
                     "Playing",
@@ -80,11 +142,10 @@ public sealed partial class MainWindow
                 string.IsNullOrWhiteSpace(surface.VideoCropGeometry))
             {
                 throw new InvalidOperationException(
-                    $"Fullscreen video was not ready: state={surface.PlaybackState}, " +
-                    $"source={surface.PlaybackSource}, crop={surface.VideoCropGeometry}.");
+                    $"Fullscreen video was not ready after chrome cycles: " +
+                    $"state={surface.PlaybackState}, source={surface.PlaybackSource}, " +
+                    $"crop={surface.VideoCropGeometry}.");
             }
-
-            await Task.Delay(900, _lifetime.Token);
 
             var bitmap = new RenderTargetBitmap();
             await bitmap.RenderAsync(WindowRoot);
@@ -111,6 +172,7 @@ public sealed partial class MainWindow
                         ? windowBrush.Color.ToString()
                         : string.Empty,
                 Surface = surface,
+                WindowedCycles = cycles,
                 PixelWidth = bitmap.PixelWidth,
                 PixelHeight = bitmap.PixelHeight,
                 edge.TopWhitePixelRatio,
@@ -145,6 +207,43 @@ public sealed partial class MainWindow
             {
             }
         }
+    }
+
+    private async Task<Stopwatch> WaitForFullscreenVideoAsync()
+    {
+        var readinessClock = Stopwatch.StartNew();
+        Views.LiveTvView.FullscreenSurfaceEvidence? surface = null;
+        while (readinessClock.Elapsed < TimeSpan.FromSeconds(20))
+        {
+            surface = LiveTvWorkspace.GetFullscreenSurfaceEvidence();
+            if (string.Equals(
+                    surface.PlaybackState,
+                    "Playing",
+                    StringComparison.Ordinal) &&
+                !string.IsNullOrWhiteSpace(surface.PlaybackSource) &&
+                !string.IsNullOrWhiteSpace(surface.VideoCropGeometry))
+            {
+                return readinessClock;
+            }
+
+            await Task.Delay(200, _lifetime.Token);
+        }
+
+        surface = LiveTvWorkspace.GetFullscreenSurfaceEvidence();
+        throw new InvalidOperationException(
+            $"Fullscreen video was not ready: state={surface.PlaybackState}, " +
+            $"source={surface.PlaybackSource}, crop={surface.VideoCropGeometry}.");
+    }
+
+    private static int? ReadDwmNonClientPolicy(nint windowHandle)
+    {
+        var policy = 0;
+        var result = DwmGetWindowAttribute(
+            windowHandle,
+            DwmwaNcRenderingPolicy,
+            ref policy,
+            Marshal.SizeOf<int>());
+        return result == 0 ? policy : null;
     }
 
     private static (double TopWhitePixelRatio, double BottomWhitePixelRatio)
@@ -217,4 +316,32 @@ public sealed partial class MainWindow
         await encoder.FlushAsync();
         await stream.FlushAsync(cancellationToken);
     }
+
+    private sealed record WindowChromeCycleEvidence(
+        int Cycle,
+        string PresenterKind,
+        long Style,
+        long ExStyle,
+        long ExpectedStyle,
+        long ExpectedExStyle,
+        bool NormalStyleRestored,
+        bool NormalExStyleRestored,
+        bool CaptionButtonStylesPresent,
+        bool WindowRegionCleared,
+        int? DwmNonClientRenderingPolicy,
+        bool DwmWindowStyleRenderingRestored,
+        bool ExtendsContentIntoTitleBar,
+        string TitleBarDragRegionVisibility,
+        double TitleBarRowHeight,
+        DateTimeOffset RecordedAtUtc);
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmGetWindowAttribute(
+        nint hwnd,
+        int attribute,
+        ref int attributeValue,
+        int attributeSize);
+
+    [DllImport("user32.dll")]
+    private static extern int GetWindowRgn(nint hwnd, nint region);
 }
