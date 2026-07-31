@@ -6,23 +6,14 @@ namespace Efiron.Desktop;
 public sealed partial class MainWindow
 {
     private DispatcherQueueTimer? _shellClockTimer;
-    private long _shellVisibilityToken;
     private bool? _shellFullscreenApplied;
 
     private void ShellRoot_Loaded(object sender, RoutedEventArgs e)
     {
         ShellRoot.Loaded -= ShellRoot_Loaded;
         _ = RecordProcessStartupEvidenceAsync();
-        _shellVisibilityToken = LiveTvWorkspace.RegisterPropertyChangedCallback(
-            UIElement.VisibilityProperty,
-            LiveWorkspace_VisibilityChanged);
         ShellRoot.LayoutUpdated += ShellRoot_LayoutUpdated;
-        LiveTvWorkspace.EnablePresentationPolish();
-        LiveTvWorkspace.EnableCategoryController();
-        LiveTvWorkspace.EnableFullscreenSurfaceFix();
         EnableFullscreenWindowSurfaceFix();
-        ProgrammeGuideWorkspace.PlayChannelRequested +=
-            ProgrammeGuideWorkspace_PlayChannelRequested;
         EnableTitleBarContrast();
 
         _shellClockTimer = DispatcherQueue.CreateTimer();
@@ -36,7 +27,11 @@ public sealed partial class MainWindow
 
     private async void LiveNavigationButton_Click(object sender, RoutedEventArgs e)
     {
-        ProgrammeGuideWorkspace.Visibility = Visibility.Collapsed;
+        if (_programmeGuideWorkspace is not null)
+        {
+            _programmeGuideWorkspace.Visibility = Visibility.Collapsed;
+        }
+
         if (_catalog is { Channels.Count: > 0 })
         {
             await ShowLiveWorkspaceAsync();
@@ -58,20 +53,24 @@ public sealed partial class MainWindow
 
     private void SettingsNavigationButton_Click(object sender, RoutedEventArgs e)
     {
-        ProgrammeGuideWorkspace.Visibility = Visibility.Collapsed;
+        if (_programmeGuideWorkspace is not null)
+        {
+            _programmeGuideWorkspace.Visibility = Visibility.Collapsed;
+        }
+
         ShowSourcesWorkspace();
         UpdateShellNavigation();
     }
 
     private void GlobalSearchButton_Click(object sender, RoutedEventArgs e)
     {
-        if (LiveTvWorkspace.Visibility == Visibility.Visible)
+        if (IsLiveWorkspaceVisible)
         {
-            LiveTvWorkspace.FocusSearch();
+            _liveTvWorkspace?.FocusSearch();
         }
-        else if (ProgrammeGuideWorkspace.Visibility == Visibility.Visible)
+        else if (IsProgrammeGuideWorkspaceVisible)
         {
-            ProgrammeGuideWorkspace.FocusSearch();
+            _programmeGuideWorkspace?.FocusSearch();
         }
         else
         {
@@ -85,25 +84,20 @@ public sealed partial class MainWindow
     private void SettingsInterfaceAnchorButton_Click(object sender, RoutedEventArgs e) =>
         ThemeComboBox.Focus(FocusState.Programmatic);
 
-    private void LiveWorkspace_VisibilityChanged(
-        DependencyObject sender,
-        DependencyProperty property)
+    private void OnLiveWorkspaceShown()
     {
         UpdateShellNavigation();
-        if (LiveTvWorkspace.Visibility == Visibility.Visible)
+        if (TryOpenEpgVerificationWorkspace())
         {
-            if (TryOpenEpgVerificationWorkspace())
-            {
-                return;
-            }
-
-            if (TryStartFullscreenVerification())
-            {
-                return;
-            }
-
-            _ = CapturePresentationPreviewAsync();
+            return;
         }
+
+        if (TryStartFullscreenVerification())
+        {
+            return;
+        }
+
+        _ = CapturePresentationPreviewAsync();
     }
 
     private void ShellRoot_LayoutUpdated(object? sender, object e) =>
@@ -127,8 +121,8 @@ public sealed partial class MainWindow
 
     private void UpdateShellNavigation()
     {
-        var liveVisible = LiveTvWorkspace.Visibility == Visibility.Visible;
-        var programmeVisible = ProgrammeGuideWorkspace.Visibility == Visibility.Visible;
+        var liveVisible = IsLiveWorkspaceVisible;
+        var programmeVisible = IsProgrammeGuideWorkspaceVisible;
         LiveNavigationButton.IsChecked = liveVisible;
         ProgrammeNavigationButton.IsChecked = programmeVisible;
         SettingsNavigationButton.IsChecked = !liveVisible && !programmeVisible;
