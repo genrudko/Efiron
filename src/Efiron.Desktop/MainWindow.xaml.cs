@@ -13,7 +13,6 @@ using Efiron.Infrastructure.Playlists;
 using Efiron.Infrastructure.ProgrammeGuide;
 using Efiron.Infrastructure.Sources;
 using Microsoft.UI;
-using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -24,8 +23,6 @@ namespace Efiron.Desktop;
 
 public sealed partial class MainWindow : Window
 {
-    private static readonly Stopwatch StartupClock = Stopwatch.StartNew();
-
     private readonly CancellationTokenSource _lifetime = new();
     private readonly ResourceLoader _resources;
     private readonly SourceConfigurationService _sourceConfigurationService;
@@ -83,10 +80,6 @@ public sealed partial class MainWindow : Window
         SetTitleBar(TitleBarDragRegion);
 
         ConfigurationPathText.Text = _configurationPath;
-        LiveTvWorkspace.BackRequested += LiveTvWorkspace_BackRequested;
-        LiveTvWorkspace.FullscreenToggleRequested +=
-            LiveTvWorkspace_FullscreenToggleRequested;
-        LiveTvWorkspace.FavoriteChanged += LiveTvWorkspace_FavoriteChanged;
         WindowRoot.Loaded += WindowRoot_Loaded;
         Closed += MainWindow_Closed;
     }
@@ -95,6 +88,7 @@ public sealed partial class MainWindow : Window
     {
         WindowRoot.Loaded -= WindowRoot_Loaded;
         await RecordFirstUsefulPaintAsync();
+        await Task.Yield();
         await LoadFavoritesAsync();
         await LoadConfigurationAsync();
     }
@@ -235,7 +229,7 @@ public sealed partial class MainWindow : Window
                 DateTimeOffset.Now,
                 _lifetime.Token);
             _catalog = catalog;
-            LiveTvWorkspace.SetCatalog(catalog, _favoriteStableIds);
+            _liveTvWorkspace?.SetCatalog(catalog, _favoriteStableIds);
             OpenLiveButton.IsEnabled = catalog.Channels.Count > 0;
             UpdateLoadedStatus(catalog.Channels.Count);
 
@@ -338,7 +332,7 @@ public sealed partial class MainWindow : Window
     {
         _catalog = null;
         OpenLiveButton.IsEnabled = false;
-        if (LiveTvWorkspace.Visibility == Visibility.Visible)
+        if (IsLiveWorkspaceVisible || IsProgrammeGuideWorkspaceVisible)
         {
             ShowSourcesWorkspace();
         }
@@ -419,9 +413,17 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        var liveWorkspace = EnsureLiveTvWorkspace();
+        liveWorkspace.SetCatalog(_catalog, _favoriteStableIds);
         SourcesWorkspace.Visibility = Visibility.Collapsed;
-        LiveTvWorkspace.Visibility = Visibility.Visible;
+        if (_programmeGuideWorkspace is not null)
+        {
+            _programmeGuideWorkspace.Visibility = Visibility.Collapsed;
+        }
+
+        liveWorkspace.Visibility = Visibility.Visible;
         WindowContextTitle.Text = _resources.GetString("WindowContextLiveMessage");
+        OnLiveWorkspaceShown();
 
         try
         {
@@ -440,9 +442,18 @@ public sealed partial class MainWindow : Window
             SetFullscreen(false);
         }
 
-        LiveTvWorkspace.Visibility = Visibility.Collapsed;
+        if (_liveTvWorkspace is not null)
+        {
+            _liveTvWorkspace.Visibility = Visibility.Collapsed;
+        }
+        if (_programmeGuideWorkspace is not null)
+        {
+            _programmeGuideWorkspace.Visibility = Visibility.Collapsed;
+        }
+
         SourcesWorkspace.Visibility = Visibility.Visible;
         WindowContextTitle.Text = _resources.GetString("WindowContextSourcesMessage");
+        UpdateShellNavigation();
     }
 
     private void LiveTvWorkspace_BackRequested(object? sender, EventArgs e) =>
@@ -452,7 +463,7 @@ public sealed partial class MainWindow : Window
         object? sender,
         EventArgs e)
     {
-        if (LiveTvWorkspace.Visibility == Visibility.Visible)
+        if (IsLiveWorkspaceVisible)
         {
             SetFullscreen(!_isFullscreen);
         }
@@ -491,9 +502,9 @@ public sealed partial class MainWindow : Window
                 _favoriteStableIds.Add(e.StableId);
             }
 
-            if (_catalog is not null)
+            if (_catalog is not null && _liveTvWorkspace is not null)
             {
-                LiveTvWorkspace.SetCatalog(_catalog, _favoriteStableIds);
+                _liveTvWorkspace.SetCatalog(_catalog, _favoriteStableIds);
             }
         }
     }
@@ -506,23 +517,21 @@ public sealed partial class MainWindow : Window
         }
 
         _isFullscreen = isFullscreen;
-        AppWindow.SetPresenter(isFullscreen
-            ? AppWindowPresenterKind.FullScreen
-            : AppWindowPresenterKind.Default);
         TitleBarDragRegion.Visibility = isFullscreen
             ? Visibility.Collapsed
             : Visibility.Visible;
         WindowRoot.RowDefinitions[0].Height = isFullscreen
             ? new GridLength(0)
             : new GridLength(44);
-        LiveTvWorkspace.SetFullscreen(isFullscreen);
+        _liveTvWorkspace?.SetFullscreen(isFullscreen);
+        ApplyFullscreenWindowSurfaceState(force: true);
     }
 
     private void FullscreenKeyboardAccelerator_Invoked(
         KeyboardAccelerator sender,
         KeyboardAcceleratorInvokedEventArgs args)
     {
-        if (LiveTvWorkspace.Visibility != Visibility.Visible)
+        if (!IsLiveWorkspaceVisible)
         {
             return;
         }
@@ -548,10 +557,15 @@ public sealed partial class MainWindow : Window
     {
         try
         {
+            using var process = Process.GetCurrentProcess();
+            process.Refresh();
+            var startedAtUtc = new DateTimeOffset(
+                process.StartTime.ToUniversalTime(),
+                TimeSpan.Zero);
             var directory = Path.GetDirectoryName(_readinessPath)!;
             Directory.CreateDirectory(directory);
             var evidence = new StartupEvidence(
-                StartupClock.Elapsed.TotalMilliseconds,
+                (DateTimeOffset.UtcNow - startedAtUtc).TotalMilliseconds,
                 DateTimeOffset.UtcNow);
             await File.WriteAllTextAsync(
                 _readinessPath,
@@ -579,7 +593,7 @@ public sealed partial class MainWindow : Window
                 catalog.Channels.Count,
                 catalog.Categories.Count,
                 catalog.MatchedChannelCount,
-                LiveTvWorkspace.Visibility == Visibility.Visible,
+                IsLiveWorkspaceVisible,
                 DateTimeOffset.UtcNow);
             await File.WriteAllTextAsync(
                 _liveReadinessPath,
@@ -600,11 +614,7 @@ public sealed partial class MainWindow : Window
     private void MainWindow_Closed(object sender, WindowEventArgs args)
     {
         Closed -= MainWindow_Closed;
-        LiveTvWorkspace.BackRequested -= LiveTvWorkspace_BackRequested;
-        LiveTvWorkspace.FullscreenToggleRequested -=
-            LiveTvWorkspace_FullscreenToggleRequested;
-        LiveTvWorkspace.FavoriteChanged -= LiveTvWorkspace_FavoriteChanged;
-        LiveTvWorkspace.DisposePlayback();
+        ReleaseWorkspaceEventHandlers();
         _lifetime.Cancel();
         _httpClient.Dispose();
         _lifetime.Dispose();
