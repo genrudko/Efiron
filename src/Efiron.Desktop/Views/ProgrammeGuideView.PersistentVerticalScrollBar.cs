@@ -7,9 +7,10 @@ namespace Efiron.Desktop.Views;
 
 public sealed partial class ProgrammeGuideView
 {
-    private const double PersistentScrollBarWidth = 18;
-    private const double PersistentScrollThumbWidth = 10;
-    private const double PersistentScrollThumbMinimumHeight = 36;
+    private const double PersistentScrollBarColumnWidth = 24;
+    private const double PersistentScrollBarWidth = 22;
+    private const double PersistentScrollThumbWidth = 12;
+    private const double PersistentScrollThumbMinimumHeight = 44;
 
     private Grid? _persistentVerticalScrollRail;
     private Border? _persistentVerticalScrollThumb;
@@ -26,11 +27,15 @@ public sealed partial class ProgrammeGuideView
         UpdatePersistentVerticalScrollBar();
         return new PersistentVerticalScrollBarEvidence(
             _persistentVerticalScrollRail?.Visibility == Visibility.Visible,
+            ProgrammeRoot.ActualTheme.ToString(),
             _persistentVerticalScrollRail?.ActualWidth ?? 0,
             _persistentVerticalScrollRail?.ActualHeight ?? 0,
+            DescribeBrush(_persistentVerticalScrollRail?.Background),
             _persistentVerticalScrollThumb?.ActualWidth ?? 0,
             _persistentVerticalScrollThumb?.ActualHeight ?? 0,
             _persistentVerticalScrollThumb?.Margin.Top ?? 0,
+            _persistentVerticalScrollThumb?.Opacity ?? 0,
+            DescribeBrush(_persistentVerticalScrollThumb?.Background),
             EpgVerticalScrollBar.Minimum,
             EpgVerticalScrollBar.Maximum,
             EpgVerticalScrollBar.Value,
@@ -47,6 +52,8 @@ public sealed partial class ProgrammeGuideView
         }
 
         _persistentVerticalScrollHooked = true;
+        EpgSurfaceGrid.ColumnDefinitions[2].Width =
+            new GridLength(PersistentScrollBarColumnWidth);
         _persistentVerticalScrollThumb = new Border
         {
             Width = PersistentScrollThumbWidth,
@@ -54,7 +61,8 @@ public sealed partial class ProgrammeGuideView
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Top,
             CornerRadius = new CornerRadius(PersistentScrollThumbWidth / 2),
-            Background = ResolveBrush("EfironTextTertiaryBrush"),
+            Background = ResolveBrush("EfironTextSecondaryBrush"),
+            Opacity = 0.94,
         };
         _persistentVerticalScrollThumb.PointerPressed +=
             PersistentVerticalScrollThumb_PointerPressed;
@@ -74,10 +82,11 @@ public sealed partial class ProgrammeGuideView
         _persistentVerticalScrollRail = new Grid
         {
             Width = PersistentScrollBarWidth,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Margin = new Thickness(1, 3, 1, 3),
+            HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Stretch,
             Visibility = Visibility.Collapsed,
-            Background = ResolveBrush("EfironSurfaceRaisedBrush"),
+            Background = ResolveBrush("EfironStrokeSubtleBrush"),
         };
         _persistentVerticalScrollRail.Children.Add(
             _persistentVerticalScrollThumb);
@@ -90,7 +99,7 @@ public sealed partial class ProgrammeGuideView
 
         Grid.SetRow(_persistentVerticalScrollRail, 1);
         Grid.SetColumn(_persistentVerticalScrollRail, 2);
-        Canvas.SetZIndex(_persistentVerticalScrollRail, 50);
+        Canvas.SetZIndex(_persistentVerticalScrollRail, 100);
         EpgSurfaceGrid.Children.Add(_persistentVerticalScrollRail);
 
         EpgVerticalScrollBar.ValueChanged +=
@@ -132,21 +141,21 @@ public sealed partial class ProgrammeGuideView
         }
 
         _persistentVerticalScrollRail.Background =
-            ResolveBrush("EfironSurfaceRaisedBrush");
+            ResolveBrush("EfironStrokeSubtleBrush");
         var active = _persistentVerticalScrollDragging ||
             _persistentVerticalScrollPointerOver;
         _persistentVerticalScrollThumb.Background = ResolveBrush(
-            active ? "EfironAccentBrush" : "EfironTextTertiaryBrush");
+            active ? "EfironAccentBrush" : "EfironTextSecondaryBrush");
         _persistentVerticalScrollThumb.Opacity =
             _persistentVerticalScrollDragging
                 ? 1
                 : _persistentVerticalScrollPointerOver
-                    ? 0.92
-                    : 0.72;
+                    ? 1
+                    : 0.94;
 
         var trackHeight = Math.Max(
             _persistentVerticalScrollRail.ActualHeight,
-            EpgRowsViewport.ActualHeight);
+            Math.Max(0, EpgRowsViewport.ActualHeight - 6));
         if (trackHeight <= 0)
         {
             return;
@@ -367,13 +376,22 @@ public sealed partial class ProgrammeGuideView
         object args) =>
         UpdatePersistentVerticalScrollBar();
 
+    private static string DescribeBrush(Brush? brush) =>
+        brush is SolidColorBrush solid
+            ? solid.Color.ToString()
+            : brush?.GetType().Name ?? string.Empty;
+
     internal sealed record PersistentVerticalScrollBarEvidence(
         bool IsVisible,
+        string ActualTheme,
         double RailWidth,
         double RailHeight,
+        string RailColor,
         double ThumbWidth,
         double ThumbHeight,
         double ThumbTop,
+        double ThumbOpacity,
+        string ThumbColor,
         double Minimum,
         double Maximum,
         double Value,
