@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Efiron.Application.Playback;
 using Efiron.Desktop.Diagnostics;
 using Efiron.Domain.Playback;
@@ -6,6 +7,7 @@ using LibVLCSharp.Platforms.Windows;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using WinRT;
 
 namespace Efiron.Desktop.Views;
 
@@ -19,12 +21,15 @@ public sealed partial class LiveTvView
             "diagnostics"));
 
     private MediaPlayerElement? _windowsMediaSurface;
+    private SwapChainPanel? _mpvSurface;
     private Border? _playbackBackendPanel;
     private ComboBox? _playbackBackendSelector;
     private ComboBox? _libVlcProfileSelector;
+    private ComboBox? _mpvProfileSelector;
     private TextBlock? _playbackBackendStatus;
     private PlaybackBackendId _selectedPlaybackBackend = PlaybackBackendId.Auto;
     private LibVlcPlaybackProfile _selectedLibVlcProfile = LibVlcPlaybackProfile.Auto;
+    private MpvPlaybackProfile _selectedMpvProfile = MpvPlaybackProfile.Auto;
     private bool _updatingPlaybackBackendSelectors;
     private bool _playbackBackendControllerDisposed;
 
@@ -47,6 +52,16 @@ public sealed partial class LiveTvView
         };
         playerSurface.Children.Insert(1, _windowsMediaSurface);
 
+        _mpvSurface = new SwapChainPanel
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            Visibility = Visibility.Collapsed,
+            IsHitTestVisible = false,
+        };
+        _mpvSurface.SizeChanged += MpvSurface_SizeChanged;
+        playerSurface.Children.Insert(2, _mpvSurface);
+
         _playbackBackendSelector = new ComboBox
         {
             MinWidth = 142,
@@ -58,6 +73,9 @@ public sealed partial class LiveTvView
         _playbackBackendSelector.Items.Add(CreateBackendOption(
             "LibVLC",
             PlaybackBackendId.LibVlc));
+        _playbackBackendSelector.Items.Add(CreateBackendOption(
+            "mpv",
+            PlaybackBackendId.Mpv));
         _playbackBackendSelector.Items.Add(CreateBackendOption(
             "Windows Media",
             PlaybackBackendId.WindowsMedia));
@@ -84,6 +102,21 @@ public sealed partial class LiveTvView
         _libVlcProfileSelector.SelectionChanged +=
             LibVlcProfileSelector_SelectionChanged;
 
+        _mpvProfileSelector = new ComboBox
+        {
+            MinWidth = 132,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Visibility = Visibility.Collapsed,
+        };
+        _mpvProfileSelector.Items.Add(CreateMpvProfileOption(
+            "Auto",
+            MpvPlaybackProfile.Auto));
+        _mpvProfileSelector.Items.Add(CreateMpvProfileOption(
+            "Smooth Motion",
+            MpvPlaybackProfile.SmoothMotion));
+        _mpvProfileSelector.SelectionChanged +=
+            MpvProfileSelector_SelectionChanged;
+
         var diagnosticsButton = new Button
         {
             Content = "Снимок",
@@ -106,6 +139,7 @@ public sealed partial class LiveTvView
         };
         panel.Children.Add(_playbackBackendSelector);
         panel.Children.Add(_libVlcProfileSelector);
+        panel.Children.Add(_mpvProfileSelector);
         panel.Children.Add(diagnosticsButton);
         panel.Children.Add(_playbackBackendStatus);
 
@@ -126,6 +160,7 @@ public sealed partial class LiveTvView
         _updatingPlaybackBackendSelectors = true;
         _playbackBackendSelector.SelectedIndex = 0;
         _libVlcProfileSelector.SelectedIndex = 0;
+        _mpvProfileSelector.SelectedIndex = 0;
         _updatingPlaybackBackendSelectors = false;
     }
 
@@ -172,6 +207,8 @@ public sealed partial class LiveTvView
 
             _playbackBackend = effectiveBackend switch
             {
+                PlaybackBackendId.Mpv =>
+                    new MpvPlaybackBackend(_selectedMpvProfile),
                 PlaybackBackendId.WindowsMedia =>
                     new WindowsMediaPlaybackBackend(),
                 _ => new LibVlcPlaybackBackend(
@@ -216,6 +253,12 @@ public sealed partial class LiveTvView
     {
         VideoView.MediaPlayer = null;
         VideoView.Visibility = Visibility.Collapsed;
+        ClearMpvSwapChain();
+        if (_mpvSurface is not null)
+        {
+            _mpvSurface.Visibility = Visibility.Collapsed;
+        }
+
         if (_windowsMediaSurface is not null)
         {
             _windowsMediaSurface.Source = null;
@@ -228,6 +271,12 @@ public sealed partial class LiveTvView
             case LibVlcPlaybackBackend libVlc:
                 VideoView.MediaPlayer = libVlc.MediaPlayer;
                 VideoView.Visibility = Visibility.Visible;
+                break;
+            case MpvPlaybackBackend mpv when _mpvSurface is not null:
+                _mpvSurface.Visibility = Visibility.Visible;
+                mpv.DisplaySwapChainChanged += MpvBackend_DisplaySwapChainChanged;
+                UpdateMpvCompositionSize(mpv);
+                AttachMpvSwapChain(mpv.DisplaySwapChain);
                 break;
             case WindowsMediaPlaybackBackend windowsMedia
                 when _windowsMediaSurface is not null:
@@ -254,6 +303,17 @@ public sealed partial class LiveTvView
             }
         }
 
+        if (_playbackBackend is MpvPlaybackBackend mpv)
+        {
+            mpv.DisplaySwapChainChanged -= MpvBackend_DisplaySwapChainChanged;
+        }
+
+        ClearMpvSwapChain();
+        if (_mpvSurface is not null)
+        {
+            _mpvSurface.Visibility = Visibility.Collapsed;
+        }
+
         VideoView.MediaPlayer = null;
         VideoView.Visibility = Visibility.Visible;
         if (_windowsMediaSurface is not null)
@@ -276,6 +336,11 @@ public sealed partial class LiveTvView
         }
 
         _playbackBackendControllerDisposed = true;
+        if (_mpvSurface is not null)
+        {
+            _mpvSurface.SizeChanged -= MpvSurface_SizeChanged;
+        }
+
         _playbackDiagnosticsWriter.DetachAsync().GetAwaiter().GetResult();
         ReleaseCurrentPlaybackBackend();
         _playbackDiagnosticsWriter.DisposeAsync().AsTask().GetAwaiter().GetResult();
@@ -306,13 +371,7 @@ public sealed partial class LiveTvView
         }
 
         _selectedPlaybackBackend = selected;
-        if (_libVlcProfileSelector is not null)
-        {
-            _libVlcProfileSelector.Visibility = selected == PlaybackBackendId.WindowsMedia
-                ? Visibility.Collapsed
-                : Visibility.Visible;
-        }
-
+        UpdateProfileSelectorVisibility();
         await SwitchPlaybackBackendAsync(restartCurrentRequest: true);
     }
 
@@ -321,7 +380,8 @@ public sealed partial class LiveTvView
         SelectionChangedEventArgs e)
     {
         if (_updatingPlaybackBackendSelectors ||
-            _selectedPlaybackBackend == PlaybackBackendId.WindowsMedia ||
+            _selectedPlaybackBackend is PlaybackBackendId.Mpv or
+                PlaybackBackendId.WindowsMedia ||
             _libVlcProfileSelector?.SelectedItem is not ComboBoxItem
             {
                 Tag: LibVlcPlaybackProfile selected,
@@ -334,11 +394,114 @@ public sealed partial class LiveTvView
         await SwitchPlaybackBackendAsync(restartCurrentRequest: true);
     }
 
+    private async void MpvProfileSelector_SelectionChanged(
+        object sender,
+        SelectionChangedEventArgs e)
+    {
+        if (_updatingPlaybackBackendSelectors ||
+            _selectedPlaybackBackend != PlaybackBackendId.Mpv ||
+            _mpvProfileSelector?.SelectedItem is not ComboBoxItem
+            {
+                Tag: MpvPlaybackProfile selected,
+            })
+        {
+            return;
+        }
+
+        _selectedMpvProfile = selected;
+        await SwitchPlaybackBackendAsync(restartCurrentRequest: true);
+    }
+
+    private void UpdateProfileSelectorVisibility()
+    {
+        if (_libVlcProfileSelector is not null)
+        {
+            _libVlcProfileSelector.Visibility =
+                _selectedPlaybackBackend is PlaybackBackendId.Auto or
+                    PlaybackBackendId.LibVlc
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+        }
+
+        if (_mpvProfileSelector is not null)
+        {
+            _mpvProfileSelector.Visibility =
+                _selectedPlaybackBackend == PlaybackBackendId.Mpv
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+        }
+    }
+
     private async void DiagnosticsButton_Click(object sender, RoutedEventArgs e)
     {
         await _playbackDiagnosticsWriter.RecordNowAsync();
         UpdatePlaybackBackendStatus(
             $"{_playbackBackend?.Id ?? PlaybackBackendId.Auto} · снимок сохранён");
+    }
+
+    private void MpvBackend_DisplaySwapChainChanged(
+        object? sender,
+        EventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (ReferenceEquals(sender, _playbackBackend) &&
+                sender is MpvPlaybackBackend mpv)
+            {
+                UpdateMpvCompositionSize(mpv);
+                AttachMpvSwapChain(mpv.DisplaySwapChain);
+            }
+        });
+    }
+
+    private void MpvSurface_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (_playbackBackend is MpvPlaybackBackend mpv)
+        {
+            UpdateMpvCompositionSize(mpv);
+        }
+    }
+
+    private void UpdateMpvCompositionSize(MpvPlaybackBackend mpv)
+    {
+        if (_mpvSurface is null ||
+            _mpvSurface.ActualWidth <= 0 ||
+            _mpvSurface.ActualHeight <= 0)
+        {
+            return;
+        }
+
+        var scale = _mpvSurface.XamlRoot?.RasterizationScale ?? 1d;
+        var width = Math.Max(1, (int)Math.Round(_mpvSurface.ActualWidth * scale));
+        var height = Math.Max(1, (int)Math.Round(_mpvSurface.ActualHeight * scale));
+        mpv.SetCompositionSize(width, height);
+    }
+
+    private void AttachMpvSwapChain(nint swapChain)
+    {
+        if (_mpvSurface is null)
+        {
+            return;
+        }
+
+        var nativePanel = _mpvSurface.As<ISwapChainPanelNative>();
+        Marshal.ThrowExceptionForHR(nativePanel.SetSwapChain(swapChain));
+    }
+
+    private void ClearMpvSwapChain()
+    {
+        if (_mpvSurface is null)
+        {
+            return;
+        }
+
+        try
+        {
+            AttachMpvSwapChain(0);
+        }
+        catch (Exception) when (_playbackBackendControllerDisposed)
+        {
+        }
     }
 
     private void UpdatePlaybackBackendStatus(string text)
@@ -367,7 +530,25 @@ public sealed partial class LiveTvView
             Tag = profile,
         };
 
+    private static ComboBoxItem CreateMpvProfileOption(
+        string text,
+        MpvPlaybackProfile profile) =>
+        new()
+        {
+            Content = text,
+            Tag = profile,
+        };
+
     private static Brush ResolvePlaybackBrush(string key) =>
         Microsoft.UI.Xaml.Application.Current.Resources[key] as Brush ??
         new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+
+    [ComImport]
+    [Guid("63AAD0B8-7C24-40FF-85A8-640D944CC325")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface ISwapChainPanelNative
+    {
+        [PreserveSig]
+        int SetSwapChain(nint swapChain);
+    }
 }
