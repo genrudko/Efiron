@@ -8,9 +8,6 @@
     <Platforms>x64</Platforms>
     <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <PlatformTarget>x64</PlatformTarget>
-    <LibMpvRuntimeDirectory>$(MSBuildThisFileDirectory)..\..\artifacts\libmpv\win-x64</LibMpvRuntimeDirectory>
-    <LibMpvRuntimeDll>$(LibMpvRuntimeDirectory)\libmpv-2.dll</LibMpvRuntimeDll>
-    <LibMpvRuntimeManifest>$(LibMpvRuntimeDirectory)\runtime-manifest.json</LibMpvRuntimeManifest>
   </PropertyGroup>
 
   <ItemGroup>
@@ -22,26 +19,4 @@
     <ProjectReference Include="..\Efiron.Application\Efiron.Application.csproj" />
     <ProjectReference Include="..\Efiron.Domain\Efiron.Domain.csproj" />
   </ItemGroup>
-
-  <Target
-      Name="PrepareLibMpvRuntime"
-      BeforeTargets="PrepareForBuild;GetCopyToOutputDirectoryItems">
-    <Exec
-        Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\..\scripts\prepare-libmpv-runtime.ps1&quot; -OutputDirectory &quot;$(LibMpvRuntimeDirectory)&quot;" />
-    <Error
-        Condition="!Exists('$(LibMpvRuntimeDll)')"
-        Text="Pinned libmpv runtime was not prepared: $(LibMpvRuntimeDll)" />
-    <ItemGroup>
-      <ContentWithTargetPath Include="$(LibMpvRuntimeDll)">
-        <TargetPath>libmpv-2.dll</TargetPath>
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-      </ContentWithTargetPath>
-      <ContentWithTargetPath Include="$(LibMpvRuntimeManifest)">
-        <TargetPath>libmpv-runtime-manifest.json</TargetPath>
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-      </ContentWithTargetPath>
-    </ItemGroup>
-  </Target>
 </Project>
