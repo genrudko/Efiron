@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading.Channels;
 using Efiron.Application.Playback;
 using Efiron.Domain.Playback;
 
@@ -27,6 +28,15 @@ public sealed class PlaybackDiagnosticsWriter : IAsyncDisposable
 
     private readonly string _directory;
     private readonly SemaphoreSlim _writeLock = new(1, 1);
+    private readonly Channel<bool> _recordRequests = Channel.CreateBounded<bool>(
+        new BoundedChannelOptions(1)
+        {
+            FullMode = BoundedChannelFullMode.DropOldest,
+            SingleReader = true,
+            SingleWriter = false,
+        });
+    private readonly CancellationTokenSource _lifetimeCancellation = new();
+    private readonly Task _requestLoopTask;
 
     private CancellationTokenSource? _samplingCancellation;
     private Task? _samplingTask;
@@ -40,6 +50,7 @@ public sealed class PlaybackDiagnosticsWriter : IAsyncDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(directory);
         _directory = directory;
         Directory.CreateDirectory(directory);
+        _requestLoopTask = RequestLoopAsync(_lifetimeCancellation.Token);
     }
 
     public void Attach(IPlaybackBackend backend)
@@ -48,7 +59,7 @@ public sealed class PlaybackDiagnosticsWriter : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(backend);
 
         _samplingCancellation?.Cancel();
-        _backend = backend;
+        Volatile.Write(ref _backend, backend);
         _sessionPath = Path.Combine(
             _directory,
             $"playback-session-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss-fff}.json");
@@ -57,12 +68,22 @@ public sealed class PlaybackDiagnosticsWriter : IAsyncDisposable
         _samplingTask = SampleLoopAsync(
             backend,
             _samplingCancellation.Token);
-        _ = RecordAsync(backend, final: false, CancellationToken.None);
+        RequestRecord();
+    }
+
+    public void RequestRecord()
+    {
+        if (_disposed || Volatile.Read(ref _backend) is null)
+        {
+            return;
+        }
+
+        _recordRequests.Writer.TryWrite(true);
     }
 
     public Task RecordNowAsync(CancellationToken cancellationToken = default)
     {
-        var backend = _backend;
+        var backend = Volatile.Read(ref _backend);
         return backend is null
             ? Task.CompletedTask
             : RecordAsync(backend, final: false, cancellationToken);
@@ -70,11 +91,10 @@ public sealed class PlaybackDiagnosticsWriter : IAsyncDisposable
 
     public async Task DetachAsync(CancellationToken cancellationToken = default)
     {
-        var backend = _backend;
+        var backend = Interlocked.Exchange(ref _backend, null);
         var samplingCancellation = _samplingCancellation;
         var samplingTask = _samplingTask;
 
-        _backend = null;
         _samplingCancellation = null;
         _samplingTask = null;
         samplingCancellation?.Cancel();
@@ -83,9 +103,10 @@ public sealed class PlaybackDiagnosticsWriter : IAsyncDisposable
         {
             try
             {
-                await samplingTask.ConfigureAwait(false);
+                await samplingTask.WaitAsync(cancellationToken).ConfigureAwait(false);
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (
+                samplingCancellation?.IsCancellationRequested == true)
             {
             }
         }
@@ -107,7 +128,32 @@ public sealed class PlaybackDiagnosticsWriter : IAsyncDisposable
 
         _disposed = true;
         await DetachAsync().ConfigureAwait(false);
+        _recordRequests.Writer.TryComplete();
+        _lifetimeCancellation.Cancel();
+        try
+        {
+            await _requestLoopTask.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+
+        _lifetimeCancellation.Dispose();
         _writeLock.Dispose();
+    }
+
+    private async Task RequestLoopAsync(CancellationToken cancellationToken)
+    {
+        await foreach (var _ in _recordRequests.Reader.ReadAllAsync(cancellationToken)
+                           .ConfigureAwait(false))
+        {
+            var backend = Volatile.Read(ref _backend);
+            if (backend is not null)
+            {
+                await RecordAsync(backend, final: false, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+        }
     }
 
     private async Task SampleLoopAsync(
@@ -118,8 +164,10 @@ public sealed class PlaybackDiagnosticsWriter : IAsyncDisposable
         while (await timer.WaitForNextTickAsync(cancellationToken)
                    .ConfigureAwait(false))
         {
-            await RecordAsync(backend, final: false, cancellationToken)
-                .ConfigureAwait(false);
+            if (ReferenceEquals(backend, Volatile.Read(ref _backend)))
+            {
+                RequestRecord();
+            }
         }
     }
 
