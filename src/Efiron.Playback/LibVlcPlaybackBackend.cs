@@ -9,17 +9,20 @@ public sealed class LibVlcPlaybackBackend : IPlaybackBackend
 {
     private static readonly PlaybackBackendCapabilities BackendCapabilities = new(
         ContainerMetadata: false,
-        CodecMetadata: false,
-        FrameStatistics: false,
-        InputBitrate: false,
-        Buffering: false,
-        HardwareDecodingStatus: false,
-        RendererMetadata: false,
+        CodecMetadata: true,
+        FrameStatistics: true,
+        InputBitrate: true,
+        Buffering: true,
+        HardwareDecodingStatus: true,
+        RendererMetadata: true,
         AudioTracks: false,
         SubtitleTracks: false,
         MediaPosition: true);
 
+    private readonly object _diagnosticsSync = new();
     private readonly LibVlcPlaybackSession _session;
+    private long? _previousDisplayedFrames;
+    private DateTimeOffset? _previousFrameSampledAtUtc;
 
     public LibVlcPlaybackBackend(
         InitializedEventArgs initialization,
@@ -46,24 +49,85 @@ public sealed class LibVlcPlaybackBackend : IPlaybackBackend
 
     public PlaybackBackendDiagnostics CaptureDiagnostics()
     {
+        var sample = _session.CaptureDiagnosticSnapshot();
+        var renderedFramesPerSecond = CalculateRenderedFramesPerSecond(sample);
+        var hardwareDecodingRequested = _session.Profile switch
+        {
+            LibVlcPlaybackProfile.D3D11Va or LibVlcPlaybackProfile.Dxva2 => true,
+            LibVlcPlaybackProfile.Software => false,
+            _ => null,
+        };
         var diagnostics = PlaybackBackendDiagnostics.Unsupported(
             Id,
             Version,
             SelectedProfile,
             Capabilities,
             _session.Snapshot,
-            _session.SessionDuration,
-            _session.MediaPosition,
-            hardwareDecodingRequested: _session.Profile != LibVlcPlaybackProfile.Software);
+            sample.SessionDuration,
+            sample.MediaPosition,
+            hardwareDecodingRequested);
+
         return diagnostics with
         {
-            StartupLatency = _session.StartupLatency,
-            TimeToFirstFrame = _session.StartupLatency,
-            VideoRenderer = _session.Profile == LibVlcPlaybackProfile.D3D11Va
-                ? "direct3d11 requested"
+            VideoCodec = sample.VideoCodec,
+            AudioCodec = sample.AudioCodec,
+            VideoWidth = sample.VideoWidth,
+            VideoHeight = sample.VideoHeight,
+            DeclaredFramesPerSecond = sample.DeclaredFramesPerSecond,
+            RenderedFramesPerSecond = renderedFramesPerSecond,
+            DisplayedFrames = sample.HasStatistics
+                ? sample.Statistics.DisplayedPictures
                 : null,
+            DroppedFrames = sample.HasStatistics
+                ? sample.Statistics.LostPictures
+                : null,
+            InputBitrateBitsPerSecond = sample.HasStatistics
+                ? PlaybackDiagnosticsMath.BytesPerMicrosecondToBitsPerSecond(
+                    sample.Statistics.InputBitrate)
+                : null,
+            BufferedPercentage = sample.BufferedPercentage,
+            RebufferCount = sample.RebufferCount,
+            Discontinuities = sample.HasStatistics
+                ? sample.Statistics.DemuxDiscontinuity
+                : null,
+            HardwareDecodingActive = sample.HardwareDecodingActive,
+            Decoder = sample.Decoder,
+            GraphicsDevice = sample.GraphicsDevice,
+            VideoRenderer = sample.VideoRenderer,
+            StartupLatency = sample.StartupLatency,
+            TimeToFirstFrame = sample.StartupLatency,
         };
     }
 
     public void Dispose() => _session.Dispose();
+
+    private double? CalculateRenderedFramesPerSecond(
+        LibVlcDiagnosticSnapshot sample)
+    {
+        lock (_diagnosticsSync)
+        {
+            if (!sample.HasStatistics)
+            {
+                _previousDisplayedFrames = null;
+                _previousFrameSampledAtUtc = null;
+                return null;
+            }
+
+            var displayedFrames = (long)sample.Statistics.DisplayedPictures;
+            double? rate = null;
+            if (_previousDisplayedFrames is { } previousFrames &&
+                _previousFrameSampledAtUtc is { } previousSampledAtUtc)
+            {
+                rate = PlaybackDiagnosticsMath.CalculateCounterRate(
+                    previousFrames,
+                    previousSampledAtUtc,
+                    displayedFrames,
+                    sample.SampledAtUtc);
+            }
+
+            _previousDisplayedFrames = displayedFrames;
+            _previousFrameSampledAtUtc = sample.SampledAtUtc;
+            return rate;
+        }
+    }
 }
