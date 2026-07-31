@@ -7,6 +7,8 @@ namespace Efiron.Desktop.Views;
 
 public sealed partial class ProgrammeGuideView
 {
+    private const int MaximumProjectionCacheDates = 2;
+
     private readonly Dictionary<DateOnly, EpgChannelRowItem[]> _projectionCache = [];
     private CancellationTokenSource? _programmeProjectionCancellation;
     private LiveCatalogSnapshot? _projectionCacheCatalog;
@@ -127,14 +129,15 @@ public sealed partial class ProgrammeGuideView
 
     private void TrimProjectionCache()
     {
-        if (_projectionCache.Count <= 5)
+        if (_projectionCache.Count <= MaximumProjectionCacheDates)
         {
             return;
         }
 
         var keysToRemove = _projectionCache.Keys
+            .Where(date => date != _selectedDate)
             .OrderByDescending(date => Math.Abs(date.DayNumber - _selectedDate.DayNumber))
-            .Take(_projectionCache.Count - 5)
+            .Take(_projectionCache.Count - MaximumProjectionCacheDates)
             .ToArray();
         foreach (var key in keysToRemove)
         {
@@ -180,6 +183,7 @@ public sealed partial class ProgrammeGuideView
             CatalogChannelCount = catalog.Channels.Count,
             ProjectedRowCount = rows.Count,
             ProgrammeBlockCount = rows.Sum(static row => row.Programmes.Count),
+            ProjectionCacheDateLimit = MaximumProjectionCacheDates,
             ProjectionMilliseconds = elapsed.TotalMilliseconds,
             RenderingArchitecture = "manual-two-axis-virtualization",
             RecordedAtUtc = DateTimeOffset.UtcNow,
