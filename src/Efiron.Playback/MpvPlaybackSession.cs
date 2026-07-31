@@ -214,7 +214,7 @@ public sealed class MpvPlaybackSession : IPlaybackSession
         var droppedByDecoder = MpvNative.GetInt64(
             _context,
             "decoder-frame-drop-count");
-        var dropped = droppedByVo is null && droppedByDecoder is null
+        long? dropped = droppedByVo is null && droppedByDecoder is null
             ? null
             : Math.Max(0, droppedByVo ?? 0) + Math.Max(0, droppedByDecoder ?? 0);
         var avSyncSeconds = MpvNative.GetDouble(_context, "avsync");
@@ -257,7 +257,6 @@ public sealed class MpvPlaybackSession : IPlaybackSession
             if (_eventThread.IsAlive &&
                 !_eventThread.Join(TimeSpan.FromSeconds(3)))
             {
-                // mpv_wait_event has a bounded timeout; destruction proceeds after it returns.
                 _eventThread.Join(TimeSpan.FromSeconds(1));
             }
         }
