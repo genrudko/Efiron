@@ -56,22 +56,59 @@ jobs:
             throw "mpv H264 fixture was not decoded."
           }
 
+      - name: Inventory mpv native runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $output = "tools/Efiron.MpvProbe/bin/Release/net10.0-windows10.0.22000.0/win-x64"
+          New-Item -ItemType Directory -Path mpv-artifacts -Force | Out-Null
+          Get-ChildItem $output -Recurse -File |
+            Select-Object Name,Length,FullName |
+            ConvertTo-Json -Depth 3 |
+            Set-Content mpv-artifacts/mpv-output-files.json -Encoding utf8
+
+          $nativeDlls = @(
+            Get-ChildItem $output -Recurse -File |
+              Where-Object { $_.Name -match '(?i)mpv.*\.dll$|libmpv.*\.dll$' }
+          )
+          $nativeDlls |
+            Select-Object Name,Length,FullName |
+            ConvertTo-Json -Depth 3 |
+            Set-Content mpv-artifacts/mpv-native-files.json -Encoding utf8
+          if ($nativeDlls.Count -eq 0) {
+            throw "The mpv probe output contains no native libmpv DLL."
+          }
+
+          $dumpbin = Get-ChildItem `
+            (Join-Path $env:ProgramFiles "Microsoft Visual Studio") `
+            -Recurse `
+            -File `
+            -Filter dumpbin.exe `
+            -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+          if ($dumpbin) {
+            foreach ($dll in $nativeDlls) {
+              & $dumpbin.FullName /DEPENDENTS $dll.FullName 2>&1 |
+                Out-File `
+                  (Join-Path mpv-artifacts "$($dll.Name)-dependents.txt") `
+                  -Encoding utf8
+            }
+          }
+
+          @{
+            HeadSha = "${{ github.event.pull_request.head.sha || github.sha }}"
+            NativeDllCount = $nativeDlls.Count
+            NativeDllNames = @($nativeDlls | ForEach-Object Name)
+          } | ConvertTo-Json |
+            Set-Content mpv-artifacts/mpv-package-runtime.json -Encoding utf8
+
       - name: Verify libmpv playback and composition swapchain
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           $PSNativeCommandUseErrorActionPreference = $true
-          $output = "tools/Efiron.MpvProbe/bin/Release/net10.0-windows10.0.22000.0/win-x64"
           $fixture = Join-Path $env:RUNNER_TEMP "efiron-mpv-fixture"
           $evidence = Join-Path $env:RUNNER_TEMP "mpv-runtime.json"
-          $nativeDlls = @(
-            Get-ChildItem $output -Recurse -File |
-              Where-Object { $_.Name -match '(?i)mpv.*\.dll$|libmpv.*\.dll$' }
-          )
-          if ($nativeDlls.Count -eq 0) {
-            throw "The mpv probe output contains no native libmpv DLL."
-          }
-
           $python = (Get-Command python -ErrorAction Stop).Source
           $server = Start-Process $python -ArgumentList @(
             "-m","http.server","18771","--bind","127.0.0.1","--directory",$fixture) `
@@ -99,18 +136,12 @@ jobs:
               throw "mpv runtime evidence is incomplete: $($result | ConvertTo-Json -Compress)"
             }
 
-            New-Item -ItemType Directory -Path mpv-artifacts -Force | Out-Null
             Copy-Item $evidence mpv-artifacts/ -Force
-            $nativeDlls |
-              Select-Object Name,Length,FullName |
-              ConvertTo-Json |
-              Set-Content mpv-artifacts/mpv-native-files.json -Encoding utf8
-            @{
-              HeadSha = "${{ github.event.pull_request.head.sha || github.sha }}"
-              NativeDllCount = $nativeDlls.Count
-              NativeDllNames = @($nativeDlls | ForEach-Object Name)
-            } | ConvertTo-Json |
-              Set-Content mpv-artifacts/mpv-package-runtime.json -Encoding utf8
+          }
+          catch {
+            $_ | Out-String |
+              Set-Content mpv-artifacts/mpv-runtime-error.txt -Encoding utf8
+            throw
           }
           finally {
             if ($server -and -not $server.HasExited) {
