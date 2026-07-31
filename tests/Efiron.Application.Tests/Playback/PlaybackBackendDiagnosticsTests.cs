@@ -52,6 +52,47 @@ public sealed class PlaybackBackendDiagnosticsTests
     }
 
     [Theory]
+    [InlineData(0d, 0d)]
+    [InlineData(2.5d, 20_000_000d)]
+    public void LibVlc_byte_rate_is_converted_to_bits_per_second(
+        double bytesPerMicrosecond,
+        double expectedBitsPerSecond)
+    {
+        Assert.Equal(
+            expectedBitsPerSecond,
+            PlaybackDiagnosticsMath.BytesPerMicrosecondToBitsPerSecond(
+                bytesPerMicrosecond));
+    }
+
+    [Fact]
+    public void Counter_rate_uses_elapsed_sample_time()
+    {
+        var start = new DateTimeOffset(2026, 7, 31, 12, 0, 0, TimeSpan.Zero);
+
+        var rate = PlaybackDiagnosticsMath.CalculateCounterRate(
+            previousValue: 100,
+            previousSampledAtUtc: start,
+            currentValue: 150,
+            currentSampledAtUtc: start.AddSeconds(2));
+
+        Assert.Equal(25d, rate);
+    }
+
+    [Fact]
+    public void Counter_reset_does_not_create_negative_rendered_fps()
+    {
+        var start = new DateTimeOffset(2026, 7, 31, 12, 0, 0, TimeSpan.Zero);
+
+        var rate = PlaybackDiagnosticsMath.CalculateCounterRate(
+            previousValue: 500,
+            previousSampledAtUtc: start,
+            currentValue: 2,
+            currentSampledAtUtc: start.AddSeconds(2));
+
+        Assert.Null(rate);
+    }
+
+    [Theory]
     [InlineData(PlaybackBackendId.Auto)]
     [InlineData(PlaybackBackendId.LibVlc)]
     [InlineData(PlaybackBackendId.WindowsMedia)]
