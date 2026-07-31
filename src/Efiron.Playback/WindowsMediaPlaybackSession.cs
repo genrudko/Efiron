@@ -70,15 +70,33 @@ public sealed class WindowsMediaPlaybackSession : IPlaybackSession
 
     public long BufferUnderruns => Interlocked.Read(ref _bufferUnderruns);
 
-    public int? NaturalVideoWidth =>
-        _currentSource is null
-            ? null
-            : checked((int)_mediaPlayer.PlaybackSession.NaturalVideoWidth);
+    public int? NaturalVideoWidth
+    {
+        get
+        {
+            if (_currentSource is null)
+            {
+                return null;
+            }
 
-    public int? NaturalVideoHeight =>
-        _currentSource is null
-            ? null
-            : checked((int)_mediaPlayer.PlaybackSession.NaturalVideoHeight);
+            var width = _mediaPlayer.PlaybackSession.NaturalVideoWidth;
+            return width == 0 ? null : checked((int)width);
+        }
+    }
+
+    public int? NaturalVideoHeight
+    {
+        get
+        {
+            if (_currentSource is null)
+            {
+                return null;
+            }
+
+            var height = _mediaPlayer.PlaybackSession.NaturalVideoHeight;
+            return height == 0 ? null : checked((int)height);
+        }
+    }
 
     public ValueTask PlayAsync(
         PlaybackRequest request,
@@ -115,7 +133,7 @@ public sealed class WindowsMediaPlaybackSession : IPlaybackSession
             previousSource?.Dispose();
             return ValueTask.CompletedTask;
         }
-        catch
+        catch (Exception exception)
         {
             _sessionClock.Stop();
             _mediaPlayer.Source = null;
@@ -126,7 +144,9 @@ public sealed class WindowsMediaPlaybackSession : IPlaybackSession
                 State = PlaybackState.Failed,
                 Volume = _requestedVolume,
                 IsMuted = _requestedMuted,
-                ErrorMessage = "Windows Media rejected the playback request.",
+                ErrorMessage = DescribeException(
+                    "Windows Media rejected the playback request",
+                    exception),
             });
             throw;
         }
@@ -282,9 +302,7 @@ public sealed class WindowsMediaPlaybackSession : IPlaybackSession
             State = PlaybackState.Failed,
             Volume = _requestedVolume,
             IsMuted = _requestedMuted,
-            ErrorMessage = string.IsNullOrWhiteSpace(args.ErrorMessage)
-                ? args.ExtendedErrorCode.Message
-                : args.ErrorMessage,
+            ErrorMessage = DescribeMediaFailure(args),
         });
     }
 
@@ -292,13 +310,14 @@ public sealed class WindowsMediaPlaybackSession : IPlaybackSession
         MediaPlaybackSession sender,
         object args)
     {
+        var current = Snapshot;
         var state = sender.PlaybackState switch
         {
             MediaPlaybackState.Opening or MediaPlaybackState.Buffering =>
                 PlaybackState.Opening,
             MediaPlaybackState.Playing => PlaybackState.Playing,
             MediaPlaybackState.Paused => PlaybackState.Paused,
-            _ => Snapshot.State,
+            _ => current.State,
         };
 
         if (state == PlaybackState.Playing)
@@ -308,12 +327,14 @@ public sealed class WindowsMediaPlaybackSession : IPlaybackSession
             ApplyRequestedAudioState();
         }
 
-        Publish(Snapshot with
+        Publish(current with
         {
             State = state,
             Volume = _requestedVolume,
             IsMuted = _requestedMuted,
-            ErrorMessage = null,
+            ErrorMessage = state == PlaybackState.Failed
+                ? current.ErrorMessage
+                : null,
         });
     }
 
@@ -340,6 +361,27 @@ public sealed class WindowsMediaPlaybackSession : IPlaybackSession
         {
             _mediaPlayer.IsMuted = _requestedMuted;
         }
+    }
+
+    private static string DescribeMediaFailure(MediaPlayerFailedEventArgs args)
+    {
+        var error = args.ExtendedErrorCode;
+        var detail = !string.IsNullOrWhiteSpace(args.ErrorMessage)
+            ? args.ErrorMessage.Trim()
+            : !string.IsNullOrWhiteSpace(error?.Message)
+                ? error.Message.Trim()
+                : "Windows Media could not open the stream";
+        var hresult = error?.HResult ?? 0;
+        return $"{detail} (HRESULT 0x{unchecked((uint)hresult):X8}).";
+    }
+
+    private static string DescribeException(string context, Exception exception)
+    {
+        var detail = string.IsNullOrWhiteSpace(exception.Message)
+            ? exception.GetType().Name
+            : exception.Message.Trim();
+        return $"{context}: {detail} " +
+            $"(HRESULT 0x{unchecked((uint)exception.HResult):X8}).";
     }
 
     private void Publish(PlaybackSnapshot snapshot)
