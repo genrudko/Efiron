@@ -1,3 +1,4 @@
+using Efiron.Playback;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 
@@ -68,7 +69,22 @@ public sealed partial class LiveTvView
 
     private void ApplyVideoGeometry()
     {
-        if (_playbackSession is null)
+        if (_playbackBackend is WindowsMediaPlaybackBackend)
+        {
+            if (_windowsMediaSurface is not null)
+            {
+                _windowsMediaSurface.Stretch = _isFullscreen
+                    ? Stretch.UniformToFill
+                    : Stretch.Uniform;
+            }
+
+            _appliedVideoCropGeometry = _isFullscreen
+                ? "WindowsMedia:UniformToFill"
+                : null;
+            return;
+        }
+
+        if (_playbackBackend is not LibVlcPlaybackBackend libVlc)
         {
             return;
         }
@@ -77,9 +93,9 @@ public sealed partial class LiveTvView
         {
             if (_appliedVideoCropGeometry is not null)
             {
-                _playbackSession.MediaPlayer.CropGeometry = null;
-                _playbackSession.MediaPlayer.AspectRatio = null;
-                _playbackSession.MediaPlayer.Scale = 0;
+                libVlc.MediaPlayer.CropGeometry = null;
+                libVlc.MediaPlayer.AspectRatio = null;
+                libVlc.MediaPlayer.Scale = 0;
                 _appliedVideoCropGeometry = null;
             }
 
@@ -103,9 +119,9 @@ public sealed partial class LiveTvView
             return;
         }
 
-        _playbackSession.MediaPlayer.AspectRatio = null;
-        _playbackSession.MediaPlayer.Scale = 0;
-        _playbackSession.MediaPlayer.CropGeometry = geometry;
+        libVlc.MediaPlayer.AspectRatio = null;
+        libVlc.MediaPlayer.Scale = 0;
+        libVlc.MediaPlayer.CropGeometry = geometry;
         _appliedVideoCropGeometry = geometry;
     }
 
