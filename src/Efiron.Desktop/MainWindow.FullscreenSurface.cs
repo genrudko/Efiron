@@ -44,6 +44,8 @@ public sealed partial class MainWindow
     private bool? _fullscreenWindowSurfaceApplied;
     private bool _fullscreenFinalizeQueued;
     private int _fullscreenFinalizeRemaining;
+    private bool _windowedFinalizeQueued;
+    private int _windowedFinalizeRemaining;
     private Brush? _normalWindowRootBackground;
     private Brush? _normalShellRootBackground;
     private nint _normalWindowStyle;
@@ -92,8 +94,7 @@ public sealed partial class MainWindow
         }
         else
         {
-            CaptureNormalWindowFrame(
-                WinRT.Interop.WindowNative.GetWindowHandle(this));
+            QueueWindowedWindowFinalize();
         }
     }
 
@@ -116,6 +117,7 @@ public sealed partial class MainWindow
         var windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(this);
         if (_isFullscreen)
         {
+            _windowedFinalizeRemaining = 0;
             EnterNativePopupFullscreen(windowHandle);
             _fullscreenFinalizeRemaining = 2;
             QueueFullscreenWindowFinalize();
@@ -124,12 +126,15 @@ public sealed partial class MainWindow
         {
             _fullscreenFinalizeRemaining = 0;
             ExitNativePopupFullscreen(windowHandle);
+            RestoreCustomTitleBarContract();
+            _windowedFinalizeRemaining = 3;
+            QueueWindowedWindowFinalize();
         }
     }
 
     private void CaptureNormalWindowFrame(nint windowHandle)
     {
-        if (_isFullscreen)
+        if (_isFullscreen || _normalWindowStyleCaptured)
         {
             return;
         }
@@ -206,7 +211,23 @@ public sealed partial class MainWindow
             SwpNoZOrder |
             SwpNoActivate |
             SwpNoOwnerZOrder |
-            SwpFrameChanged);
+            SwpFrameChanged |
+            SwpShowWindow);
+    }
+
+    private void RestoreCustomTitleBarContract()
+    {
+        if (_isFullscreen)
+        {
+            return;
+        }
+
+        TitleBarDragRegion.Visibility = Visibility.Visible;
+        ExtendsContentIntoTitleBar = false;
+        SetTitleBar(null);
+        ExtendsContentIntoTitleBar = true;
+        SetTitleBar(TitleBarDragRegion);
+        ApplyTitleBarContrast();
     }
 
     private static void SetWindowStyleIfDifferent(
@@ -303,6 +324,35 @@ public sealed partial class MainWindow
                     WinRT.Interop.WindowNative.GetWindowHandle(this);
                 EnterNativePopupFullscreen(windowHandle);
                 QueueFullscreenWindowFinalize();
+            });
+    }
+
+    private void QueueWindowedWindowFinalize()
+    {
+        if (_windowedFinalizeQueued ||
+            _isFullscreen ||
+            _windowedFinalizeRemaining <= 0)
+        {
+            return;
+        }
+
+        _windowedFinalizeQueued = true;
+        DispatcherQueue.TryEnqueue(
+            DispatcherQueuePriority.Low,
+            () =>
+            {
+                _windowedFinalizeQueued = false;
+                if (_isFullscreen)
+                {
+                    return;
+                }
+
+                _windowedFinalizeRemaining--;
+                var windowHandle =
+                    WinRT.Interop.WindowNative.GetWindowHandle(this);
+                ExitNativePopupFullscreen(windowHandle);
+                RestoreCustomTitleBarContract();
+                QueueWindowedWindowFinalize();
             });
     }
 
