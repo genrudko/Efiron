@@ -107,6 +107,16 @@ public sealed partial class ProgrammeGuideView
                 verticalProgramme.ChannelStableId,
                 StringComparison.Ordinal);
 
+        var verticalScrollBarVisible =
+            EpgVerticalScrollBar.Visibility == Microsoft.UI.Xaml.Visibility.Visible &&
+            EpgVerticalScrollBar.Opacity >= 0.99;
+        var verticalScrollBarInteractive =
+            EpgVerticalScrollBar.IsEnabled &&
+            EpgVerticalScrollBar.IsHitTestVisible &&
+            EpgVerticalScrollBar.Width >= 14;
+        var verticalScrollBarValueTracksOffset =
+            Math.Abs(EpgVerticalScrollBar.Value - _verticalOffset) < 1;
+        var verticalScrollBarDragChanged = false;
         var verticalScrollChanged = false;
         var rapidScrollCompleted = false;
         var rapidScrollSamples = 0;
@@ -120,6 +130,17 @@ public sealed partial class ProgrammeGuideView
         {
             var oldVerticalOffset = _verticalOffset;
             var maximum = EpgVerticalScrollBar.Maximum;
+            var dragTarget = maximum * 0.42;
+            EpgVerticalScrollBar.Value = dragTarget;
+            await Task.Delay(140, cancellationToken);
+            verticalScrollBarDragChanged =
+                maximum > RowHeight * 20 &&
+                Math.Abs(_verticalOffset - dragTarget) < 1;
+            verticalScrollBarValueTracksOffset =
+                Math.Abs(EpgVerticalScrollBar.Value - _verticalOffset) < 1;
+            SetVerticalOffset(0);
+            await Task.Delay(90, cancellationToken);
+
             var offsets = new[]
             {
                 0d,
@@ -144,8 +165,12 @@ public sealed partial class ProgrammeGuideView
 
             verticalScrollChanged =
                 maximum > RowHeight * 20 &&
+                verticalScrollBarDragChanged &&
                 offsets.Any(offset => offset > oldVerticalOffset + RowHeight);
             rapidScrollCompleted =
+                verticalScrollBarVisible &&
+                verticalScrollBarInteractive &&
+                verticalScrollBarValueTracksOffset &&
                 _verticalOffset <= RowHeight &&
                 rapidScrollSamples == offsets.Length &&
                 maxRealizedRowsDuringScroll > 0 &&
@@ -203,13 +228,19 @@ public sealed partial class ProgrammeGuideView
             _visibleRows.Count,
             stableContents,
             geometryValid,
-            true,
+            verticalScrollBarValueTracksOffset,
             directionalNavigationValid,
             CurrentTimeLine.Visibility == Microsoft.UI.Xaml.Visibility.Visible,
             _horizontalOffset,
             _verticalOffset,
             _pixelsPerMinute,
             EpgVerticalScrollBar.Maximum,
+            verticalScrollBarVisible,
+            verticalScrollBarInteractive,
+            EpgVerticalScrollBar.Width,
+            EpgVerticalScrollBar.ViewportSize,
+            verticalScrollBarValueTracksOffset,
+            verticalScrollBarDragChanged,
             "manual-two-axis-virtualization",
             isProviderScale,
             verticalScrollChanged,
@@ -289,6 +320,12 @@ public sealed partial class ProgrammeGuideView
         double VerticalOffset,
         double PixelsPerMinute,
         double VerticalScrollMaximum,
+        bool VerticalScrollBarVisible,
+        bool VerticalScrollBarInteractive,
+        double VerticalScrollBarWidth,
+        double VerticalScrollBarViewportSize,
+        bool VerticalScrollBarValueTracksOffset,
+        bool VerticalScrollBarDragChanged,
         string RenderingArchitecture,
         bool AllChannelsMode,
         bool VerticalScrollChanged,
