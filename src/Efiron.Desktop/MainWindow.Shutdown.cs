@@ -38,7 +38,10 @@ public sealed partial class MainWindow
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8));
         try
         {
-            await LiveTvWorkspace.DisposePlaybackAsync(timeout.Token);
+            if (_liveTvWorkspace is not null)
+            {
+                await _liveTvWorkspace.DisposePlaybackAsync(timeout.Token);
+            }
         }
         catch (OperationCanceledException) when (timeout.IsCancellationRequested)
         {
