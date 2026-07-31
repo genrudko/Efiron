@@ -4,7 +4,6 @@ using Efiron.Application.Live;
 using Efiron.Application.Playback;
 using Efiron.Desktop.Presentation;
 using Efiron.Domain.Playback;
-using Efiron.Playback;
 using LibVLCSharp.Platforms.Windows;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
@@ -22,9 +21,12 @@ public sealed partial class LiveTvView : UserControl
     private readonly List<LiveChannelItem> _allItems = [];
     private readonly ResourceLoader _resources;
 
-    private LibVlcPlaybackSession? _playbackSession;
+    private IPlaybackBackend? _playbackBackend;
+    private IPlaybackSession? _playbackSession;
+    private InitializedEventArgs? _libVlcInitialization;
     private LiveChannelItem? _selectedItem;
     private PlaybackRequest? _pendingPlaybackRequest;
+    private PlaybackRequest? _currentPlaybackRequest;
     private bool _isUpdatingCategory;
     private bool _isUpdatingVolume;
     private bool _isFullscreen;
@@ -38,6 +40,7 @@ public sealed partial class LiveTvView : UserControl
         ChannelListView.ItemsSource = _visibleItems;
         PlaybackStatusText.Text = _resources.GetString("PlaybackStatusReadyMessage");
         ChannelEmptyState.Visibility = Visibility.Visible;
+        InitializePlaybackBackendController();
     }
 
     public event EventHandler? BackRequested;
@@ -130,20 +133,11 @@ public sealed partial class LiveTvView : UserControl
         PlayerSurfaceBorder.CornerRadius = isFullscreen
             ? new CornerRadius(0)
             : new CornerRadius(16);
+        SetPlaybackBackendPanelFullscreen(isFullscreen);
     }
 
-    public void DisposePlayback()
-    {
-        if (_playbackSession is null)
-        {
-            return;
-        }
-
-        _playbackSession.SnapshotChanged -= PlaybackSession_SnapshotChanged;
-        VideoView.MediaPlayer = null;
-        _playbackSession.Dispose();
-        _playbackSession = null;
-    }
+    public void DisposePlayback() =>
+        DisposePlaybackBackendController();
 
     private void PopulateCategories()
     {
@@ -252,6 +246,7 @@ public sealed partial class LiveTvView : UserControl
             item.Snapshot.Channel.StableId,
             item.Name,
             item.Snapshot.Channel.PlaybackDirectives);
+        _currentPlaybackRequest = request;
         _pendingPlaybackRequest = request;
 
         if (_playbackSession is null)
@@ -317,23 +312,15 @@ public sealed partial class LiveTvView : UserControl
         object? sender,
         InitializedEventArgs e)
     {
-        if (_playbackSession is not null)
+        _libVlcInitialization = e;
+        if (_playbackBackend is not null)
         {
             return;
         }
 
         try
         {
-            _playbackSession = new LibVlcPlaybackSession(e);
-            _playbackSession.SnapshotChanged += PlaybackSession_SnapshotChanged;
-            VideoView.MediaPlayer = _playbackSession.MediaPlayer;
-
-            if (_pendingPlaybackRequest is not null)
-            {
-                var request = _pendingPlaybackRequest;
-                _pendingPlaybackRequest = null;
-                await _playbackSession.PlayAsync(request);
-            }
+            await EnsurePlaybackBackendAsync();
         }
         catch (Exception exception) when (
             exception is not OperationCanceledException)
@@ -349,6 +336,7 @@ public sealed partial class LiveTvView : UserControl
         PlaybackSnapshotChangedEventArgs e)
     {
         PlaybackSnapshotChanged?.Invoke(this, e);
+        _ = _playbackDiagnosticsWriter.RecordNowAsync();
         DispatcherQueue.TryEnqueue(() => ApplyPlaybackSnapshot(e.Snapshot));
     }
 
