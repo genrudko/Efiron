@@ -83,10 +83,9 @@ public sealed class PlaybackDiagnosticsWriter : IAsyncDisposable
 
     public Task RecordNowAsync(CancellationToken cancellationToken = default)
     {
-        var backend = Volatile.Read(ref _backend);
-        return backend is null
-            ? Task.CompletedTask
-            : RecordAsync(backend, final: false, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        RequestRecord();
+        return Task.CompletedTask;
     }
 
     public async Task DetachAsync(CancellationToken cancellationToken = default)
