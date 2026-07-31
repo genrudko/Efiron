@@ -18,6 +18,7 @@ public sealed partial class ProgrammeGuideView
 
     private void ProgrammeGuideView_Loaded(object sender, RoutedEventArgs e)
     {
+        ConfigurePersistentScrollBars();
         _clockTimer ??= DispatcherQueue.CreateTimer();
         _clockTimer.Interval = TimeSpan.FromSeconds(30);
         _clockTimer.IsRepeating = true;
@@ -39,6 +40,7 @@ public sealed partial class ProgrammeGuideView
         FrameworkElement sender,
         object args)
     {
+        ConfigurePersistentScrollBars();
         EpgRowsCanvas.Children.Clear();
         _rowVisualPool.Clear();
         _realizedBandStart = -1;
@@ -159,6 +161,7 @@ public sealed partial class ProgrammeGuideView
                 EpgVerticalScrollBar.Maximum);
             _targetVerticalOffset = _verticalOffset;
             EpgVerticalScrollBar.Value = _verticalOffset;
+            UpdateVerticalScrollBarPresentation();
 
             EpgHorizontalScrollBar.Minimum = 0;
             EpgHorizontalScrollBar.Maximum = Math.Max(
@@ -180,6 +183,52 @@ public sealed partial class ProgrammeGuideView
 
         BuildTimelineHeader();
         UpdateCurrentTimeMarker();
+    }
+
+    private void ConfigurePersistentScrollBars()
+    {
+        EpgVerticalScrollBar.Width = 16;
+        EpgVerticalScrollBar.MinWidth = 16;
+        EpgVerticalScrollBar.Opacity = 1;
+        EpgVerticalScrollBar.IsTabStop = true;
+        EpgVerticalScrollBar.UseSystemFocusVisuals = true;
+        EpgVerticalScrollBar.Resources["ScrollBarTrackFill"] =
+            ResolveBrush("EfironSurfaceRaisedBrush");
+        EpgVerticalScrollBar.Resources["ScrollBarThumbFill"] =
+            ResolveBrush("EfironTextTertiaryBrush");
+        EpgVerticalScrollBar.Resources["ScrollBarThumbFillPointerOver"] =
+            ResolveBrush("EfironAccentBrush");
+        EpgVerticalScrollBar.Resources["ScrollBarThumbFillPressed"] =
+            ResolveBrush("EfironAccentBrush");
+        EpgVerticalScrollBar.Resources["ScrollBarPanningThumbFill"] =
+            ResolveBrush("EfironAccentBrush");
+        EpgVerticalScrollBar.Resources["ScrollBarMinimumThumbLength"] = 36d;
+
+        EpgHorizontalScrollBar.Opacity = 1;
+        EpgHorizontalScrollBar.Resources["ScrollBarTrackFill"] =
+            ResolveBrush("EfironSurfaceRaisedBrush");
+        EpgHorizontalScrollBar.Resources["ScrollBarThumbFill"] =
+            ResolveBrush("EfironTextTertiaryBrush");
+        EpgHorizontalScrollBar.Resources["ScrollBarThumbFillPointerOver"] =
+            ResolveBrush("EfironAccentBrush");
+        EpgHorizontalScrollBar.Resources["ScrollBarThumbFillPressed"] =
+            ResolveBrush("EfironAccentBrush");
+    }
+
+    private void UpdateVerticalScrollBarPresentation()
+    {
+        var canScroll = EpgVerticalScrollBar.Maximum > EpgVerticalScrollBar.Minimum;
+        EpgVerticalScrollBar.Visibility = canScroll
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        EpgVerticalScrollBar.IsEnabled = canScroll;
+        EpgVerticalScrollBar.IsHitTestVisible = canScroll;
+        EpgVerticalScrollBar.Opacity = canScroll ? 1 : 0;
+        if (EpgSurfaceGrid.ColumnDefinitions.Count > 2)
+        {
+            EpgSurfaceGrid.ColumnDefinitions[2].Width =
+                new GridLength(canScroll ? 18 : 0);
+        }
     }
 
     private void SetHorizontalOffset(double value)
