@@ -38,6 +38,7 @@ public sealed partial class MainWindow
             Visibility = Visibility.Collapsed,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch,
+            RequestedTheme = WindowRoot.RequestedTheme,
         };
         workspace.BackRequested += LiveTvWorkspace_BackRequested;
         workspace.FullscreenToggleRequested +=
@@ -71,6 +72,7 @@ public sealed partial class MainWindow
             Visibility = Visibility.Collapsed,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch,
+            RequestedTheme = WindowRoot.RequestedTheme,
         };
         workspace.PlayChannelRequested +=
             ProgrammeGuideWorkspace_PlayChannelRequested;
@@ -79,6 +81,19 @@ public sealed partial class MainWindow
         ProgrammeGuideWorkspaceHost.Content = workspace;
         ProgrammeGuideWorkspaceHost.Visibility = Visibility.Visible;
         return workspace;
+    }
+
+    private void ApplyThemeToLazyWorkspaces()
+    {
+        if (_liveTvWorkspace is not null)
+        {
+            _liveTvWorkspace.RequestedTheme = WindowRoot.RequestedTheme;
+        }
+
+        if (_programmeGuideWorkspace is not null)
+        {
+            _programmeGuideWorkspace.RequestedTheme = WindowRoot.RequestedTheme;
+        }
     }
 
     private static void ConfigureWorkspaceHost(ContentControl host)
