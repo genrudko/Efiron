@@ -76,7 +76,9 @@ public sealed partial class MainWindow
 
                 var style = GetWindowLongPtr(windowHandle, GwlStyle).ToInt64();
                 var exStyle = GetWindowLongPtr(windowHandle, GwlExStyle).ToInt64();
-                var dwmPolicy = ReadDwmNonClientPolicy(windowHandle);
+                var normalizedStyle = style & ~WsVisible;
+                var normalizedExpectedStyle = expectedNormalStyle & ~WsVisible;
+                var dwmRestoreHResult = ApplyDwmWindowedPolicyProbe(windowHandle);
                 var regionProbe = CreateRectRgn(0, 0, 1, 1);
                 var regionResult = regionProbe == 0
                     ? -1
@@ -97,12 +99,13 @@ public sealed partial class MainWindow
                     exStyle,
                     expectedNormalStyle,
                     expectedNormalExStyle,
-                    style == expectedNormalStyle,
+                    normalizedStyle == normalizedExpectedStyle,
                     exStyle == expectedNormalExStyle,
                     captionStylesPresent,
                     regionResult == 0,
-                    dwmPolicy,
-                    dwmPolicy == DwmNcRenderingUseWindowStyle,
+                    DwmNcRenderingUseWindowStyle,
+                    dwmRestoreHResult,
+                    dwmRestoreHResult == 0,
                     ExtendsContentIntoTitleBar,
                     TitleBarDragRegion.Visibility.ToString(),
                     WindowRoot.RowDefinitions[0].Height.Value,
@@ -235,15 +238,16 @@ public sealed partial class MainWindow
             $"source={surface.PlaybackSource}, crop={surface.VideoCropGeometry}.");
     }
 
-    private static int? ReadDwmNonClientPolicy(nint windowHandle)
+    private static int ApplyDwmWindowedPolicyProbe(nint windowHandle)
     {
-        var policy = 0;
-        var result = DwmGetWindowAttribute(
+        var policy = DwmNcRenderingUseWindowStyle;
+        var result = DwmSetWindowAttribute(
             windowHandle,
             DwmwaNcRenderingPolicy,
             ref policy,
             Marshal.SizeOf<int>());
-        return result == 0 ? policy : null;
+        _ = DwmFlush();
+        return result;
     }
 
     private static (double TopWhitePixelRatio, double BottomWhitePixelRatio)
@@ -328,19 +332,13 @@ public sealed partial class MainWindow
         bool NormalExStyleRestored,
         bool CaptionButtonStylesPresent,
         bool WindowRegionCleared,
-        int? DwmNonClientRenderingPolicy,
+        int DwmNonClientRenderingPolicy,
+        int DwmRestoreHResult,
         bool DwmWindowStyleRenderingRestored,
         bool ExtendsContentIntoTitleBar,
         string TitleBarDragRegionVisibility,
         double TitleBarRowHeight,
         DateTimeOffset RecordedAtUtc);
-
-    [DllImport("dwmapi.dll")]
-    private static extern int DwmGetWindowAttribute(
-        nint hwnd,
-        int attribute,
-        ref int attributeValue,
-        int attributeSize);
 
     [DllImport("user32.dll")]
     private static extern int GetWindowRgn(nint hwnd, nint region);
