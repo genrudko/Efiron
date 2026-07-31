@@ -118,6 +118,26 @@ try {
             "bottom=$($evidence.BottomWhitePixelRatio)")
     }
 
+    $cycles = @($evidence.WindowedCycles)
+    if ($cycles.Count -ne 3) {
+        throw "Expected three fullscreen/windowed cycles, got $($cycles.Count)."
+    }
+    foreach ($cycle in $cycles) {
+        if ($cycle.PresenterKind -ne "Overlapped" -or
+            -not [bool]$cycle.NormalStyleRestored -or
+            -not [bool]$cycle.NormalExStyleRestored -or
+            -not [bool]$cycle.CaptionButtonStylesPresent -or
+            -not [bool]$cycle.WindowRegionCleared -or
+            -not [bool]$cycle.DwmWindowStyleRenderingRestored -or
+            -not [bool]$cycle.ExtendsContentIntoTitleBar -or
+            $cycle.TitleBarDragRegionVisibility -ne "Visible" -or
+            [double]$cycle.TitleBarRowHeight -le 0) {
+            throw (
+                "Window chrome cycle $($cycle.Cycle) failed: " +
+                ($cycle | ConvertTo-Json -Compress))
+        }
+    }
+
     Start-Sleep -Seconds 2
     Add-Type -AssemblyName System.Drawing
     Add-Type -AssemblyName System.Windows.Forms
@@ -193,6 +213,7 @@ try {
             LowerContentRatio = $lowerContentRatio
             PlaybackState = [string]$evidence.Surface.PlaybackState
             CropGeometry = [string]$evidence.Surface.VideoCropGeometry
+            WindowedCycleCount = $cycles.Count
         } | ConvertTo-Json |
             Set-Content $desktopEvidencePath -Encoding utf8
     }
