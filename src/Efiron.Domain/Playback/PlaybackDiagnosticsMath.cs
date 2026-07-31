@@ -7,7 +7,7 @@ public static class PlaybackDiagnosticsMath
 
     public static double? BytesPerMicrosecondToBitsPerSecond(double value)
     {
-        if (!double.IsFinite(value) || value <= 0)
+        if (!double.IsFinite(value) || value < 0)
         {
             return null;
         }
