@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 using Microsoft.UI.Dispatching;
-using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 
@@ -48,48 +47,16 @@ public sealed partial class MainWindow
         _normalWindowStyle = GetWindowLongPtr(windowHandle, GwlStyle);
         _normalWindowStyleCaptured = _normalWindowStyle != 0;
 
-        ShellRoot.LayoutUpdated += FullscreenWindowSurface_LayoutUpdated;
-        AppWindow.Changed += FullscreenWindowSurface_AppWindowChanged;
+        // Native frame mutation is deliberately not performed here. Calling
+        // SWP_FRAMECHANGED before the first useful paint can create an
+        // AppWindow/non-client recalculation loop on a real Windows desktop.
         Closed += FullscreenWindowSurface_Closed;
-        ApplyFullscreenWindowSurfaceState(force: true);
-    }
-
-    private void FullscreenWindowSurface_LayoutUpdated(object? sender, object e) =>
-        ApplyFullscreenWindowSurfaceState(force: false);
-
-    private void FullscreenWindowSurface_AppWindowChanged(
-        AppWindow sender,
-        AppWindowChangedEventArgs args)
-    {
-        if (!args.DidPresenterChange && !args.DidSizeChange)
-        {
-            return;
-        }
-
-        ApplyFullscreenWindowSurfaceState(force: true);
-        QueueFullscreenWindowSurfaceReapply();
-    }
-
-    private void QueueFullscreenWindowSurfaceReapply()
-    {
-        if (_fullscreenWindowSurfaceReapplyQueued)
-        {
-            return;
-        }
-
-        _fullscreenWindowSurfaceReapplyQueued = true;
-        DispatcherQueue.TryEnqueue(
-            DispatcherQueuePriority.Low,
-            () =>
-            {
-                _fullscreenWindowSurfaceReapplyQueued = false;
-                ApplyFullscreenWindowSurfaceState(force: true);
-            });
     }
 
     private void ApplyFullscreenWindowSurfaceState(bool force)
     {
-        if (!force && _fullscreenWindowSurfaceApplied == _isFullscreen)
+        if (!_fullscreenWindowSurfaceFixEnabled ||
+            (!force && _fullscreenWindowSurfaceApplied == _isFullscreen))
         {
             return;
         }
@@ -107,6 +74,26 @@ public sealed partial class MainWindow
         ApplyDwmBorderState(windowHandle);
     }
 
+    private void QueueFullscreenWindowSurfaceReapply(bool expectedFullscreenState)
+    {
+        if (_fullscreenWindowSurfaceReapplyQueued)
+        {
+            return;
+        }
+
+        _fullscreenWindowSurfaceReapplyQueued = true;
+        DispatcherQueue.TryEnqueue(
+            DispatcherQueuePriority.Normal,
+            () =>
+            {
+                _fullscreenWindowSurfaceReapplyQueued = false;
+                if (_isFullscreen == expectedFullscreenState)
+                {
+                    ApplyFullscreenWindowSurfaceState(force: true);
+                }
+            });
+    }
+
     private void ApplyNativeWindowFrameState(nint windowHandle)
     {
         var currentStyle = GetWindowLongPtr(windowHandle, GwlStyle).ToInt64();
@@ -116,11 +103,15 @@ public sealed partial class MainWindow
                 ? _normalWindowStyle.ToInt64()
                 : currentStyle;
 
-        if (requestedStyle != currentStyle)
+        // SWP_FRAMECHANGED is required only when the style actually changes.
+        // Reissuing it for an unchanged style can recursively retrigger native
+        // window notifications and starve the XAML compositor.
+        if (requestedStyle == currentStyle)
         {
-            _ = SetWindowLongPtr(windowHandle, GwlStyle, (nint)requestedStyle);
+            return;
         }
 
+        _ = SetWindowLongPtr(windowHandle, GwlStyle, (nint)requestedStyle);
         _ = SetWindowPos(
             windowHandle,
             0,
@@ -169,8 +160,6 @@ public sealed partial class MainWindow
         object sender,
         WindowEventArgs args)
     {
-        ShellRoot.LayoutUpdated -= FullscreenWindowSurface_LayoutUpdated;
-        AppWindow.Changed -= FullscreenWindowSurface_AppWindowChanged;
         Closed -= FullscreenWindowSurface_Closed;
     }
 
