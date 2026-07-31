@@ -134,8 +134,11 @@ public sealed partial class ProgrammeGuideView
 
         _persistentVerticalScrollRail.Background =
             ResolveBrush("EfironSurfaceRaisedBrush");
-        _persistentVerticalScrollThumb.Background =
-            ResolveBrush("EfironTextTertiaryBrush");
+        if (!_persistentVerticalScrollDragging)
+        {
+            _persistentVerticalScrollThumb.Background =
+                ResolveBrush("EfironTextTertiaryBrush");
+        }
 
         var trackHeight = Math.Max(
             0,
@@ -161,7 +164,8 @@ public sealed partial class ProgrammeGuideView
                 1);
         var thumbTop = travel * normalized;
 
-        if (Math.Abs(_persistentVerticalScrollThumb.Height - thumbHeight) > 0.1)
+        if (double.IsNaN(_persistentVerticalScrollThumb.Height) ||
+            Math.Abs(_persistentVerticalScrollThumb.Height - thumbHeight) > 0.1)
         {
             _persistentVerticalScrollThumb.Height = thumbHeight;
         }
@@ -278,14 +282,14 @@ public sealed partial class ProgrammeGuideView
             return;
         }
 
-        EndPersistentVerticalScrollDrag(e.Pointer);
+        EndPersistentVerticalScrollDrag();
         e.Handled = true;
     }
 
     private void PersistentVerticalScrollThumb_PointerCanceled(
         object sender,
         PointerRoutedEventArgs e) =>
-        EndPersistentVerticalScrollDrag(e.Pointer);
+        EndPersistentVerticalScrollDrag();
 
     private void PersistentVerticalScrollThumb_PointerCaptureLost(
         object sender,
@@ -320,27 +324,9 @@ public sealed partial class ProgrammeGuideView
         }
     }
 
-    private void EndPersistentVerticalScrollDrag(
-        Microsoft.UI.Input.PointerPoint? unused)
+    private void EndPersistentVerticalScrollDrag()
     {
-        if (_persistentVerticalScrollThumb is not null)
-        {
-            _persistentVerticalScrollThumb.ReleasePointerCaptures();
-        }
-
-        _persistentVerticalScrollDragging = false;
-        _persistentVerticalScrollPointerId = 0;
-        UpdatePersistentVerticalScrollBar();
-    }
-
-    private void EndPersistentVerticalScrollDrag(
-        Microsoft.UI.Input.Pointer? pointer)
-    {
-        if (_persistentVerticalScrollThumb is not null && pointer is not null)
-        {
-            _persistentVerticalScrollThumb.ReleasePointerCapture(pointer);
-        }
-
+        _persistentVerticalScrollThumb?.ReleasePointerCaptures();
         _persistentVerticalScrollDragging = false;
         _persistentVerticalScrollPointerId = 0;
         UpdatePersistentVerticalScrollBar();
