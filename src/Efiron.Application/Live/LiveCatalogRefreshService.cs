@@ -31,8 +31,9 @@ public sealed class LiveCatalogRefreshService(
         }
 
         var playlistPayload = await sourceContentLoader.LoadAsync(
-            playlistSource,
-            cancellationToken);
+                playlistSource,
+                cancellationToken)
+            .ConfigureAwait(false);
         var playlistContent = DecodePlaylist(playlistPayload.Content);
         var playlist = playlistParser.Parse(
             playlistContent,
@@ -42,8 +43,9 @@ public sealed class LiveCatalogRefreshService(
         if (configuration.ProgrammeGuide is { IsEnabled: true } guideSource)
         {
             var guidePayload = await sourceContentLoader.LoadAsync(
-                guideSource,
-                cancellationToken);
+                    guideSource,
+                    cancellationToken)
+                .ConfigureAwait(false);
             guide = programmeGuideParser.Parse(guidePayload.Content);
         }
 
