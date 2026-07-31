@@ -15,6 +15,7 @@ public sealed partial class MainWindow
     private const int DwmNcRenderingUseWindowStyle = 0;
     private const int DwmNcRenderingDisabled = 1;
     private const int DwmColorDefault = unchecked((int)0xFFFFFFFF);
+    private const int DwmColorNone = unchecked((int)0xFFFFFFFE);
     private const int DwmColorBlack = 0;
     private const int DwmWindowCornerDefault = 0;
     private const int DwmWindowCornerDoNotRound = 1;
@@ -312,6 +313,19 @@ public sealed partial class MainWindow
             current.Bottom != info.Monitor.Bottom;
         if (!needsMove)
         {
+            _ = SetWindowPos(
+                windowHandle,
+                0,
+                0,
+                0,
+                0,
+                0,
+                SwpNoSize |
+                SwpNoMove |
+                SwpNoZOrder |
+                SwpNoActivate |
+                SwpNoOwnerZOrder |
+                SwpFrameChanged);
             return;
         }
 
@@ -365,7 +379,7 @@ public sealed partial class MainWindow
             ? DwmNcRenderingDisabled
             : DwmNcRenderingUseWindowStyle;
         var borderColor = fullscreen
-            ? DwmColorBlack
+            ? DwmColorNone
             : DwmColorDefault;
         var captionColor = fullscreen
             ? DwmColorBlack
