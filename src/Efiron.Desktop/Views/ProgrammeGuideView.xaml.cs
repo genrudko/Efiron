@@ -355,9 +355,21 @@ public sealed partial class ProgrammeGuideView : UserControl
     private static string FormatZoom(double pixelsPerMinute) =>
         $"{pixelsPerMinute:0.0}×";
 
-    private static Brush ResolveBrush(string key) =>
-        Microsoft.UI.Xaml.Application.Current.Resources[key] as Brush ??
-        new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+    private Brush ResolveBrush(string key)
+    {
+        var resources = Microsoft.UI.Xaml.Application.Current.Resources;
+        var dictionaryKey = ProgrammeRoot.ActualTheme == ElementTheme.Light
+            ? "Light"
+            : "Default";
+        if (resources.ThemeDictionaries[dictionaryKey] is ResourceDictionary dictionary &&
+            dictionary[key] is Brush themeBrush)
+        {
+            return themeBrush;
+        }
+
+        return resources[key] as Brush ??
+            new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+    }
 
     private readonly record struct ProgrammeVisualKey(
         string ChannelStableId,
