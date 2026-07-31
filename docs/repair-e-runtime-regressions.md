@@ -2,9 +2,10 @@
 
 ## Status
 
-WIP on branch `rewrite/001-greenfield-desktop`, current documented exact head
-`8389f5cf38eacb598164895366432e1c5e6d6fa0`. No Windows candidate is approved
-from this repair yet.
+WIP on branch `rewrite/001-greenfield-desktop`, exact head at this checkpoint:
+`421821403799b6030a0f1a004348501ed5ff4abb`.
+
+No Windows candidate is approved from this repair yet.
 
 The Repair D candidate at exact head
 `36770234ae3b7a096c0ac7a9b616491abddf26ae` was rejected on a real Windows
@@ -57,7 +58,9 @@ The current WIP includes:
 - playlist/XMLTV parsing continuation moved off the UI context;
 - Live and EPG pages moved from eager XAML construction to lazy content hosts;
 - process-start-to-shell telemetry replacing the invalid type-initialization
-  stopwatch.
+  stopwatch;
+- one native fullscreen authority instead of a simultaneous WinUI fullscreen
+  presenter and native popup path.
 
 ## Repair E gates
 
