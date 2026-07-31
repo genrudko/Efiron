@@ -259,9 +259,44 @@ jobs:
           $stage = "candidate-package"
           Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
           Copy-Item $source $stage -Recurse
+
+          # Remove only satellite locale directories, never native runtime folders.
+          $allowedLocales = @("en-us", "ru-ru")
           Get-ChildItem $stage -Directory -ErrorAction SilentlyContinue |
-            Where-Object Name -NotIn @("en-US","ru-RU") |
+            Where-Object {
+              $_.Name -match '^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})+$' -and
+              $_.Name.ToLowerInvariant() -notin $allowedLocales
+            } |
             Remove-Item -Recurse -Force
+
+          $requiredPackageEntries = @(
+            "Efiron.exe",
+            "libvlc/win-x64/libvlc.dll",
+            "libvlc/win-x64/libvlccore.dll",
+            "libvlc/win-x64/plugins",
+            "en-US",
+            "ru-RU"
+          )
+          foreach ($entry in $requiredPackageEntries) {
+            if (-not (Test-Path (Join-Path $stage $entry))) {
+              throw "Candidate package is missing required entry: $entry"
+            }
+          }
+
+          $pluginCount = @(
+            Get-ChildItem (Join-Path $stage "libvlc/win-x64/plugins") -Recurse -File
+          ).Count
+          if ($pluginCount -le 0) {
+            throw "Candidate package contains no LibVLC plugins."
+          }
+
+          $efironExeCount = @(
+            Get-ChildItem $stage -Recurse -File -Filter "Efiron.exe"
+          ).Count
+          if ($efironExeCount -ne 1) {
+            throw "Expected exactly one Efiron.exe, got $efironExeCount."
+          }
+
           @{
             product = "Efiron"
             platform = "Windows 11 x64"
@@ -271,8 +306,14 @@ jobs:
             headSha = "${{ github.event.pull_request.head.sha || github.sha }}"
             validationRefSha = "${{ github.sha }}"
             runId = "${{ github.run_id }}"
+            packageChecks = @{
+              efironExeCount = $efironExeCount
+              libVlcPluginCount = $pluginCount
+              nativeLibVlc = $true
+              locales = @("en-US", "ru-RU")
+            }
             builtAtUtc = [DateTimeOffset]::UtcNow.ToString("O")
-          } | ConvertTo-Json | Set-Content "$stage/candidate-manifest.json" -Encoding utf8
+          } | ConvertTo-Json -Depth 4 | Set-Content "$stage/candidate-manifest.json" -Encoding utf8
 
       - name: Upload candidate diagnostics
         if: steps.runtime.outcome != 'success'
