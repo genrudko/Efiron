@@ -1,5 +1,4 @@
 using System.Globalization;
-using Efiron.Desktop.Presentation;
 using Microsoft.UI.Text;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
@@ -42,6 +41,8 @@ public sealed partial class ProgrammeGuideView
     {
         EpgRowsCanvas.Children.Clear();
         _rowVisualPool.Clear();
+        _realizedBandStart = -1;
+        _realizedBandEnd = -1;
         BuildTimelineHeader();
         QueueViewportRender();
     }
@@ -156,6 +157,7 @@ public sealed partial class ProgrammeGuideView
                 _verticalOffset,
                 0,
                 EpgVerticalScrollBar.Maximum);
+            _targetVerticalOffset = _verticalOffset;
             EpgVerticalScrollBar.Value = _verticalOffset;
 
             EpgHorizontalScrollBar.Minimum = 0;
@@ -196,14 +198,16 @@ public sealed partial class ProgrammeGuideView
 
     private void SetVerticalOffset(double value)
     {
+        StopSmoothVerticalScroll();
         _verticalOffset = Math.Clamp(
             value,
             0,
             Math.Max(0, _visibleRows.Count * RowHeight - EpgRowsViewport.ActualHeight));
+        _targetVerticalOffset = _verticalOffset;
         _updatingScrollBars = true;
         EpgVerticalScrollBar.Value = _verticalOffset;
         _updatingScrollBars = false;
-        QueueViewportRender();
+        RenderSmoothVerticalViewport(forceRebind: false);
     }
 
     private void QueueViewportRender()
@@ -223,45 +227,8 @@ public sealed partial class ProgrammeGuideView
             });
     }
 
-    private void RenderViewport()
-    {
-        var width = EpgRowsViewport.ActualWidth;
-        var height = EpgRowsViewport.ActualHeight;
-        if (width <= 0 || height <= 0)
-        {
-            return;
-        }
-
-        _realizedProgrammeButtons.Clear();
-        var firstIndex = Math.Max(0, (int)Math.Floor(_verticalOffset / RowHeight));
-        var fractionalOffset = _verticalOffset - firstIndex * RowHeight;
-        var required = Math.Min(
-            Math.Max(0, _visibleRows.Count - firstIndex),
-            Math.Max(0, (int)Math.Ceiling(height / RowHeight) + 2));
-        EnsureRowVisualPool(required);
-
-        for (var poolIndex = 0; poolIndex < _rowVisualPool.Count; poolIndex++)
-        {
-            var visual = _rowVisualPool[poolIndex];
-            if (poolIndex >= required)
-            {
-                visual.Root.Visibility = Visibility.Collapsed;
-                continue;
-            }
-
-            var rowIndex = firstIndex + poolIndex;
-            var row = _visibleRows[rowIndex];
-            visual.Root.Visibility = Visibility.Visible;
-            visual.Root.Width = width;
-            visual.Root.Height = RowHeight;
-            Canvas.SetTop(visual.Root, poolIndex * RowHeight - fractionalOffset);
-            UpdateRowVisual(visual, row, rowIndex, width);
-        }
-
-        EpgRowsCanvas.Width = width;
-        EpgRowsCanvas.Height = height;
-        UpdateCurrentTimeMarker();
-    }
+    private void RenderViewport() =>
+        RenderSmoothVerticalViewport(forceRebind: true);
 
     private void EnsureRowVisualPool(int required)
     {
@@ -297,11 +264,15 @@ public sealed partial class ProgrammeGuideView
         object sender,
         RangeBaseValueChangedEventArgs e)
     {
-        if (!_updatingScrollBars)
+        if (_updatingScrollBars)
         {
-            _verticalOffset = e.NewValue;
-            QueueViewportRender();
+            return;
         }
+
+        StopSmoothVerticalScroll();
+        _verticalOffset = e.NewValue;
+        _targetVerticalOffset = e.NewValue;
+        RenderSmoothVerticalViewport(forceRebind: false);
     }
 
     private void EpgHorizontalScrollBar_ValueChanged(
