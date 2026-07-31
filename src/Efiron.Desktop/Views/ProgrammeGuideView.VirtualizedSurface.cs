@@ -19,6 +19,7 @@ public sealed partial class ProgrammeGuideView
     private void ProgrammeGuideView_Loaded(object sender, RoutedEventArgs e)
     {
         ConfigurePersistentScrollBars();
+        EnsurePersistentVerticalScrollBar();
         _clockTimer ??= DispatcherQueue.CreateTimer();
         _clockTimer.Interval = TimeSpan.FromSeconds(30);
         _clockTimer.IsRepeating = true;
@@ -181,6 +182,7 @@ public sealed partial class ProgrammeGuideView
             _updatingScrollBars = false;
         }
 
+        UpdatePersistentVerticalScrollBar();
         BuildTimelineHeader();
         UpdateCurrentTimeMarker();
     }
@@ -257,6 +259,7 @@ public sealed partial class ProgrammeGuideView
         EpgVerticalScrollBar.Value = _verticalOffset;
         _updatingScrollBars = false;
         RenderSmoothVerticalViewport(forceRebind: false);
+        UpdatePersistentVerticalScrollBar();
     }
 
     private void QueueViewportRender()
@@ -322,6 +325,7 @@ public sealed partial class ProgrammeGuideView
         _verticalOffset = e.NewValue;
         _targetVerticalOffset = e.NewValue;
         RenderSmoothVerticalViewport(forceRebind: false);
+        UpdatePersistentVerticalScrollBar();
     }
 
     private void EpgHorizontalScrollBar_ValueChanged(
