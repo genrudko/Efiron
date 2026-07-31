@@ -4,6 +4,14 @@ using Microsoft.UI.Xaml.Media.Imaging;
 
 namespace Efiron.Desktop.Presentation;
 
+public enum EpgLogoLoadState
+{
+    NotRequested,
+    Loading,
+    Loaded,
+    Failed,
+}
+
 public sealed record EpgChannelRowItem(
     int Number,
     LiveChannelSnapshot Snapshot,
@@ -19,6 +27,8 @@ public sealed record EpgChannelRowItem(
 
     public string Category => Snapshot.Channel.Category ?? string.Empty;
 
+    public EpgLogoLoadState LogoLoadState { get; private set; }
+
     public ImageSource? LogoUrl
     {
         get
@@ -32,23 +42,35 @@ public sealed record EpgChannelRowItem(
             _logoUrl = Snapshot.Channel.LogoUri is { } uri
                 ? new BitmapImage(uri)
                 : null;
+            LogoLoadState = _logoUrl is null
+                ? EpgLogoLoadState.Failed
+                : EpgLogoLoadState.NotRequested;
             return _logoUrl;
         }
     }
 
-    public string Initials
+    public void MarkLogoLoading(ImageSource source)
     {
-        get
+        if (ReferenceEquals(_logoUrl, source) &&
+            LogoLoadState is EpgLogoLoadState.NotRequested)
         {
-            var words = Name
-                .Split(' ', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-            if (words.Length == 0)
-            {
-                return "TV";
-            }
+            LogoLoadState = EpgLogoLoadState.Loading;
+        }
+    }
 
-            return string.Concat(words.Take(2).Select(static word =>
-                char.ToUpperInvariant(word[0])));
+    public void MarkLogoLoaded(ImageSource source)
+    {
+        if (ReferenceEquals(_logoUrl, source))
+        {
+            LogoLoadState = EpgLogoLoadState.Loaded;
+        }
+    }
+
+    public void MarkLogoFailed(ImageSource source)
+    {
+        if (ReferenceEquals(_logoUrl, source))
+        {
+            LogoLoadState = EpgLogoLoadState.Failed;
         }
     }
 }
