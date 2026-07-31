@@ -106,6 +106,9 @@ public sealed class GreenfieldBoundaryTests
         var repositoryRoot = FindRepositoryRoot();
         var desktopDirectory = Path.Combine(repositoryRoot, "src", "Efiron.Desktop");
         var shell = File.ReadAllText(Path.Combine(desktopDirectory, "MainWindow.xaml"));
+        var lazyWorkspaces = File.ReadAllText(Path.Combine(
+            desktopDirectory,
+            "MainWindow.LazyWorkspaces.cs"));
         var live = File.ReadAllText(Path.Combine(
             desktopDirectory,
             "Views",
@@ -137,7 +140,14 @@ public sealed class GreenfieldBoundaryTests
         Assert.Contains("x:Name=\"LiveNavigationButton\"", shell, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"ProgrammeNavigationButton\"", shell, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"SettingsNavigationButton\"", shell, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"ProgrammeGuideWorkspace\"", shell, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"LiveTvWorkspaceHost\"", shell, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ProgrammeGuideWorkspaceHost\"", shell, StringComparison.Ordinal);
+        Assert.DoesNotContain("<views:LiveTvView", shell, StringComparison.Ordinal);
+        Assert.DoesNotContain("<views:ProgrammeGuideView", shell, StringComparison.Ordinal);
+        Assert.Contains("new LiveTvView", lazyWorkspaces, StringComparison.Ordinal);
+        Assert.Contains("new ProgrammeGuideView", lazyWorkspaces, StringComparison.Ordinal);
+        Assert.Contains("EnsureLiveTvWorkspace", lazyWorkspaces, StringComparison.Ordinal);
+        Assert.Contains("EnsureProgrammeGuideWorkspace", lazyWorkspaces, StringComparison.Ordinal);
 
         Assert.Contains("x:Name=\"CategoryRailCard\"", live, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"ChannelBrowserCard\"", live, StringComparison.Ordinal);
