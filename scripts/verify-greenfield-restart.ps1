@@ -54,13 +54,6 @@ function Close-TestProcessGracefully {
         throw "$Description exited before the close verification with code $($Process.ExitCode)."
     }
 
-    $sampleLengthBeforeClose = if (Test-Path -LiteralPath $samplesPath) {
-        (Get-Item -LiteralPath $samplesPath).Length
-    }
-    else {
-        0
-    }
-
     if (-not $Process.CloseMainWindow()) {
         throw "$Description did not accept a real main-window close request."
     }
@@ -69,14 +62,21 @@ function Close-TestProcessGracefully {
         throw "$Description remained alive for more than 10 seconds after the main-window close request."
     }
 
-    Start-Sleep -Seconds 2
-    $sampleLengthAfterClose = if (Test-Path -LiteralPath $samplesPath) {
+    $sampleLengthAtExit = if (Test-Path -LiteralPath $samplesPath) {
         (Get-Item -LiteralPath $samplesPath).Length
     }
     else {
         0
     }
-    if ($sampleLengthAfterClose -ne $sampleLengthBeforeClose) {
+
+    Start-Sleep -Seconds 2
+    $sampleLengthAfterExit = if (Test-Path -LiteralPath $samplesPath) {
+        (Get-Item -LiteralPath $samplesPath).Length
+    }
+    else {
+        0
+    }
+    if ($sampleLengthAfterExit -ne $sampleLengthAtExit) {
         throw "$Description continued writing playback diagnostics after process exit."
     }
 }
