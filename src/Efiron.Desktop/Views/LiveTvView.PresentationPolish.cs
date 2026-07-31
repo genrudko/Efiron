@@ -38,7 +38,6 @@ public sealed partial class LiveTvView
 
         PlaybackSnapshotChanged += PresentationPolish_PlaybackSnapshotChanged;
         LiveRoot.SizeChanged += PresentationPolish_LiveRootSizeChanged;
-        LiveRoot.LayoutUpdated += PresentationPolish_LiveRootLayoutUpdated;
         LiveRoot.KeyDown += PresentationPolish_LiveRootKeyDown;
         CategoryRailListView.SelectionChanged +=
             PresentationPolish_CategoryRailSelectionChanged;
@@ -59,6 +58,7 @@ public sealed partial class LiveTvView
 
         ApplyCompactChannelWidth(LiveRoot.ActualWidth);
         ShowPlayerChrome(restartAutoHide: false);
+        TryStartInteractionEvidence();
     }
 
     private void ResolvePlayerChromeElements()
@@ -111,8 +111,6 @@ public sealed partial class LiveTvView
 
                 if (button.Content is FontIcon icon)
                 {
-                    // The player surface is always dark, regardless of the app theme.
-                    // Keep media glyphs readable when the surrounding app uses Light.
                     icon.Foreground = overlayForeground;
                 }
             }
@@ -120,11 +118,25 @@ public sealed partial class LiveTvView
             VolumeSlider.Foreground = overlayForeground;
         }
 
-        // Responsive layout must not turn the floating player controls back into
-        // a full-width information bar.
-        SelectedChannelPanel.Visibility = Visibility.Collapsed;
-        SelectedInfoColumn.Width = new GridLength(0);
-        VolumeColumn.Width = new GridLength(112);
+        SetIfChanged(SelectedChannelPanel, Visibility.Collapsed);
+        SetIfChanged(SelectedInfoColumn, new GridLength(0));
+        SetIfChanged(VolumeColumn, new GridLength(112));
+    }
+
+    private static void SetIfChanged(UIElement element, Visibility visibility)
+    {
+        if (element.Visibility != visibility)
+        {
+            element.Visibility = visibility;
+        }
+    }
+
+    private static void SetIfChanged(ColumnDefinition column, GridLength width)
+    {
+        if (column.Width != width)
+        {
+            column.Width = width;
+        }
     }
 
     private void PresentationPolish_PlaybackSnapshotChanged(
@@ -238,14 +250,9 @@ public sealed partial class LiveTvView
 
     private void PresentationPolish_LiveRootSizeChanged(
         object sender,
-        SizeChangedEventArgs e) =>
-        ApplyCompactChannelWidth(e.NewSize.Width);
-
-    private void PresentationPolish_LiveRootLayoutUpdated(
-        object? sender,
-        object e)
+        SizeChangedEventArgs e)
     {
-        ApplyCompactChannelWidth(LiveRoot.ActualWidth);
+        ApplyCompactChannelWidth(e.NewSize.Width);
         ConfigureFloatingPlayerControls();
         TryStartInteractionEvidence();
     }
@@ -435,9 +442,9 @@ public sealed partial class LiveTvView
     {
         if (!_isFullscreen && width is >= 620 and < 760)
         {
-            CategoryRailColumn.Width = new GridLength(292);
-            ChannelBrowserColumn.Width = new GridLength(1, GridUnitType.Star);
-            PlayerColumn.Width = new GridLength(0);
+            SetIfChanged(CategoryRailColumn, new GridLength(292));
+            SetIfChanged(ChannelBrowserColumn, new GridLength(1, GridUnitType.Star));
+            SetIfChanged(PlayerColumn, new GridLength(0));
         }
     }
 
