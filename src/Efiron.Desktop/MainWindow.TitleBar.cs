@@ -10,6 +10,7 @@ public sealed partial class MainWindow
 
     private void EnableTitleBarContrast()
     {
+        EnableGracefulShutdown();
         if (_titleBarContrastEnabled || !AppWindowTitleBar.IsCustomizationSupported())
         {
             return;
