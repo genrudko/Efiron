@@ -11,6 +11,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Endpne.LibMPV.Windows" />
     <PackageReference Include="LibVLCSharp.WinUI" />
     <PackageReference Include="VideoLAN.LibVLC.Windows" />
   </ItemGroup>
