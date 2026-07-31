@@ -417,7 +417,6 @@ public sealed partial class LiveTvView
             foreach (var width in new[] { 1400d, 1000d, 700d })
             {
                 ApplyResponsiveLayout(width, force: true);
-                await Task.Yield();
                 captures.Add(new LayoutCapture(
                     _appliedLayout?.ToString() ?? string.Empty,
                     Grid.GetColumn(CategoryRailCard),
@@ -430,6 +429,8 @@ public sealed partial class LiveTvView
             }
 
             ApplyResponsiveLayout(actualWidth, force: true);
+            await Task.Yield();
+
             var path = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "Efiron",
