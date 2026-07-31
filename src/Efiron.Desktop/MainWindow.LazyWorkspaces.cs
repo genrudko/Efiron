@@ -1,5 +1,6 @@
 using Efiron.Desktop.Views;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 
 namespace Efiron.Desktop;
 
@@ -31,9 +32,12 @@ public sealed partial class MainWindow
             return _liveTvWorkspace;
         }
 
+        ConfigureWorkspaceHost(LiveTvWorkspaceHost);
         var workspace = new LiveTvView
         {
             Visibility = Visibility.Collapsed,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
         };
         workspace.BackRequested += LiveTvWorkspace_BackRequested;
         workspace.FullscreenToggleRequested +=
@@ -61,9 +65,12 @@ public sealed partial class MainWindow
             return _programmeGuideWorkspace;
         }
 
+        ConfigureWorkspaceHost(ProgrammeGuideWorkspaceHost);
         var workspace = new ProgrammeGuideView
         {
             Visibility = Visibility.Collapsed,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
         };
         workspace.PlayChannelRequested +=
             ProgrammeGuideWorkspace_PlayChannelRequested;
@@ -72,6 +79,14 @@ public sealed partial class MainWindow
         ProgrammeGuideWorkspaceHost.Content = workspace;
         ProgrammeGuideWorkspaceHost.Visibility = Visibility.Visible;
         return workspace;
+    }
+
+    private static void ConfigureWorkspaceHost(ContentControl host)
+    {
+        host.HorizontalContentAlignment = HorizontalAlignment.Stretch;
+        host.VerticalContentAlignment = VerticalAlignment.Stretch;
+        host.HorizontalAlignment = HorizontalAlignment.Stretch;
+        host.VerticalAlignment = VerticalAlignment.Stretch;
     }
 
     private void ReleaseWorkspaceEventHandlers()
