@@ -32,6 +32,7 @@ public sealed class PlaybackDiagnosticsWriter : IAsyncDisposable
     private Task? _samplingTask;
     private IPlaybackBackend? _backend;
     private string? _sessionPath;
+    private PlaybackState? _lastRecordedState;
     private bool _disposed;
 
     public PlaybackDiagnosticsWriter(string directory)
@@ -51,6 +52,7 @@ public sealed class PlaybackDiagnosticsWriter : IAsyncDisposable
         _sessionPath = Path.Combine(
             _directory,
             $"playback-session-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss-fff}.json");
+        _lastRecordedState = null;
         _samplingCancellation = new CancellationTokenSource();
         _samplingTask = SampleLoopAsync(
             backend,
@@ -155,7 +157,8 @@ public sealed class PlaybackDiagnosticsWriter : IAsyncDisposable
                     cancellationToken)
                 .ConfigureAwait(false);
 
-            if (sample.PlaybackState == PlaybackState.Failed)
+            if (sample.PlaybackState == PlaybackState.Failed &&
+                _lastRecordedState != PlaybackState.Failed)
             {
                 var errorPath = Path.Combine(
                     _directory,
@@ -166,6 +169,8 @@ public sealed class PlaybackDiagnosticsWriter : IAsyncDisposable
                         cancellationToken)
                     .ConfigureAwait(false);
             }
+
+            _lastRecordedState = sample.PlaybackState;
 
             if (final && _sessionPath is not null)
             {
