@@ -22,6 +22,7 @@ $preferencesPath = Join-Path $efironData "playback.json"
 $diagnostics = Join-Path $efironData "diagnostics"
 $controlEvidence = Join-Path $diagnostics "playback-controls.json"
 $restartEvidence = Join-Path $diagnostics "playback-restart.json"
+$samplesPath = Join-Path $diagnostics "playback-samples.jsonl"
 $firstProcess = $null
 $secondProcess = $null
 $serverProcess = $null
@@ -37,6 +38,46 @@ function Stop-TestProcess {
     if (-not $Process.HasExited) {
         Stop-Process -Id $Process.Id -Force
         $Process.WaitForExit(10000) | Out-Null
+    }
+}
+
+function Close-TestProcessGracefully {
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Diagnostics.Process]$Process,
+        [Parameter(Mandatory = $true)]
+        [string]$Description
+    )
+
+    $Process.Refresh()
+    if ($Process.HasExited) {
+        throw "$Description exited before the close verification with code $($Process.ExitCode)."
+    }
+
+    $sampleLengthBeforeClose = if (Test-Path -LiteralPath $samplesPath) {
+        (Get-Item -LiteralPath $samplesPath).Length
+    }
+    else {
+        0
+    }
+
+    if (-not $Process.CloseMainWindow()) {
+        throw "$Description did not accept a real main-window close request."
+    }
+
+    if (-not $Process.WaitForExit(10000)) {
+        throw "$Description remained alive for more than 10 seconds after the main-window close request."
+    }
+
+    Start-Sleep -Seconds 2
+    $sampleLengthAfterClose = if (Test-Path -LiteralPath $samplesPath) {
+        (Get-Item -LiteralPath $samplesPath).Length
+    }
+    else {
+        0
+    }
+    if ($sampleLengthAfterClose -ne $sampleLengthBeforeClose) {
+        throw "$Description continued writing playback diagnostics after process exit."
     }
 }
 
@@ -235,7 +276,7 @@ http://127.0.0.1:18766/ci.wav
         throw "The first launch did not persist the final channel, volume and mute state."
     }
 
-    Stop-TestProcess -Process $firstProcess
+    Close-TestProcessGracefully -Process $firstProcess -Description "First Efiron launch"
     $firstProcess = $null
 
     Remove-Item -LiteralPath $restartEvidence -Force -ErrorAction SilentlyContinue
@@ -275,9 +316,13 @@ http://127.0.0.1:18766/ci.wav
         throw "Efiron exited after restart-state restoration with code $($secondProcess.ExitCode)."
     }
 
+    Close-TestProcessGracefully -Process $secondProcess -Description "Second Efiron launch"
+    $secondProcess = $null
+
     @(
         "First launch persisted playback preferences."
         "Second launch restored the selected channel, volume and mute state."
+        "Both launches exited through a real main-window close request."
         "Restored channel: $($restart.ChannelStableId)"
         "Restored volume: $($restart.Volume)"
         "Restored muted: $($restart.IsMuted)"
