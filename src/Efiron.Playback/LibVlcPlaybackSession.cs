@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Efiron.Application.Playback;
 using Efiron.Domain.Playback;
 using LibVLCSharp.Platforms.Windows;
@@ -10,22 +11,27 @@ public sealed class LibVlcPlaybackSession : IPlaybackSession
     private readonly object _sync = new();
     private readonly LibVLC _libVlc;
     private readonly MediaPlayer _mediaPlayer;
+    private readonly Stopwatch _sessionClock = new();
 
     private Media? _currentMedia;
     private PlaybackSnapshot _snapshot = PlaybackSnapshot.Idle;
     private int _requestedVolume;
     private bool _requestedMuted;
+    private TimeSpan? _startupLatency;
     private bool _disposed;
 
     public LibVlcPlaybackSession(
         InitializedEventArgs initialization,
+        LibVlcPlaybackProfile profile = LibVlcPlaybackProfile.Auto,
         bool enableDebugLogs = false)
     {
         ArgumentNullException.ThrowIfNull(initialization);
 
-        _libVlc = new LibVLC(
-            enableDebugLogs,
-            initialization.SwapChainOptions);
+        Profile = profile;
+        var options = new List<string>();
+        options.AddRange(initialization.SwapChainOptions);
+        options.AddRange(GetProfileOptions(profile));
+        _libVlc = new LibVLC(enableDebugLogs, options.ToArray());
         _mediaPlayer = new MediaPlayer(_libVlc);
         _requestedVolume = Math.Clamp(_mediaPlayer.Volume, 0, 100);
         _requestedMuted = _mediaPlayer.Mute;
@@ -50,7 +56,21 @@ public sealed class LibVlcPlaybackSession : IPlaybackSession
         }
     }
 
+    public LibVlcPlaybackProfile Profile { get; }
+
     public MediaPlayer MediaPlayer => _mediaPlayer;
+
+    public TimeSpan? SessionDuration =>
+        _sessionClock.IsRunning || _sessionClock.Elapsed > TimeSpan.Zero
+            ? _sessionClock.Elapsed
+            : null;
+
+    public TimeSpan? MediaPosition =>
+        _mediaPlayer.Time >= 0
+            ? TimeSpan.FromMilliseconds(_mediaPlayer.Time)
+            : null;
+
+    public TimeSpan? StartupLatency => _startupLatency;
 
     public ValueTask PlayAsync(
         PlaybackRequest request,
@@ -64,6 +84,8 @@ public sealed class LibVlcPlaybackSession : IPlaybackSession
         ApplyPlaybackOptions(media, request.Directives);
 
         var previousMedia = Interlocked.Exchange(ref _currentMedia, media);
+        _startupLatency = null;
+        _sessionClock.Restart();
         Publish(Snapshot with
         {
             State = PlaybackState.Opening,
@@ -84,6 +106,7 @@ public sealed class LibVlcPlaybackSession : IPlaybackSession
         }
         catch
         {
+            _sessionClock.Stop();
             Interlocked.CompareExchange(ref _currentMedia, previousMedia, media);
             media.Dispose();
             Publish(Snapshot with
@@ -121,6 +144,7 @@ public sealed class LibVlcPlaybackSession : IPlaybackSession
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         _mediaPlayer.Stop();
+        _sessionClock.Stop();
         Publish(Snapshot with
         {
             State = PlaybackState.Stopped,
@@ -175,6 +199,7 @@ public sealed class LibVlcPlaybackSession : IPlaybackSession
         {
         }
 
+        _sessionClock.Stop();
         Interlocked.Exchange(ref _currentMedia, null)?.Dispose();
         _mediaPlayer.Dispose();
         _libVlc.Dispose();
@@ -228,6 +253,7 @@ public sealed class LibVlcPlaybackSession : IPlaybackSession
 
     private void MediaPlayer_Playing(object? sender, EventArgs e)
     {
+        _startupLatency ??= _sessionClock.Elapsed;
         ApplyRequestedAudioState();
         Publish(Snapshot with
         {
@@ -254,6 +280,7 @@ public sealed class LibVlcPlaybackSession : IPlaybackSession
             return;
         }
 
+        _sessionClock.Stop();
         Publish(Snapshot with
         {
             State = PlaybackState.Stopped,
@@ -263,7 +290,9 @@ public sealed class LibVlcPlaybackSession : IPlaybackSession
         });
     }
 
-    private void MediaPlayer_EndReached(object? sender, EventArgs e) =>
+    private void MediaPlayer_EndReached(object? sender, EventArgs e)
+    {
+        _sessionClock.Stop();
         Publish(Snapshot with
         {
             State = PlaybackState.Ended,
@@ -271,8 +300,11 @@ public sealed class LibVlcPlaybackSession : IPlaybackSession
             IsMuted = _requestedMuted,
             ErrorMessage = null,
         });
+    }
 
-    private void MediaPlayer_EncounteredError(object? sender, EventArgs e) =>
+    private void MediaPlayer_EncounteredError(object? sender, EventArgs e)
+    {
+        _sessionClock.Stop();
         Publish(Snapshot with
         {
             State = PlaybackState.Failed,
@@ -280,6 +312,7 @@ public sealed class LibVlcPlaybackSession : IPlaybackSession
             IsMuted = _requestedMuted,
             ErrorMessage = "LibVLC encountered a playback error.",
         });
+    }
 
     private void MediaPlayer_Muted(object? sender, EventArgs e) =>
         Publish(Snapshot with
@@ -330,6 +363,26 @@ public sealed class LibVlcPlaybackSession : IPlaybackSession
             this,
             new PlaybackSnapshotChangedEventArgs(snapshot));
     }
+
+    private static IReadOnlyList<string> GetProfileOptions(
+        LibVlcPlaybackProfile profile) =>
+        profile switch
+        {
+            LibVlcPlaybackProfile.D3D11Va =>
+            [
+                "--avcodec-hw=d3d11va",
+                "--vout=direct3d11",
+            ],
+            LibVlcPlaybackProfile.Dxva2 =>
+            [
+                "--avcodec-hw=dxva2",
+            ],
+            LibVlcPlaybackProfile.Software =>
+            [
+                "--avcodec-hw=none",
+            ],
+            _ => Array.Empty<string>(),
+        };
 
     private static void ApplyPlaybackOptions(
         Media media,
