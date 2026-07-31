@@ -1,5 +1,5 @@
 using System.Runtime.InteropServices;
-using Microsoft.UI.Dispatching;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 
@@ -26,7 +26,6 @@ public sealed partial class MainWindow
 
     private bool _fullscreenWindowSurfaceFixEnabled;
     private bool? _fullscreenWindowSurfaceApplied;
-    private bool _fullscreenWindowSurfaceReapplyQueued;
     private Brush? _normalWindowRootBackground;
     private Brush? _normalShellRootBackground;
     private nint _normalWindowStyle;
@@ -47,10 +46,26 @@ public sealed partial class MainWindow
         _normalWindowStyle = GetWindowLongPtr(windowHandle, GwlStyle);
         _normalWindowStyleCaptured = _normalWindowStyle != 0;
 
-        // Native frame mutation is deliberately not performed here. Calling
-        // SWP_FRAMECHANGED before the first useful paint can create an
-        // AppWindow/non-client recalculation loop on a real Windows desktop.
+        // The normal startup state is already correct. Mark it as applied and
+        // do not mutate the native frame before the first useful XAML paint.
+        _fullscreenWindowSurfaceApplied = false;
+        AppWindow.Changed += FullscreenWindowSurface_AppWindowChanged;
         Closed += FullscreenWindowSurface_Closed;
+    }
+
+    private void FullscreenWindowSurface_AppWindowChanged(
+        AppWindow sender,
+        AppWindowChangedEventArgs args)
+    {
+        if (!args.DidPresenterChange && !args.DidSizeChange)
+        {
+            return;
+        }
+
+        // SetFullscreen changes _isFullscreen before changing the presenter.
+        // Apply exactly once when the logical state differs from the native
+        // state. Notifications caused by SWP_FRAMECHANGED then become no-ops.
+        ApplyFullscreenWindowSurfaceState(force: false);
     }
 
     private void ApplyFullscreenWindowSurfaceState(bool force)
@@ -74,26 +89,6 @@ public sealed partial class MainWindow
         ApplyDwmBorderState(windowHandle);
     }
 
-    private void QueueFullscreenWindowSurfaceReapply(bool expectedFullscreenState)
-    {
-        if (_fullscreenWindowSurfaceReapplyQueued)
-        {
-            return;
-        }
-
-        _fullscreenWindowSurfaceReapplyQueued = true;
-        DispatcherQueue.TryEnqueue(
-            DispatcherQueuePriority.Normal,
-            () =>
-            {
-                _fullscreenWindowSurfaceReapplyQueued = false;
-                if (_isFullscreen == expectedFullscreenState)
-                {
-                    ApplyFullscreenWindowSurfaceState(force: true);
-                }
-            });
-    }
-
     private void ApplyNativeWindowFrameState(nint windowHandle)
     {
         var currentStyle = GetWindowLongPtr(windowHandle, GwlStyle).ToInt64();
@@ -103,9 +98,8 @@ public sealed partial class MainWindow
                 ? _normalWindowStyle.ToInt64()
                 : currentStyle;
 
-        // SWP_FRAMECHANGED is required only when the style actually changes.
-        // Reissuing it for an unchanged style can recursively retrigger native
-        // window notifications and starve the XAML compositor.
+        // Reissuing SWP_FRAMECHANGED for an unchanged style can recursively
+        // retrigger native window notifications and starve the XAML compositor.
         if (requestedStyle == currentStyle)
         {
             return;
@@ -160,6 +154,7 @@ public sealed partial class MainWindow
         object sender,
         WindowEventArgs args)
     {
+        AppWindow.Changed -= FullscreenWindowSurface_AppWindowChanged;
         Closed -= FullscreenWindowSurface_Closed;
     }
 
