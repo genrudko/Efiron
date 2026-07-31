@@ -1,0 +1,373 @@
+using Efiron.Application.Playback;
+using Efiron.Desktop.Diagnostics;
+using Efiron.Domain.Playback;
+using Efiron.Playback;
+using LibVLCSharp.Platforms.Windows;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
+
+namespace Efiron.Desktop.Views;
+
+public sealed partial class LiveTvView
+{
+    private readonly SemaphoreSlim _playbackBackendSwitchLock = new(1, 1);
+    private readonly PlaybackDiagnosticsWriter _playbackDiagnosticsWriter = new(
+        Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Efiron",
+            "diagnostics"));
+
+    private MediaPlayerElement? _windowsMediaSurface;
+    private Border? _playbackBackendPanel;
+    private ComboBox? _playbackBackendSelector;
+    private ComboBox? _libVlcProfileSelector;
+    private TextBlock? _playbackBackendStatus;
+    private PlaybackBackendId _selectedPlaybackBackend = PlaybackBackendId.Auto;
+    private LibVlcPlaybackProfile _selectedLibVlcProfile = LibVlcPlaybackProfile.Auto;
+    private bool _updatingPlaybackBackendSelectors;
+    private bool _playbackBackendControllerDisposed;
+
+    private void InitializePlaybackBackendController()
+    {
+        if (PlayerSurfaceBorder.Child is not Grid playerSurface)
+        {
+            throw new InvalidOperationException(
+                "The player surface must be a Grid for switchable playback backends.");
+        }
+
+        _windowsMediaSurface = new MediaPlayerElement
+        {
+            AreTransportControlsEnabled = false,
+            AutoPlay = false,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            Visibility = Visibility.Collapsed,
+            IsHitTestVisible = false,
+        };
+        playerSurface.Children.Insert(1, _windowsMediaSurface);
+
+        _playbackBackendSelector = new ComboBox
+        {
+            MinWidth = 142,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        _playbackBackendSelector.Items.Add(CreateBackendOption(
+            "Автоматически",
+            PlaybackBackendId.Auto));
+        _playbackBackendSelector.Items.Add(CreateBackendOption(
+            "LibVLC",
+            PlaybackBackendId.LibVlc));
+        _playbackBackendSelector.Items.Add(CreateBackendOption(
+            "Windows Media",
+            PlaybackBackendId.WindowsMedia));
+        _playbackBackendSelector.SelectionChanged +=
+            PlaybackBackendSelector_SelectionChanged;
+
+        _libVlcProfileSelector = new ComboBox
+        {
+            MinWidth = 112,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        _libVlcProfileSelector.Items.Add(CreateProfileOption(
+            "Auto",
+            LibVlcPlaybackProfile.Auto));
+        _libVlcProfileSelector.Items.Add(CreateProfileOption(
+            "D3D11VA",
+            LibVlcPlaybackProfile.D3D11Va));
+        _libVlcProfileSelector.Items.Add(CreateProfileOption(
+            "DXVA2",
+            LibVlcPlaybackProfile.Dxva2));
+        _libVlcProfileSelector.Items.Add(CreateProfileOption(
+            "Software",
+            LibVlcPlaybackProfile.Software));
+        _libVlcProfileSelector.SelectionChanged +=
+            LibVlcProfileSelector_SelectionChanged;
+
+        var diagnosticsButton = new Button
+        {
+            Content = "Снимок",
+            Padding = new Thickness(10, 5, 10, 5),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        diagnosticsButton.Click += DiagnosticsButton_Click;
+
+        _playbackBackendStatus = new TextBlock
+        {
+            Text = "LibVLC · Auto",
+            FontSize = 11,
+            Opacity = 0.78,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+
+        var panel = new StackPanel
+        {
+            Spacing = 6,
+        };
+        panel.Children.Add(_playbackBackendSelector);
+        panel.Children.Add(_libVlcProfileSelector);
+        panel.Children.Add(diagnosticsButton);
+        panel.Children.Add(_playbackBackendStatus);
+
+        _playbackBackendPanel = new Border
+        {
+            Padding = new Thickness(8),
+            Margin = new Thickness(12),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Top,
+            Background = ResolvePlaybackBrush("EfironSurfaceRaisedBrush"),
+            BorderBrush = ResolvePlaybackBrush("EfironStrokeSubtleBrush"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(9),
+            Child = panel,
+        };
+        playerSurface.Children.Add(_playbackBackendPanel);
+
+        _updatingPlaybackBackendSelectors = true;
+        _playbackBackendSelector.SelectedIndex = 0;
+        _libVlcProfileSelector.SelectedIndex = 0;
+        _updatingPlaybackBackendSelectors = false;
+    }
+
+    private async Task EnsurePlaybackBackendAsync()
+    {
+        if (_playbackBackendControllerDisposed)
+        {
+            return;
+        }
+
+        await SwitchPlaybackBackendAsync(restartCurrentRequest: true);
+    }
+
+    private async Task SwitchPlaybackBackendAsync(bool restartCurrentRequest)
+    {
+        await _playbackBackendSwitchLock.WaitAsync();
+        try
+        {
+            if (_playbackBackendControllerDisposed)
+            {
+                return;
+            }
+
+            var effectiveBackend = _selectedPlaybackBackend == PlaybackBackendId.Auto
+                ? PlaybackBackendId.LibVlc
+                : _selectedPlaybackBackend;
+            if (effectiveBackend == PlaybackBackendId.LibVlc &&
+                _libVlcInitialization is null)
+            {
+                UpdatePlaybackBackendStatus("Ожидание LibVLC surface…");
+                return;
+            }
+
+            var request = restartCurrentRequest
+                ? _currentPlaybackRequest ?? _pendingPlaybackRequest
+                : null;
+            var previousSnapshot = _playbackSession?.Snapshot;
+            var volume = previousSnapshot?.Volume ??
+                (int)Math.Round(VolumeSlider.Value);
+            var isMuted = previousSnapshot?.IsMuted ?? false;
+
+            await _playbackDiagnosticsWriter.DetachAsync();
+            ReleaseCurrentPlaybackBackend();
+
+            _playbackBackend = effectiveBackend switch
+            {
+                PlaybackBackendId.WindowsMedia =>
+                    new WindowsMediaPlaybackBackend(),
+                _ => new LibVlcPlaybackBackend(
+                    _libVlcInitialization!,
+                    _selectedLibVlcProfile),
+            };
+            _playbackSession = _playbackBackend.Session;
+            _playbackSession.SetVolume(Math.Clamp(volume, 0, 100));
+            _playbackSession.SetMuted(isMuted);
+            _playbackSession.SnapshotChanged += PlaybackSession_SnapshotChanged;
+            BindPlaybackSurface(_playbackBackend);
+            _playbackDiagnosticsWriter.Attach(_playbackBackend);
+            UpdatePlaybackBackendStatus(
+                $"{_playbackBackend.Id} · {_playbackBackend.SelectedProfile}");
+
+            if (request is not null)
+            {
+                _pendingPlaybackRequest = request;
+                await _playbackSession.PlayAsync(request);
+                _pendingPlaybackRequest = null;
+            }
+            else
+            {
+                ApplyPlaybackSnapshot(_playbackSession.Snapshot);
+            }
+        }
+        catch (Exception exception) when (
+            exception is not OperationCanceledException)
+        {
+            UpdatePlaybackBackendStatus($"Ошибка: {exception.Message}");
+            UpdatePlaybackStatus(
+                PlaybackState.Failed,
+                _resources.GetString("PlaybackStatusFailedMessage"));
+        }
+        finally
+        {
+            _playbackBackendSwitchLock.Release();
+        }
+    }
+
+    private void BindPlaybackSurface(IPlaybackBackend backend)
+    {
+        VideoView.MediaPlayer = null;
+        VideoView.Visibility = Visibility.Collapsed;
+        if (_windowsMediaSurface is not null)
+        {
+            _windowsMediaSurface.Source = null;
+            _windowsMediaSurface.SetMediaPlayer(null!);
+            _windowsMediaSurface.Visibility = Visibility.Collapsed;
+        }
+
+        switch (backend)
+        {
+            case LibVlcPlaybackBackend libVlc:
+                VideoView.MediaPlayer = libVlc.MediaPlayer;
+                VideoView.Visibility = Visibility.Visible;
+                break;
+            case WindowsMediaPlaybackBackend windowsMedia
+                when _windowsMediaSurface is not null:
+                _windowsMediaSurface.SetMediaPlayer(windowsMedia.MediaPlayer);
+                _windowsMediaSurface.Visibility = Visibility.Visible;
+                break;
+            default:
+                throw new NotSupportedException(
+                    $"Playback backend '{backend.Id}' has no desktop surface.");
+        }
+    }
+
+    private void ReleaseCurrentPlaybackBackend()
+    {
+        if (_playbackSession is not null)
+        {
+            _playbackSession.SnapshotChanged -= PlaybackSession_SnapshotChanged;
+            try
+            {
+                _playbackSession.Stop();
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+        }
+
+        VideoView.MediaPlayer = null;
+        VideoView.Visibility = Visibility.Visible;
+        if (_windowsMediaSurface is not null)
+        {
+            _windowsMediaSurface.Source = null;
+            _windowsMediaSurface.SetMediaPlayer(null!);
+            _windowsMediaSurface.Visibility = Visibility.Collapsed;
+        }
+
+        _playbackBackend?.Dispose();
+        _playbackBackend = null;
+        _playbackSession = null;
+    }
+
+    private void DisposePlaybackBackendController()
+    {
+        if (_playbackBackendControllerDisposed)
+        {
+            return;
+        }
+
+        _playbackBackendControllerDisposed = true;
+        _playbackDiagnosticsWriter.DetachAsync().GetAwaiter().GetResult();
+        ReleaseCurrentPlaybackBackend();
+        _playbackDiagnosticsWriter.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        _playbackBackendSwitchLock.Dispose();
+    }
+
+    private void SetPlaybackBackendPanelFullscreen(bool isFullscreen)
+    {
+        if (_playbackBackendPanel is not null)
+        {
+            _playbackBackendPanel.Visibility = isFullscreen
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+        }
+    }
+
+    private async void PlaybackBackendSelector_SelectionChanged(
+        object sender,
+        SelectionChangedEventArgs e)
+    {
+        if (_updatingPlaybackBackendSelectors ||
+            _playbackBackendSelector?.SelectedItem is not ComboBoxItem
+            {
+                Tag: PlaybackBackendId selected,
+            })
+        {
+            return;
+        }
+
+        _selectedPlaybackBackend = selected;
+        if (_libVlcProfileSelector is not null)
+        {
+            _libVlcProfileSelector.Visibility = selected == PlaybackBackendId.WindowsMedia
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+        }
+
+        await SwitchPlaybackBackendAsync(restartCurrentRequest: true);
+    }
+
+    private async void LibVlcProfileSelector_SelectionChanged(
+        object sender,
+        SelectionChangedEventArgs e)
+    {
+        if (_updatingPlaybackBackendSelectors ||
+            _selectedPlaybackBackend == PlaybackBackendId.WindowsMedia ||
+            _libVlcProfileSelector?.SelectedItem is not ComboBoxItem
+            {
+                Tag: LibVlcPlaybackProfile selected,
+            })
+        {
+            return;
+        }
+
+        _selectedLibVlcProfile = selected;
+        await SwitchPlaybackBackendAsync(restartCurrentRequest: true);
+    }
+
+    private async void DiagnosticsButton_Click(object sender, RoutedEventArgs e)
+    {
+        await _playbackDiagnosticsWriter.RecordNowAsync();
+        UpdatePlaybackBackendStatus(
+            $"{_playbackBackend?.Id ?? PlaybackBackendId.Auto} · снимок сохранён");
+    }
+
+    private void UpdatePlaybackBackendStatus(string text)
+    {
+        if (_playbackBackendStatus is not null)
+        {
+            _playbackBackendStatus.Text = text;
+        }
+    }
+
+    private static ComboBoxItem CreateBackendOption(
+        string text,
+        PlaybackBackendId id) =>
+        new()
+        {
+            Content = text,
+            Tag = id,
+        };
+
+    private static ComboBoxItem CreateProfileOption(
+        string text,
+        LibVlcPlaybackProfile profile) =>
+        new()
+        {
+            Content = text,
+            Tag = profile,
+        };
+
+    private static Brush ResolvePlaybackBrush(string key) =>
+        Application.Current.Resources[key] as Brush ??
+        new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+}
