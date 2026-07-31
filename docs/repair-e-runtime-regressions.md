@@ -2,10 +2,10 @@
 
 ## Status
 
-WIP on branch `rewrite/001-greenfield-desktop`, exact head at this checkpoint:
-`421821403799b6030a0f1a004348501ed5ff4abb`.
+WIP on branch `rewrite/001-greenfield-desktop`.
 
-No Windows candidate is approved from this repair yet.
+No Windows candidate is approved from this repair yet. The current exact head
+must always be taken from PR #18 rather than copied from this long-lived file.
 
 The Repair D candidate at exact head
 `36770234ae3b7a096c0ac7a9b616491abddf26ae` was rejected on a real Windows
