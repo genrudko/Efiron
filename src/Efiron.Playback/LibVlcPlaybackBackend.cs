@@ -24,6 +24,7 @@ public sealed class LibVlcPlaybackBackend : IPlaybackBackend
 
     private readonly object _diagnosticsSync = new();
     private readonly LibVlcPlaybackSession _session;
+    private readonly ProfiledLibVlcPlaybackSession _profiledSession;
     private long? _previousDisplayedFrames;
     private DateTimeOffset? _previousFrameSampledAtUtc;
     private long? _previousReadBytes;
@@ -38,6 +39,9 @@ public sealed class LibVlcPlaybackBackend : IPlaybackBackend
             initialization,
             profile,
             enableDebugLogs);
+        _profiledSession = new ProfiledLibVlcPlaybackSession(
+            _session,
+            profile);
     }
 
     public PlaybackBackendId Id => PlaybackBackendId.LibVlc;
@@ -48,7 +52,7 @@ public sealed class LibVlcPlaybackBackend : IPlaybackBackend
 
     public PlaybackBackendCapabilities Capabilities => BackendCapabilities;
 
-    public IPlaybackSession Session => _session;
+    public IPlaybackSession Session => _profiledSession;
 
     public MediaPlayer MediaPlayer => _session.MediaPlayer;
 
@@ -102,7 +106,7 @@ public sealed class LibVlcPlaybackBackend : IPlaybackBackend
         };
     }
 
-    public void Dispose() => _session.Dispose();
+    public void Dispose() => _profiledSession.Dispose();
 
     private double? CalculateRenderedFramesPerSecond(
         LibVlcDiagnosticSnapshot sample)
