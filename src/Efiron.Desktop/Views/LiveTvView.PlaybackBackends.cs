@@ -368,6 +368,6 @@ public sealed partial class LiveTvView
         };
 
     private static Brush ResolvePlaybackBrush(string key) =>
-        Application.Current.Resources[key] as Brush ??
+        Microsoft.UI.Xaml.Application.Current.Resources[key] as Brush ??
         new SolidColorBrush(Microsoft.UI.Colors.Transparent);
 }
