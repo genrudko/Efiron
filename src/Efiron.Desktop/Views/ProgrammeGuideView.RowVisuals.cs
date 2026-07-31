@@ -79,7 +79,7 @@ public sealed partial class ProgrammeGuideView
         var logo = new Image
         {
             Stretch = Stretch.Uniform,
-            Opacity = 0,
+            Opacity = 1,
         };
         logoHost.Children.Add(fallback);
         logoHost.Children.Add(logo);
@@ -135,28 +135,34 @@ public sealed partial class ProgrammeGuideView
 
     private static void HandleRowLogoOpened(EpgRowVisual visual)
     {
-        if (visual.RequestedLogoSource is null ||
-            !ReferenceEquals(visual.Logo.Source, visual.RequestedLogoSource))
+        var source = visual.RequestedLogoSource;
+        var row = visual.Row;
+        if (source is null ||
+            row is null ||
+            !ReferenceEquals(visual.Logo.Source, source) ||
+            !ReferenceEquals(row.LogoUrl, source))
         {
             return;
         }
 
-        visual.LogoOpened = true;
-        visual.LogoFailed = false;
+        row.MarkLogoLoaded(source);
         visual.Logo.Opacity = 1;
         visual.LogoFallback.Visibility = Visibility.Collapsed;
     }
 
     private static void HandleRowLogoFailed(EpgRowVisual visual)
     {
-        if (visual.RequestedLogoSource is null ||
-            !ReferenceEquals(visual.Logo.Source, visual.RequestedLogoSource))
+        var source = visual.RequestedLogoSource;
+        var row = visual.Row;
+        if (source is null ||
+            row is null ||
+            !ReferenceEquals(visual.Logo.Source, source) ||
+            !ReferenceEquals(row.LogoUrl, source))
         {
             return;
         }
 
-        visual.LogoOpened = false;
-        visual.LogoFailed = true;
+        row.MarkLogoFailed(source);
         visual.Logo.Opacity = 0;
         visual.LogoFallback.Visibility = Visibility.Visible;
     }
@@ -180,37 +186,37 @@ public sealed partial class ProgrammeGuideView
         visual.Category.Text = row.Category;
 
         var logoSource = row.LogoUrl;
+        visual.RequestedLogoSource = logoSource;
         if (logoSource is null)
         {
-            visual.RequestedLogoSource = null;
-            visual.LogoOpened = false;
-            visual.LogoFailed = false;
-            visual.Logo.Opacity = 0;
             visual.Logo.Source = null;
+            visual.Logo.Opacity = 0;
             visual.LogoFallback.Visibility = Visibility.Visible;
-        }
-        else if (!ReferenceEquals(visual.RequestedLogoSource, logoSource) ||
-                 !ReferenceEquals(visual.Logo.Source, logoSource))
-        {
-            visual.RequestedLogoSource = logoSource;
-            visual.LogoOpened = false;
-            visual.LogoFailed = false;
-            visual.Logo.Opacity = 0;
-            visual.LogoFallback.Visibility = Visibility.Collapsed;
-            visual.Logo.Source = null;
-            visual.Logo.Source = logoSource;
-        }
-        else if (visual.LogoOpened)
-        {
-            visual.Logo.Opacity = 1;
-            visual.LogoFallback.Visibility = Visibility.Collapsed;
         }
         else
         {
-            visual.Logo.Opacity = 0;
-            visual.LogoFallback.Visibility = visual.LogoFailed
-                ? Visibility.Visible
-                : Visibility.Collapsed;
+            if (!ReferenceEquals(visual.Logo.Source, logoSource))
+            {
+                visual.Logo.Source = null;
+                visual.Logo.Source = logoSource;
+            }
+
+            row.MarkLogoLoading(logoSource);
+            switch (row.LogoLoadState)
+            {
+                case EpgLogoLoadState.Loaded:
+                    visual.Logo.Opacity = 1;
+                    visual.LogoFallback.Visibility = Visibility.Collapsed;
+                    break;
+                case EpgLogoLoadState.Failed:
+                    visual.Logo.Opacity = 0;
+                    visual.LogoFallback.Visibility = Visibility.Visible;
+                    break;
+                default:
+                    visual.Logo.Opacity = 1;
+                    visual.LogoFallback.Visibility = Visibility.Visible;
+                    break;
+            }
         }
 
         var timelineWidth = Math.Max(0, viewportWidth - _channelColumnWidth);
@@ -430,7 +436,5 @@ public sealed partial class ProgrammeGuideView
         public EpgChannelRowItem? Row { get; set; }
         public int BoundRowIndex { get; set; } = -1;
         public ImageSource? RequestedLogoSource { get; set; }
-        public bool LogoOpened { get; set; }
-        public bool LogoFailed { get; set; }
     }
 }
