@@ -44,13 +44,14 @@ public sealed partial class MainWindow
     private bool? _fullscreenWindowSurfaceApplied;
     private bool _fullscreenFinalizeQueued;
     private int _fullscreenFinalizeRemaining;
-    private bool _windowedFinalizeQueued;
-    private int _windowedFinalizeRemaining;
     private Brush? _normalWindowRootBackground;
     private Brush? _normalShellRootBackground;
     private nint _normalWindowStyle;
     private nint _normalWindowExStyle;
     private bool _normalWindowStyleCaptured;
+    private OverlappedPresenterState _normalOverlappedState =
+        OverlappedPresenterState.Restored;
+    private bool _normalOverlappedStateCaptured;
 
     private void EnableFullscreenWindowSurfaceFix()
     {
@@ -65,6 +66,7 @@ public sealed partial class MainWindow
 
         var windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(this);
         CaptureNormalWindowFrame(windowHandle);
+        CaptureNormalPresenterState(AppWindow);
 
         _fullscreenWindowSurfaceApplied = false;
         AppWindow.Changed += FullscreenWindowSurface_AppWindowChanged;
@@ -94,7 +96,7 @@ public sealed partial class MainWindow
         }
         else
         {
-            QueueWindowedWindowFinalize();
+            CaptureNormalPresenterState(sender);
         }
     }
 
@@ -117,7 +119,6 @@ public sealed partial class MainWindow
         var windowHandle = WinRT.Interop.WindowNative.GetWindowHandle(this);
         if (_isFullscreen)
         {
-            _windowedFinalizeRemaining = 0;
             EnterNativePopupFullscreen(windowHandle);
             _fullscreenFinalizeRemaining = 2;
             QueueFullscreenWindowFinalize();
@@ -127,8 +128,7 @@ public sealed partial class MainWindow
             _fullscreenFinalizeRemaining = 0;
             ExitNativePopupFullscreen(windowHandle);
             RestoreCustomTitleBarContract();
-            _windowedFinalizeRemaining = 3;
-            QueueWindowedWindowFinalize();
+            RestoreNormalPresenterState();
         }
     }
 
@@ -149,6 +149,35 @@ public sealed partial class MainWindow
         _normalWindowStyle = style;
         _normalWindowExStyle = exStyle;
         _normalWindowStyleCaptured = true;
+    }
+
+    private void CaptureNormalPresenterState(AppWindow window)
+    {
+        if (_isFullscreen || window.Presenter is not OverlappedPresenter presenter)
+        {
+            return;
+        }
+
+        _normalOverlappedState = presenter.State;
+        _normalOverlappedStateCaptured = true;
+    }
+
+    private void RestoreNormalPresenterState()
+    {
+        if (!_normalOverlappedStateCaptured ||
+            AppWindow.Presenter is not OverlappedPresenter presenter)
+        {
+            return;
+        }
+
+        if (_normalOverlappedState == OverlappedPresenterState.Maximized)
+        {
+            presenter.Maximize();
+        }
+        else
+        {
+            presenter.Restore();
+        }
     }
 
     private void EnterNativePopupFullscreen(nint windowHandle)
@@ -211,8 +240,7 @@ public sealed partial class MainWindow
             SwpNoZOrder |
             SwpNoActivate |
             SwpNoOwnerZOrder |
-            SwpFrameChanged |
-            SwpShowWindow);
+            SwpFrameChanged);
     }
 
     private void RestoreCustomTitleBarContract()
@@ -223,9 +251,11 @@ public sealed partial class MainWindow
         }
 
         TitleBarDragRegion.Visibility = Visibility.Visible;
-        ExtendsContentIntoTitleBar = false;
-        SetTitleBar(null);
-        ExtendsContentIntoTitleBar = true;
+        if (!ExtendsContentIntoTitleBar)
+        {
+            ExtendsContentIntoTitleBar = true;
+        }
+
         SetTitleBar(TitleBarDragRegion);
         ApplyTitleBarContrast();
     }
@@ -324,35 +354,6 @@ public sealed partial class MainWindow
                     WinRT.Interop.WindowNative.GetWindowHandle(this);
                 EnterNativePopupFullscreen(windowHandle);
                 QueueFullscreenWindowFinalize();
-            });
-    }
-
-    private void QueueWindowedWindowFinalize()
-    {
-        if (_windowedFinalizeQueued ||
-            _isFullscreen ||
-            _windowedFinalizeRemaining <= 0)
-        {
-            return;
-        }
-
-        _windowedFinalizeQueued = true;
-        DispatcherQueue.TryEnqueue(
-            DispatcherQueuePriority.Low,
-            () =>
-            {
-                _windowedFinalizeQueued = false;
-                if (_isFullscreen)
-                {
-                    return;
-                }
-
-                _windowedFinalizeRemaining--;
-                var windowHandle =
-                    WinRT.Interop.WindowNative.GetWindowHandle(this);
-                ExitNativePopupFullscreen(windowHandle);
-                RestoreCustomTitleBarContract();
-                QueueWindowedWindowFinalize();
             });
     }
 
