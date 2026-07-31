@@ -89,6 +89,7 @@ public sealed partial class MainWindow
         {
             _appearancePreferences = preferences;
             _appearanceController.Apply(preferences);
+            ApplyThemeToLazyWorkspaces();
             SelectOption(ThemeComboBox, preferences.Theme);
             SelectOption(AccentComboBox, preferences.Accent);
         }
