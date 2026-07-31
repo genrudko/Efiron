@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Channels;
@@ -8,6 +9,8 @@ namespace Efiron.Desktop.Diagnostics;
 
 public sealed class PlaybackDiagnosticsWriter : IAsyncDisposable
 {
+    private const long MaximumJsonLineBytes = 8 * 1024 * 1024;
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
@@ -196,11 +199,14 @@ public sealed class PlaybackDiagnosticsWriter : IAsyncDisposable
                     cancellationToken)
                 .ConfigureAwait(false);
 
-            var samplesPath = Path.Combine(_directory, "playback-samples.jsonl");
-            await File.AppendAllTextAsync(
-                    samplesPath,
-                    JsonSerializer.Serialize(sample, JsonLineOptions) +
-                    Environment.NewLine,
+            await AppendBoundedJsonLineAsync(
+                    Path.Combine(_directory, "playback-samples.jsonl"),
+                    JsonSerializer.Serialize(sample, JsonLineOptions),
+                    cancellationToken)
+                .ConfigureAwait(false);
+            await AppendBoundedJsonLineAsync(
+                    Path.Combine(_directory, "process-footprint.jsonl"),
+                    JsonSerializer.Serialize(CaptureProcessFootprint(), JsonLineOptions),
                     cancellationToken)
                 .ConfigureAwait(false);
 
@@ -240,4 +246,50 @@ public sealed class PlaybackDiagnosticsWriter : IAsyncDisposable
             _writeLock.Release();
         }
     }
+
+    private static async Task AppendBoundedJsonLineAsync(
+        string path,
+        string json,
+        CancellationToken cancellationToken)
+    {
+        if (File.Exists(path) && new FileInfo(path).Length >= MaximumJsonLineBytes)
+        {
+            var previousPath = path + ".previous";
+            File.Delete(previousPath);
+            File.Move(path, previousPath);
+        }
+
+        await File.AppendAllTextAsync(
+                path,
+                json + Environment.NewLine,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private static ProcessFootprintSample CaptureProcessFootprint()
+    {
+        using var process = Process.GetCurrentProcess();
+        process.Refresh();
+        return new ProcessFootprintSample(
+            DateTimeOffset.UtcNow,
+            process.WorkingSet64,
+            process.PrivateMemorySize64,
+            GC.GetTotalMemory(forceFullCollection: false),
+            process.Threads.Count,
+            process.HandleCount,
+            GC.CollectionCount(0),
+            GC.CollectionCount(1),
+            GC.CollectionCount(2));
+    }
+
+    private sealed record ProcessFootprintSample(
+        DateTimeOffset SampledAtUtc,
+        long WorkingSetBytes,
+        long PrivateMemoryBytes,
+        long ManagedHeapBytes,
+        int ThreadCount,
+        int HandleCount,
+        int Gen0Collections,
+        int Gen1Collections,
+        int Gen2Collections);
 }
