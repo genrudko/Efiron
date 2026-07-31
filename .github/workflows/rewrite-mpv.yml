@@ -1,0 +1,128 @@
+name: rewrite mpv
+
+on:
+  pull_request:
+  push:
+    branches:
+      - rewrite/001-greenfield-desktop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  mpv:
+    name: Native mpv D3D11 composition probe
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.302
+
+      - name: Restore and build mpv probe
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          dotnet restore tools/Efiron.MpvProbe/Efiron.MpvProbe.csproj
+          dotnet build tools/Efiron.MpvProbe/Efiron.MpvProbe.csproj -c Release --no-restore
+
+      - name: Prepare deterministic H264 fixture
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $fixture = Join-Path $env:RUNNER_TEMP "efiron-mpv-fixture"
+          Remove-Item $fixture -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $fixture -Force | Out-Null
+          $fixtureBase64 = Get-Content `
+            "tests/fixtures/fullscreen-21x9-h264.mp4.b64" `
+            -Raw
+          $videoPath = Join-Path $fixture "probe.mp4"
+          [IO.File]::WriteAllBytes(
+            $videoPath,
+            [Convert]::FromBase64String($fixtureBase64.Trim()))
+          if ((Get-Item $videoPath).Length -lt 2500) {
+            throw "mpv H264 fixture was not decoded."
+          }
+
+      - name: Verify libmpv playback and composition swapchain
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          $output = "tools/Efiron.MpvProbe/bin/Release/net10.0-windows10.0.22000.0/win-x64"
+          $fixture = Join-Path $env:RUNNER_TEMP "efiron-mpv-fixture"
+          $evidence = Join-Path $env:RUNNER_TEMP "mpv-runtime.json"
+          $nativeDlls = @(
+            Get-ChildItem $output -Recurse -File |
+              Where-Object { $_.Name -match '(?i)mpv.*\.dll$|libmpv.*\.dll$' }
+          )
+          if ($nativeDlls.Count -eq 0) {
+            throw "The mpv probe output contains no native libmpv DLL."
+          }
+
+          $python = (Get-Command python -ErrorAction Stop).Source
+          $server = Start-Process $python -ArgumentList @(
+            "-m","http.server","18771","--bind","127.0.0.1","--directory",$fixture) `
+            -WindowStyle Hidden -PassThru
+          try {
+            Start-Sleep -Seconds 2
+            if ($server.HasExited) { throw "mpv fixture server exited." }
+            dotnet run `
+              --project tools/Efiron.MpvProbe/Efiron.MpvProbe.csproj `
+              -c Release `
+              --no-build `
+              -- `
+              "http://127.0.0.1:18771/probe.mp4" `
+              $evidence
+
+            if (-not (Test-Path $evidence)) {
+              throw "mpv runtime evidence was not written."
+            }
+            $result = Get-Content $evidence -Raw | ConvertFrom-Json
+            if ($result.Backend -ne "Mpv" -or
+                $result.State -ne "Playing" -or
+                -not [bool]$result.SwapChainAvailable -or
+                [string]::IsNullOrWhiteSpace([string]$result.Version) -or
+                [string]::IsNullOrWhiteSpace([string]$result.VideoCodec)) {
+              throw "mpv runtime evidence is incomplete: $($result | ConvertTo-Json -Compress)"
+            }
+
+            New-Item -ItemType Directory -Path mpv-artifacts -Force | Out-Null
+            Copy-Item $evidence mpv-artifacts/ -Force
+            $nativeDlls |
+              Select-Object Name,Length,FullName |
+              ConvertTo-Json |
+              Set-Content mpv-artifacts/mpv-native-files.json -Encoding utf8
+            @{
+              HeadSha = "${{ github.event.pull_request.head.sha || github.sha }}"
+              NativeDllCount = $nativeDlls.Count
+              NativeDllNames = @($nativeDlls | ForEach-Object Name)
+            } | ConvertTo-Json |
+              Set-Content mpv-artifacts/mpv-package-runtime.json -Encoding utf8
+          }
+          finally {
+            if ($server -and -not $server.HasExited) {
+              Stop-Process -Id $server.Id -Force
+            }
+          }
+
+      - name: Upload mpv evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rewrite-mpv-evidence
+          path: mpv-artifacts/
+          if-no-files-found: error
+          retention-days: 14
