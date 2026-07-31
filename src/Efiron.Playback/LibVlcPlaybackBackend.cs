@@ -51,7 +51,7 @@ public sealed class LibVlcPlaybackBackend : IPlaybackBackend
     {
         var sample = _session.CaptureDiagnosticSnapshot();
         var renderedFramesPerSecond = CalculateRenderedFramesPerSecond(sample);
-        var hardwareDecodingRequested = _session.Profile switch
+        bool? hardwareDecodingRequested = _session.Profile switch
         {
             LibVlcPlaybackProfile.D3D11Va or LibVlcPlaybackProfile.Dxva2 => true,
             LibVlcPlaybackProfile.Software => false,
