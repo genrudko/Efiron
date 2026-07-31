@@ -148,6 +148,12 @@ public sealed partial class ProgrammeGuideView
         ProgrammeLoadingOverlay.Visibility = isBusy
             ? Visibility.Visible
             : Visibility.Collapsed;
+        if (isBusy)
+        {
+            ProgrammeEmptyState.Visibility = Visibility.Collapsed;
+            ProgrammeNoScheduleState.Visibility = Visibility.Collapsed;
+        }
+
         ProgrammeLoadingText.Text = $"Подготовка программы: {channelCount} каналов";
         VisibleChannelCountText.Text = isBusy
             ? "Загрузка…"
