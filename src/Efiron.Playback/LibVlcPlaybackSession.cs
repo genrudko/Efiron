@@ -9,6 +9,7 @@ namespace Efiron.Playback;
 public sealed class LibVlcPlaybackSession : IPlaybackSession
 {
     private readonly object _sync = new();
+    private readonly object _diagnosticsSync = new();
     private readonly LibVLC _libVlc;
     private readonly MediaPlayer _mediaPlayer;
     private readonly Stopwatch _sessionClock = new();
@@ -18,6 +19,14 @@ public sealed class LibVlcPlaybackSession : IPlaybackSession
     private int _requestedVolume;
     private bool _requestedMuted;
     private TimeSpan? _startupLatency;
+    private bool _hasPlayed;
+    private bool _bufferingActive;
+    private double? _bufferedPercentage;
+    private long _rebufferCount;
+    private bool? _hardwareDecodingActive;
+    private string? _decoder;
+    private string? _graphicsDevice;
+    private string? _videoRenderer;
     private bool _disposed;
 
     public LibVlcPlaybackSession(
@@ -32,10 +41,12 @@ public sealed class LibVlcPlaybackSession : IPlaybackSession
         options.AddRange(initialization.SwapChainOptions);
         options.AddRange(GetProfileOptions(profile));
         _libVlc = new LibVLC(enableDebugLogs, options.ToArray());
+        _libVlc.Log += LibVlc_Log;
         _mediaPlayer = new MediaPlayer(_libVlc);
         _requestedVolume = Math.Clamp(_mediaPlayer.Volume, 0, 100);
         _requestedMuted = _mediaPlayer.Mute;
         AttachEvents();
+        ResetDiagnosticState();
         Publish(_snapshot with
         {
             Volume = _requestedVolume,
@@ -85,6 +96,7 @@ public sealed class LibVlcPlaybackSession : IPlaybackSession
 
         var previousMedia = Interlocked.Exchange(ref _currentMedia, media);
         _startupLatency = null;
+        ResetDiagnosticState();
         _sessionClock.Restart();
         Publish(Snapshot with
         {
@@ -181,6 +193,112 @@ public sealed class LibVlcPlaybackSession : IPlaybackSession
         });
     }
 
+    internal LibVlcDiagnosticSnapshot CaptureDiagnosticSnapshot()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        var sampledAtUtc = DateTimeOffset.UtcNow;
+        var statistics = default(MediaStats);
+        var hasStatistics = false;
+        string? videoCodec = null;
+        string? audioCodec = null;
+        int? videoWidth = null;
+        int? videoHeight = null;
+        double? declaredFramesPerSecond = null;
+
+        var media = Volatile.Read(ref _currentMedia);
+        if (media is not null)
+        {
+            try
+            {
+                statistics = media.Statistics;
+                hasStatistics =
+                    statistics.ReadBytes > 0 ||
+                    statistics.DemuxReadBytes > 0 ||
+                    statistics.DecodedVideo > 0 ||
+                    statistics.DecodedAudio > 0 ||
+                    statistics.DisplayedPictures > 0 ||
+                    statistics.LostPictures > 0;
+
+                MediaTrack? videoTrack = null;
+                MediaTrack? audioTrack = null;
+                foreach (var track in media.Tracks)
+                {
+                    if (track.TrackType == TrackType.Video && videoTrack is null)
+                    {
+                        videoTrack = track;
+                    }
+                    else if (track.TrackType == TrackType.Audio && audioTrack is null)
+                    {
+                        audioTrack = track;
+                    }
+                }
+
+                if (videoTrack is { } video)
+                {
+                    videoCodec = SafeCodecDescription(media, video);
+                    videoWidth = video.Data.Video.Width > 0
+                        ? checked((int)video.Data.Video.Width)
+                        : null;
+                    videoHeight = video.Data.Video.Height > 0
+                        ? checked((int)video.Data.Video.Height)
+                        : null;
+                    declaredFramesPerSecond = video.Data.Video.FrameRateDen > 0 &&
+                        video.Data.Video.FrameRateNum > 0
+                            ? (double)video.Data.Video.FrameRateNum /
+                              video.Data.Video.FrameRateDen
+                            : null;
+                }
+
+                if (audioTrack is { } audio)
+                {
+                    audioCodec = SafeCodecDescription(media, audio);
+                }
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+            catch (VLCException)
+            {
+            }
+        }
+
+        double? bufferedPercentage;
+        long rebufferCount;
+        bool? hardwareDecodingActive;
+        string? decoder;
+        string? graphicsDevice;
+        string? videoRenderer;
+        lock (_diagnosticsSync)
+        {
+            bufferedPercentage = _bufferedPercentage;
+            rebufferCount = _rebufferCount;
+            hardwareDecodingActive = _hardwareDecodingActive;
+            decoder = _decoder;
+            graphicsDevice = _graphicsDevice;
+            videoRenderer = _videoRenderer;
+        }
+
+        return new LibVlcDiagnosticSnapshot(
+            sampledAtUtc,
+            hasStatistics,
+            statistics,
+            videoCodec,
+            audioCodec,
+            videoWidth,
+            videoHeight,
+            declaredFramesPerSecond,
+            bufferedPercentage,
+            rebufferCount,
+            hardwareDecodingActive,
+            decoder,
+            graphicsDevice,
+            videoRenderer,
+            SessionDuration,
+            MediaPosition,
+            StartupLatency);
+    }
+
     public void Dispose()
     {
         if (_disposed)
@@ -190,6 +308,7 @@ public sealed class LibVlcPlaybackSession : IPlaybackSession
 
         _disposed = true;
         DetachEvents();
+        _libVlc.Log -= LibVlc_Log;
 
         try
         {
@@ -216,6 +335,7 @@ public sealed class LibVlcPlaybackSession : IPlaybackSession
     private void AttachEvents()
     {
         _mediaPlayer.Opening += MediaPlayer_Opening;
+        _mediaPlayer.Buffering += MediaPlayer_Buffering;
         _mediaPlayer.Playing += MediaPlayer_Playing;
         _mediaPlayer.Paused += MediaPlayer_Paused;
         _mediaPlayer.Stopped += MediaPlayer_Stopped;
@@ -229,6 +349,7 @@ public sealed class LibVlcPlaybackSession : IPlaybackSession
     private void DetachEvents()
     {
         _mediaPlayer.Opening -= MediaPlayer_Opening;
+        _mediaPlayer.Buffering -= MediaPlayer_Buffering;
         _mediaPlayer.Playing -= MediaPlayer_Playing;
         _mediaPlayer.Paused -= MediaPlayer_Paused;
         _mediaPlayer.Stopped -= MediaPlayer_Stopped;
@@ -251,9 +372,33 @@ public sealed class LibVlcPlaybackSession : IPlaybackSession
         });
     }
 
+    private void MediaPlayer_Buffering(
+        object? sender,
+        MediaPlayerBufferingEventArgs e)
+    {
+        var bufferedPercentage = Math.Clamp((double)e.Cache, 0, 100);
+        lock (_diagnosticsSync)
+        {
+            if (_hasPlayed && bufferedPercentage < 99.9 && !_bufferingActive)
+            {
+                _rebufferCount++;
+            }
+
+            _bufferingActive = bufferedPercentage < 99.9;
+            _bufferedPercentage = bufferedPercentage;
+        }
+    }
+
     private void MediaPlayer_Playing(object? sender, EventArgs e)
     {
         _startupLatency ??= _sessionClock.Elapsed;
+        lock (_diagnosticsSync)
+        {
+            _hasPlayed = true;
+            _bufferingActive = false;
+            _bufferedPercentage = 100;
+        }
+
         ApplyRequestedAudioState();
         Publish(Snapshot with
         {
@@ -337,6 +482,72 @@ public sealed class LibVlcPlaybackSession : IPlaybackSession
             IsMuted = _requestedMuted,
         });
 
+    private void LibVlc_Log(object? sender, LogEventArgs e)
+    {
+        var combined = $"{e.Module} {e.Message}";
+        lock (_diagnosticsSync)
+        {
+            if (ContainsPositiveEvidence(combined, "d3d11va"))
+            {
+                _hardwareDecodingActive = true;
+                _decoder = "D3D11VA (LibVLC log-confirmed)";
+            }
+            else if (ContainsPositiveEvidence(combined, "dxva2"))
+            {
+                _hardwareDecodingActive = true;
+                _decoder = "DXVA2 (LibVLC log-confirmed)";
+            }
+            else if (combined.Contains(
+                         "hardware acceleration disabled",
+                         StringComparison.OrdinalIgnoreCase) ||
+                     combined.Contains(
+                         "hardware decoding disabled",
+                         StringComparison.OrdinalIgnoreCase))
+            {
+                _hardwareDecodingActive = false;
+            }
+
+            if (combined.Contains("direct3d11", StringComparison.OrdinalIgnoreCase))
+            {
+                _videoRenderer = "Direct3D 11 (LibVLC log evidence)";
+            }
+            else if (combined.Contains("direct3d9", StringComparison.OrdinalIgnoreCase))
+            {
+                _videoRenderer = "Direct3D 9 (LibVLC log evidence)";
+            }
+
+            if ((combined.Contains("adapter", StringComparison.OrdinalIgnoreCase) ||
+                 combined.Contains("device", StringComparison.OrdinalIgnoreCase)) &&
+                (combined.Contains("d3d11", StringComparison.OrdinalIgnoreCase) ||
+                 combined.Contains("direct3d", StringComparison.OrdinalIgnoreCase) ||
+                 combined.Contains("dxva", StringComparison.OrdinalIgnoreCase)))
+            {
+                _graphicsDevice = TruncateDiagnosticText(e.Message, 300);
+            }
+        }
+    }
+
+    private void ResetDiagnosticState()
+    {
+        lock (_diagnosticsSync)
+        {
+            _hasPlayed = false;
+            _bufferingActive = false;
+            _bufferedPercentage = null;
+            _rebufferCount = 0;
+            _hardwareDecodingActive = Profile == LibVlcPlaybackProfile.Software
+                ? false
+                : null;
+            _decoder = Profile == LibVlcPlaybackProfile.Software
+                ? "Software decoding forced"
+                : null;
+            _graphicsDevice = null;
+            _videoRenderer = Profile == LibVlcPlaybackProfile.D3D11Va
+                ? "Direct3D 11 requested"
+                : null;
+        }
+    }
+
     private void ApplyRequestedAudioState()
     {
         if (_mediaPlayer.Volume != _requestedVolume)
@@ -363,6 +574,45 @@ public sealed class LibVlcPlaybackSession : IPlaybackSession
             this,
             new PlaybackSnapshotChangedEventArgs(snapshot));
     }
+
+    private static string? SafeCodecDescription(Media media, MediaTrack track)
+    {
+        try
+        {
+            var description = media.CodecDescription(track.TrackType, track.Codec);
+            return string.IsNullOrWhiteSpace(description)
+                ? FourCcToString(track.Codec)
+                : description;
+        }
+        catch (VLCException)
+        {
+            return FourCcToString(track.Codec);
+        }
+    }
+
+    private static string? FourCcToString(uint codec)
+    {
+        Span<char> chars = stackalloc char[4];
+        chars[0] = (char)(codec & 0xFF);
+        chars[1] = (char)((codec >> 8) & 0xFF);
+        chars[2] = (char)((codec >> 16) & 0xFF);
+        chars[3] = (char)((codec >> 24) & 0xFF);
+        var value = new string(chars).Trim('\0', ' ');
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
+    private static bool ContainsPositiveEvidence(string text, string token) =>
+        text.Contains(token, StringComparison.OrdinalIgnoreCase) &&
+        (text.Contains("using", StringComparison.OrdinalIgnoreCase) ||
+         text.Contains("enabled", StringComparison.OrdinalIgnoreCase) ||
+         text.Contains("initialized", StringComparison.OrdinalIgnoreCase) ||
+         text.Contains("created", StringComparison.OrdinalIgnoreCase) ||
+         text.Contains("selected", StringComparison.OrdinalIgnoreCase));
+
+    private static string TruncateDiagnosticText(string text, int maximumLength) =>
+        text.Length <= maximumLength
+            ? text
+            : text[..maximumLength];
 
     private static IReadOnlyList<string> GetProfileOptions(
         LibVlcPlaybackProfile profile) =>
