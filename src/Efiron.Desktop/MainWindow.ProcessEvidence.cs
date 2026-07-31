@@ -23,8 +23,8 @@ public sealed partial class MainWindow
                 ManagedHeapBytes: GC.GetTotalMemory(forceFullCollection: false),
                 ThreadCount: process.Threads.Count,
                 HandleCount: process.HandleCount,
-                LiveViewCreated: LiveTvWorkspace is not null,
-                ProgrammeGuideCreated: ProgrammeGuideWorkspace is not null,
+                LiveViewCreated: IsLiveWorkspaceCreated,
+                ProgrammeGuideCreated: IsProgrammeGuideWorkspaceCreated,
                 ProcessStartedAtUtc: startedAtUtc,
                 RecordedAtUtc: recordedAtUtc);
 
