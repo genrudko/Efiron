@@ -119,11 +119,7 @@ public sealed partial class MainWindow
             Directory.CreateDirectory(diagnosticsDirectory);
             await File.WriteAllTextAsync(
                 evidencePath,
-                JsonSerializer.Serialize(new
-                {
-                    Runtime = evidence,
-                    PersistentVerticalScrollBar = persistentScrollBar,
-                }),
+                JsonSerializer.Serialize(evidence),
                 _lifetime.Token);
 
             await Task.Delay(TimeSpan.FromMilliseconds(350), _lifetime.Token);
