@@ -228,6 +228,36 @@
               <TextBlock Text="Измените категорию или поисковый запрос" Style="{StaticResource EfironBodyStyle}" />
             </StackPanel>
           </Grid>
+
+          <Grid
+              x:Name="ProgrammeNoScheduleState"
+              Visibility="Collapsed"
+              IsHitTestVisible="False">
+            <Border
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                MaxWidth="520"
+                Padding="24,20"
+                Background="{ThemeResource EfironSurfaceRaisedBrush}"
+                BorderBrush="{ThemeResource EfironStrokeSubtleBrush}"
+                BorderThickness="1"
+                CornerRadius="14">
+              <StackPanel Spacing="8" HorizontalAlignment="Center">
+                <FontIcon
+                    Glyph="&#xE823;"
+                    FontSize="30"
+                    Foreground="{ThemeResource EfironTextTertiaryBrush}" />
+                <TextBlock
+                    Text="На выбранную дату программа отсутствует"
+                    Style="{StaticResource EfironSectionTitleStyle}"
+                    TextAlignment="Center" />
+                <TextBlock
+                    Text="Выберите другой день или вернитесь к текущей дате"
+                    Style="{StaticResource EfironBodyStyle}"
+                    TextAlignment="Center" />
+              </StackPanel>
+            </Border>
+          </Grid>
         </Grid>
 
         <ScrollBar
