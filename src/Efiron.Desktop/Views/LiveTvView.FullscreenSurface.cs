@@ -1,5 +1,6 @@
 using Efiron.Playback;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 
 namespace Efiron.Desktop.Views;
@@ -10,6 +11,10 @@ public sealed partial class LiveTvView
     private bool? _fullscreenSurfaceApplied;
     private Brush? _normalLiveRootBackground;
     private Thickness _normalPlayerBorderThickness;
+    private GridLength _normalCategoryRailWidth;
+    private GridLength _normalChannelBrowserWidth;
+    private GridLength _normalPlayerWidth;
+    private double _normalLiveContentColumnSpacing;
     private string? _appliedVideoCropGeometry;
 
     internal void EnableFullscreenSurfaceFix()
@@ -22,6 +27,10 @@ public sealed partial class LiveTvView
         _fullscreenSurfaceFixEnabled = true;
         _normalLiveRootBackground = LiveRoot.Background;
         _normalPlayerBorderThickness = PlayerSurfaceBorder.BorderThickness;
+        _normalCategoryRailWidth = CategoryRailColumn.Width;
+        _normalChannelBrowserWidth = ChannelBrowserColumn.Width;
+        _normalPlayerWidth = PlayerColumn.Width;
+        _normalLiveContentColumnSpacing = LiveContentGrid.ColumnSpacing;
         LiveRoot.LayoutUpdated += FullscreenSurface_LiveRootLayoutUpdated;
         ApplyFullscreenSurfaceState(force: true);
     }
@@ -40,6 +49,8 @@ public sealed partial class LiveTvView
             background,
             LiveRoot.ActualWidth,
             LiveRoot.ActualHeight,
+            PlayerSurfaceBorder.ActualWidth,
+            PlayerSurfaceBorder.ActualHeight,
             _appliedVideoCropGeometry ?? string.Empty,
             snapshot?.State.ToString() ?? string.Empty,
             snapshot?.Source?.ToString() ?? string.Empty);
@@ -62,6 +73,31 @@ public sealed partial class LiveTvView
             LiveRoot.Background = _isFullscreen
                 ? new SolidColorBrush(Microsoft.UI.Colors.Black)
                 : _normalLiveRootBackground;
+
+            if (_isFullscreen)
+            {
+                CategoryRailCard.Visibility = Visibility.Collapsed;
+                ChannelBrowserCard.Visibility = Visibility.Collapsed;
+                ProgrammeCard.Visibility = Visibility.Collapsed;
+                CategoryRailColumn.Width = new GridLength(0);
+                ChannelBrowserColumn.Width = new GridLength(0);
+                PlayerColumn.Width = new GridLength(1, GridUnitType.Star);
+                LiveContentGrid.ColumnSpacing = 0;
+                Grid.SetColumn(PlayerWorkspace, 0);
+                Grid.SetColumnSpan(PlayerWorkspace, 3);
+            }
+            else
+            {
+                CategoryRailCard.Visibility = Visibility.Visible;
+                ChannelBrowserCard.Visibility = Visibility.Visible;
+                ProgrammeCard.Visibility = Visibility.Visible;
+                CategoryRailColumn.Width = _normalCategoryRailWidth;
+                ChannelBrowserColumn.Width = _normalChannelBrowserWidth;
+                PlayerColumn.Width = _normalPlayerWidth;
+                LiveContentGrid.ColumnSpacing = _normalLiveContentColumnSpacing;
+                Grid.SetColumn(PlayerWorkspace, 2);
+                Grid.SetColumnSpan(PlayerWorkspace, 1);
+            }
         }
 
         ApplyVideoGeometry();
@@ -80,6 +116,20 @@ public sealed partial class LiveTvView
 
             _appliedVideoCropGeometry = _isFullscreen
                 ? "WindowsMedia:UniformToFill"
+                : null;
+            return;
+        }
+
+        if (_playbackBackend is MpvPlaybackBackend mpv)
+        {
+            if (_mpvSurface is not null && _mpvSurface.IsLoaded)
+            {
+                UpdateMpvCompositionSize(mpv);
+                AttachMpvSwapChain(mpv.DisplaySwapChain);
+            }
+
+            _appliedVideoCropGeometry = _isFullscreen
+                ? "mpv:composition-fill"
                 : null;
             return;
         }
@@ -143,6 +193,8 @@ public sealed partial class LiveTvView
         string LiveRootBackground,
         double Width,
         double Height,
+        double PlayerWidth,
+        double PlayerHeight,
         string VideoCropGeometry,
         string PlaybackState,
         string PlaybackSource);
