@@ -88,6 +88,9 @@ public sealed partial class MainWindow
         var previewPath = Path.Combine(
             diagnosticsDirectory,
             "epg-preview.png");
+        var scrollbarPixelsPath = Path.Combine(
+            diagnosticsDirectory,
+            "epg-scrollbar-pixels.json");
         var errorPath = Path.Combine(
             diagnosticsDirectory,
             "epg-preview-error.log");
@@ -99,21 +102,38 @@ public sealed partial class MainWindow
                 _lifetime.Token);
             var persistentScrollBar =
                 ProgrammeGuideWorkspace.GetPersistentVerticalScrollBarEvidence();
+            var scrollbarPixelGeometry =
+                ProgrammeGuideWorkspace.GetPersistentScrollbarPixelEvidence(WindowRoot);
             if (evidence.AllChannelsMode &&
                 (!persistentScrollBar.IsVisible ||
-                 persistentScrollBar.RailWidth < 16 ||
+                 persistentScrollBar.RailWidth < 20 ||
                  persistentScrollBar.RailHeight <= 100 ||
-                 persistentScrollBar.ThumbWidth < 8 ||
-                 persistentScrollBar.ThumbHeight < 35 ||
+                 persistentScrollBar.ThumbWidth < 10 ||
+                 persistentScrollBar.ThumbHeight < 40 ||
                  persistentScrollBar.ThumbHeight >= persistentScrollBar.RailHeight ||
+                 persistentScrollBar.ThumbOpacity < 0.9 ||
+                 string.IsNullOrWhiteSpace(persistentScrollBar.RailColor) ||
+                 string.IsNullOrWhiteSpace(persistentScrollBar.ThumbColor) ||
+                 string.Equals(
+                     persistentScrollBar.RailColor,
+                     persistentScrollBar.ThumbColor,
+                     StringComparison.OrdinalIgnoreCase) ||
                  persistentScrollBar.Maximum <= persistentScrollBar.Minimum ||
                  persistentScrollBar.ViewportSize <= 0 ||
                  Math.Abs(
-                     persistentScrollBar.Value - evidence.VerticalOffset) >= 1))
+                     persistentScrollBar.Value - evidence.VerticalOffset) >= 1 ||
+                 !scrollbarPixelGeometry.IsVisible ||
+                 scrollbarPixelGeometry.RailBounds.Width < 20 ||
+                 scrollbarPixelGeometry.ThumbBounds.Width < 10 ||
+                 scrollbarPixelGeometry.ThumbBounds.Height < 40))
             {
                 throw new InvalidOperationException(
-                    "The persistent EPG scrollbar rail/thumb was not rendered or synchronized: " +
-                    JsonSerializer.Serialize(persistentScrollBar));
+                    "The persistent EPG scrollbar rail/thumb was not rendered, themed or synchronized: " +
+                    JsonSerializer.Serialize(new
+                    {
+                        Runtime = persistentScrollBar,
+                        Pixels = scrollbarPixelGeometry,
+                    }));
             }
 
             Directory.CreateDirectory(diagnosticsDirectory);
@@ -132,6 +152,74 @@ public sealed partial class MainWindow
                     "The EPG preview rendered with an empty pixel size.");
             }
 
+            var pixelBytes = pixels.ToArray();
+            if (evidence.AllChannelsMode)
+            {
+                var scaleX = bitmap.PixelWidth / Math.Max(1d, WindowRoot.ActualWidth);
+                var scaleY = bitmap.PixelHeight / Math.Max(1d, WindowRoot.ActualHeight);
+                var thumbPixel = ReadBgraPixel(
+                    pixelBytes,
+                    bitmap.PixelWidth,
+                    bitmap.PixelHeight,
+                    (scrollbarPixelGeometry.ThumbBounds.X +
+                     scrollbarPixelGeometry.ThumbBounds.Width / 2) * scaleX,
+                    (scrollbarPixelGeometry.ThumbBounds.Y +
+                     scrollbarPixelGeometry.ThumbBounds.Height / 2) * scaleY);
+                var railSampleY = scrollbarPixelGeometry.RailBounds.Y +
+                    scrollbarPixelGeometry.RailBounds.Height * 0.82;
+                if (railSampleY >= scrollbarPixelGeometry.ThumbBounds.Y &&
+                    railSampleY <= scrollbarPixelGeometry.ThumbBounds.Bottom)
+                {
+                    railSampleY = scrollbarPixelGeometry.RailBounds.Y +
+                        scrollbarPixelGeometry.RailBounds.Height * 0.55;
+                }
+
+                var railPixel = ReadBgraPixel(
+                    pixelBytes,
+                    bitmap.PixelWidth,
+                    bitmap.PixelHeight,
+                    (scrollbarPixelGeometry.RailBounds.X +
+                     scrollbarPixelGeometry.RailBounds.Width / 2) * scaleX,
+                    railSampleY * scaleY);
+                var colorDistance = ColorDistance(thumbPixel, railPixel);
+                var luminanceDelta = Math.Abs(
+                    RelativeLuminance(thumbPixel) -
+                    RelativeLuminance(railPixel));
+                if (thumbPixel.A < 180 ||
+                    colorDistance < 45 ||
+                    luminanceDelta < 24)
+                {
+                    throw new InvalidOperationException(
+                        "The physical EPG scrollbar thumb merges with its rail: " +
+                        JsonSerializer.Serialize(new
+                        {
+                            scrollbarPixelGeometry.ActualTheme,
+                            ThumbPixel = thumbPixel,
+                            RailPixel = railPixel,
+                            ColorDistance = colorDistance,
+                            LuminanceDelta = luminanceDelta,
+                        }));
+                }
+
+                await File.WriteAllTextAsync(
+                    scrollbarPixelsPath,
+                    JsonSerializer.Serialize(new
+                    {
+                        scrollbarPixelGeometry.ActualTheme,
+                        scrollbarPixelGeometry.RailBounds,
+                        scrollbarPixelGeometry.ThumbBounds,
+                        ExpectedRailColor = scrollbarPixelGeometry.RailColor,
+                        ExpectedThumbColor = scrollbarPixelGeometry.ThumbColor,
+                        scrollbarPixelGeometry.ThumbOpacity,
+                        ThumbPixel = thumbPixel,
+                        RailPixel = railPixel,
+                        ColorDistance = colorDistance,
+                        LuminanceDelta = luminanceDelta,
+                        RecordedAtUtc = DateTimeOffset.UtcNow,
+                    }),
+                    _lifetime.Token);
+            }
+
             await File.WriteAllBytesAsync(previewPath, [], _lifetime.Token);
             var file = await StorageFile.GetFileFromPathAsync(previewPath);
             await using var randomAccessStream = await file.OpenStreamForWriteAsync();
@@ -146,7 +234,7 @@ public sealed partial class MainWindow
                 (uint)bitmap.PixelHeight,
                 96,
                 96,
-                pixels.ToArray());
+                pixelBytes);
             await encoder.FlushAsync();
             await randomAccessStream.FlushAsync(_lifetime.Token);
         }
@@ -170,4 +258,34 @@ public sealed partial class MainWindow
             }
         }
     }
+
+    private static BgraPixel ReadBgraPixel(
+        byte[] pixels,
+        int width,
+        int height,
+        double x,
+        double y)
+    {
+        var pixelX = Math.Clamp((int)Math.Round(x), 0, width - 1);
+        var pixelY = Math.Clamp((int)Math.Round(y), 0, height - 1);
+        var index = checked((pixelY * width + pixelX) * 4);
+        return new BgraPixel(
+            pixels[index + 2],
+            pixels[index + 1],
+            pixels[index],
+            pixels[index + 3]);
+    }
+
+    private static double ColorDistance(BgraPixel first, BgraPixel second)
+    {
+        var red = first.R - second.R;
+        var green = first.G - second.G;
+        var blue = first.B - second.B;
+        return Math.Sqrt(red * red + green * green + blue * blue);
+    }
+
+    private static double RelativeLuminance(BgraPixel pixel) =>
+        0.2126 * pixel.R + 0.7152 * pixel.G + 0.0722 * pixel.B;
+
+    private sealed record BgraPixel(byte R, byte G, byte B, byte A);
 }
