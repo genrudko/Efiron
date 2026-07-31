@@ -32,6 +32,9 @@ public sealed partial class MainWindow
     private const long WsExClientEdge = 0x00000200L;
     private const long WsExStaticEdge = 0x00020000L;
 
+    private const nint HwndTopMost = -1;
+    private const nint HwndNoTopMost = -2;
+    private const int FullscreenOverscanPixels = 2;
     private const uint MonitorDefaultToNearest = 2;
     private const uint SwpNoSize = 0x0001;
     private const uint SwpNoMove = 0x0002;
@@ -243,7 +246,7 @@ public sealed partial class MainWindow
         SetWindowStyleIfDifferent(windowHandle, GwlStyle, popupStyle);
         SetWindowStyleIfDifferent(windowHandle, GwlExStyle, popupExStyle);
         ApplyDwmState(windowHandle, fullscreen: true);
-        FitPopupClientToMonitor(windowHandle);
+        FitPopupToMonitor(windowHandle);
     }
 
     private void ExitNativePopupFullscreen(nint windowHandle)
@@ -265,17 +268,17 @@ public sealed partial class MainWindow
 
         _ = SetWindowPos(
             windowHandle,
-            0,
+            HwndNoTopMost,
             0,
             0,
             0,
             0,
             SwpNoSize |
             SwpNoMove |
-            SwpNoZOrder |
             SwpNoActivate |
             SwpNoOwnerZOrder |
-            SwpFrameChanged);
+            SwpFrameChanged |
+            SwpShowWindow);
     }
 
     private void RestoreCustomTitleBarContract()
@@ -310,7 +313,7 @@ public sealed partial class MainWindow
         }
     }
 
-    private static void FitPopupClientToMonitor(nint windowHandle)
+    private static void FitPopupToMonitor(nint windowHandle)
     {
         var monitor = MonitorFromWindow(windowHandle, MonitorDefaultToNearest);
         if (monitor == 0)
@@ -337,76 +340,15 @@ public sealed partial class MainWindow
         _ = SetWindowRgn(windowHandle, 0, false);
         _ = SetWindowPos(
             windowHandle,
-            0,
-            info.Monitor.Left,
-            info.Monitor.Top,
-            monitorWidth,
-            monitorHeight,
-            SwpNoZOrder |
+            HwndTopMost,
+            info.Monitor.Left - FullscreenOverscanPixels,
+            info.Monitor.Top - FullscreenOverscanPixels,
+            monitorWidth + FullscreenOverscanPixels * 2,
+            monitorHeight + FullscreenOverscanPixels * 2,
             SwpNoActivate |
             SwpNoOwnerZOrder |
             SwpFrameChanged |
             SwpShowWindow);
-
-        if (TryGetClientScreenBounds(windowHandle, out var client))
-        {
-            var insetLeft = Math.Max(0, client.Left - info.Monitor.Left);
-            var insetTop = Math.Max(0, client.Top - info.Monitor.Top);
-            var insetRight = Math.Max(0, info.Monitor.Right - client.Right);
-            var insetBottom = Math.Max(0, info.Monitor.Bottom - client.Bottom);
-            if (insetLeft > 0 || insetTop > 0 ||
-                insetRight > 0 || insetBottom > 0)
-            {
-                _ = SetWindowPos(
-                    windowHandle,
-                    0,
-                    info.Monitor.Left - insetLeft,
-                    info.Monitor.Top - insetTop,
-                    monitorWidth + insetLeft + insetRight,
-                    monitorHeight + insetTop + insetBottom,
-                    SwpNoZOrder |
-                    SwpNoActivate |
-                    SwpNoOwnerZOrder |
-                    SwpFrameChanged |
-                    SwpShowWindow);
-            }
-        }
-
-        if (!GetWindowRect(windowHandle, out var finalWindow))
-        {
-            return;
-        }
-
-        var finalWidth = Math.Max(1, finalWindow.Right - finalWindow.Left);
-        var finalHeight = Math.Max(1, finalWindow.Bottom - finalWindow.Top);
-        var region = CreateRectRgn(0, 0, finalWidth, finalHeight);
-        if (region != 0 && SetWindowRgn(windowHandle, region, true) == 0)
-        {
-            _ = DeleteObject(region);
-        }
-    }
-
-    private static bool TryGetClientScreenBounds(
-        nint windowHandle,
-        out NativeRect bounds)
-    {
-        bounds = default;
-        if (!GetClientRect(windowHandle, out var client))
-        {
-            return false;
-        }
-
-        var origin = new NativePoint();
-        if (!ClientToScreen(windowHandle, ref origin))
-        {
-            return false;
-        }
-
-        bounds.Left = origin.X;
-        bounds.Top = origin.Y;
-        bounds.Right = origin.X + client.Right - client.Left;
-        bounds.Bottom = origin.Y + client.Bottom - client.Top;
-        return bounds.Right > bounds.Left && bounds.Bottom > bounds.Top;
     }
 
     private void QueueFullscreenWindowFinalize()
@@ -487,13 +429,6 @@ public sealed partial class MainWindow
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    private struct NativePoint
-    {
-        public int X;
-        public int Y;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
     private struct NativeRect
     {
         public int Left;
@@ -538,24 +473,6 @@ public sealed partial class MainWindow
     private static extern bool GetMonitorInfo(
         nint monitor,
         ref MonitorInfo info);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetWindowRect(
-        nint hwnd,
-        out NativeRect rect);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetClientRect(
-        nint hwnd,
-        out NativeRect rect);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool ClientToScreen(
-        nint hwnd,
-        ref NativePoint point);
 
     [DllImport("gdi32.dll")]
     private static extern nint CreateRectRgn(
