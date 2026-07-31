@@ -12,6 +12,7 @@ public sealed partial class MainWindow
     private void ShellRoot_Loaded(object sender, RoutedEventArgs e)
     {
         ShellRoot.Loaded -= ShellRoot_Loaded;
+        _ = RecordProcessStartupEvidenceAsync();
         _shellVisibilityToken = LiveTvWorkspace.RegisterPropertyChangedCallback(
             UIElement.VisibilityProperty,
             LiveWorkspace_VisibilityChanged);
