@@ -15,9 +15,9 @@ permissions:
 
 jobs:
   mpv:
-    name: Native mpv D3D11 composition probe
+    name: Native mpv and physical WinUI surface probe
     runs-on: windows-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
 
     steps:
       - name: Checkout exact branch head
@@ -30,11 +30,13 @@ jobs:
         with:
           dotnet-version: 10.0.302
 
-      - name: Restore and build mpv probe
+      - name: Restore and build exact head plus mpv probe
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           $PSNativeCommandUseErrorActionPreference = $true
+          dotnet restore Efiron.Greenfield.sln
+          dotnet build Efiron.Greenfield.sln -c Release --no-restore
           dotnet restore tools/Efiron.MpvProbe/Efiron.MpvProbe.csproj
           dotnet build tools/Efiron.MpvProbe/Efiron.MpvProbe.csproj -c Release --no-restore
 
@@ -55,6 +57,11 @@ jobs:
           if ((Get-Item $videoPath).Length -lt 2500) {
             throw "mpv H264 fixture was not decoded."
           }
+          @'
+          #EXTM3U
+          #EXTINF:-1 tvg-id="mpv.probe" group-title="Test",mpv physical surface
+          http://127.0.0.1:18772/probe.mp4
+          '@ | Set-Content (Join-Path $fixture "playlist.m3u") -Encoding utf8
 
       - name: Inventory mpv native runtime
         shell: pwsh
@@ -144,6 +151,236 @@ jobs:
             throw
           }
           finally {
+            if ($server -and -not $server.HasExited) {
+              Stop-Process -Id $server.Id -Force
+            }
+          }
+
+      - name: Verify physical mpv pixels in Efiron
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          Add-Type -AssemblyName UIAutomationClient
+          Add-Type -AssemblyName UIAutomationTypes
+          Add-Type -AssemblyName System.Drawing
+          Add-Type -TypeDefinition @'
+          using System;
+          using System.Runtime.InteropServices;
+          public static class EfironMpvNativeWindow {
+              [StructLayout(LayoutKind.Sequential)]
+              public struct RECT { public int Left, Top, Right, Bottom; }
+              [DllImport("user32.dll")]
+              public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
+              [DllImport("user32.dll")]
+              public static extern bool SetForegroundWindow(IntPtr hWnd);
+          }
+          '@
+
+          $output = "src/Efiron.Desktop/bin/x64/Release/net10.0-windows10.0.22000.0/win-x64"
+          $exe = Join-Path $output "Efiron.exe"
+          $fixture = Join-Path $env:RUNNER_TEMP "efiron-mpv-fixture"
+          $localAppData = [Environment]::GetFolderPath(
+            [Environment+SpecialFolder]::LocalApplicationData)
+          $data = Join-Path $localAppData "Efiron"
+          $diagnostics = Join-Path $data "diagnostics"
+          $current = Join-Path $diagnostics "playback-current.json"
+          Remove-Item $data -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $data -Force | Out-Null
+          @{
+            playlist = @{
+              location = "http://127.0.0.1:18772/playlist.m3u"
+              isEnabled = $true
+            }
+            programmeGuide = $null
+          } | ConvertTo-Json -Depth 4 |
+            Set-Content (Join-Path $data "sources.json") -Encoding utf8
+          @{ version = 1; theme = 2; accent = 1 } | ConvertTo-Json |
+            Set-Content (Join-Path $data "appearance.json") -Encoding utf8
+
+          $python = (Get-Command python -ErrorAction Stop).Source
+          $server = $null
+          $process = $null
+          try {
+            $server = Start-Process $python -ArgumentList @(
+              "-m","http.server","18772","--bind","127.0.0.1","--directory",$fixture) `
+              -WindowStyle Hidden -PassThru
+            Start-Sleep -Seconds 2
+            if ($server.HasExited) { throw "mpv UI fixture server exited." }
+
+            $process = Start-Process $exe -WorkingDirectory $output -PassThru
+            $windowDeadline = [DateTime]::UtcNow.AddSeconds(35)
+            do {
+              Start-Sleep -Milliseconds 250
+              $process.Refresh()
+              if ($process.HasExited) {
+                throw "Efiron exited before the mpv UI test with code $($process.ExitCode)."
+              }
+            } while ($process.MainWindowHandle -eq 0 -and [DateTime]::UtcNow -lt $windowDeadline)
+            if ($process.MainWindowHandle -eq 0) {
+              throw "Efiron did not expose a main window within 35 seconds."
+            }
+
+            [EfironMpvNativeWindow]::SetForegroundWindow($process.MainWindowHandle) | Out-Null
+            Start-Sleep -Seconds 2
+            $root = [System.Windows.Automation.AutomationElement]::FromHandle(
+              $process.MainWindowHandle)
+            $comboCondition = [System.Windows.Automation.PropertyCondition]::new(
+              [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+              [System.Windows.Automation.ControlType]::ComboBox)
+            $combos = $root.FindAll(
+              [System.Windows.Automation.TreeScope]::Descendants,
+              $comboCondition)
+            $selectedMpv = $false
+            foreach ($combo in $combos) {
+              try {
+                $expand = $combo.GetCurrentPattern(
+                  [System.Windows.Automation.ExpandCollapsePattern]::Pattern)
+                $expand.Expand()
+                Start-Sleep -Milliseconds 300
+                $itemCondition = [System.Windows.Automation.AndCondition]::new(
+                  [System.Windows.Automation.PropertyCondition]::new(
+                    [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+                    [System.Windows.Automation.ControlType]::ListItem),
+                  [System.Windows.Automation.PropertyCondition]::new(
+                    [System.Windows.Automation.AutomationElement]::NameProperty,
+                    "mpv"))
+                $item = [System.Windows.Automation.AutomationElement]::RootElement.FindFirst(
+                  [System.Windows.Automation.TreeScope]::Descendants,
+                  $itemCondition)
+                if ($item) {
+                  $selection = $item.GetCurrentPattern(
+                    [System.Windows.Automation.SelectionItemPattern]::Pattern)
+                  $selection.Select()
+                  $selectedMpv = $true
+                  break
+                }
+                $expand.Collapse()
+              }
+              catch {
+              }
+            }
+            if (-not $selectedMpv) {
+              throw "UI Automation could not select the mpv backend."
+            }
+
+            $playbackDeadline = [DateTime]::UtcNow.AddSeconds(30)
+            $playback = $null
+            while ([DateTime]::UtcNow -lt $playbackDeadline) {
+              Start-Sleep -Milliseconds 300
+              $process.Refresh()
+              if ($process.HasExited) {
+                throw "Efiron exited while waiting for mpv playback."
+              }
+              if (Test-Path $current) {
+                try {
+                  $candidate = Get-Content $current -Raw | ConvertFrom-Json
+                  if ($candidate.BackendId -eq "Mpv" -and
+                      $candidate.PlaybackState -eq "Playing") {
+                    $playback = $candidate
+                    break
+                  }
+                }
+                catch {
+                }
+              }
+            }
+            if ($null -eq $playback) {
+              throw "Efiron did not reach mpv Playing within 30 seconds."
+            }
+
+            Start-Sleep -Seconds 2
+            $rect = [EfironMpvNativeWindow+RECT]::new()
+            if (-not [EfironMpvNativeWindow]::GetWindowRect(
+                $process.MainWindowHandle,
+                [ref]$rect)) {
+              throw "GetWindowRect failed for Efiron."
+            }
+            $windowWidth = $rect.Right - $rect.Left
+            $windowHeight = $rect.Bottom - $rect.Top
+            $sampleX = $rect.Left + [int]($windowWidth * 0.58)
+            $sampleY = $rect.Top + [int]($windowHeight * 0.20)
+            $sampleWidth = [Math]::Max(160, [int]($windowWidth * 0.22))
+            $sampleHeight = [Math]::Max(120, [int]($windowHeight * 0.28))
+            $bitmap = [System.Drawing.Bitmap]::new(
+              $sampleWidth,
+              $sampleHeight,
+              [System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
+            $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+            try {
+              $graphics.CopyFromScreen(
+                $sampleX,
+                $sampleY,
+                0,
+                0,
+                $bitmap.Size)
+              $preview = Join-Path mpv-artifacts "mpv-ui-physical.png"
+              $bitmap.Save($preview, [System.Drawing.Imaging.ImageFormat]::Png)
+
+              $nonBlack = 0L
+              $samples = 0L
+              $buckets = [System.Collections.Generic.HashSet[string]]::new()
+              for ($y = 0; $y -lt $bitmap.Height; $y += 2) {
+                for ($x = 0; $x -lt $bitmap.Width; $x += 2) {
+                  $pixel = $bitmap.GetPixel($x, $y)
+                  if ($pixel.R -gt 28 -or $pixel.G -gt 28 -or $pixel.B -gt 28) {
+                    $nonBlack++
+                  }
+                  $bucket = "{0:X1}{1:X1}{2:X1}" -f `
+                    ([int]($pixel.R / 16)), `
+                    ([int]($pixel.G / 16)), `
+                    ([int]($pixel.B / 16))
+                  $buckets.Add($bucket) | Out-Null
+                  $samples++
+                }
+              }
+              $nonBlackRatio = if ($samples -eq 0) { 0 } else {
+                [double]$nonBlack / [double]$samples
+              }
+              if ($nonBlackRatio -lt 0.55 -or $buckets.Count -lt 20) {
+                throw (
+                  "Physical mpv player region remained black/flat: " +
+                  "nonBlack=$nonBlackRatio colors=$($buckets.Count)")
+              }
+
+              [ordered]@{
+                HeadSha = "${{ github.event.pull_request.head.sha || github.sha }}"
+                Backend = [string]$playback.BackendId
+                State = [string]$playback.PlaybackState
+                Renderer = [string]$playback.VideoRenderer
+                Decoder = [string]$playback.Decoder
+                WindowWidth = $windowWidth
+                WindowHeight = $windowHeight
+                SampleX = $sampleX
+                SampleY = $sampleY
+                SampleWidth = $sampleWidth
+                SampleHeight = $sampleHeight
+                NonBlackRatio = $nonBlackRatio
+                QuantizedColorCount = $buckets.Count
+              } | ConvertTo-Json |
+                Set-Content mpv-artifacts/mpv-ui-runtime.json -Encoding utf8
+            }
+            finally {
+              $graphics.Dispose()
+              $bitmap.Dispose()
+            }
+
+            if (-not $process.CloseMainWindow()) {
+              throw "Efiron did not accept CloseMainWindow after the mpv UI probe."
+            }
+            if (-not $process.WaitForExit(10000)) {
+              throw "Efiron remained alive after the mpv UI probe."
+            }
+            $process = $null
+          }
+          catch {
+            $_ | Out-String |
+              Set-Content mpv-artifacts/mpv-ui-error.txt -Encoding utf8
+            throw
+          }
+          finally {
+            if ($process -and -not $process.HasExited) {
+              Stop-Process -Id $process.Id -Force
+            }
             if ($server -and -not $server.HasExited) {
               Stop-Process -Id $server.Id -Force
             }
