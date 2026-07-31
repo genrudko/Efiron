@@ -107,15 +107,19 @@ public sealed partial class ProgrammeGuideView
                 verticalProgramme.ChannelStableId,
                 StringComparison.Ordinal);
 
+        var persistentScrollBar = GetPersistentVerticalScrollBarEvidence();
         var verticalScrollBarVisible =
-            EpgVerticalScrollBar.Visibility == Microsoft.UI.Xaml.Visibility.Visible &&
-            EpgVerticalScrollBar.Opacity >= 0.99;
+            persistentScrollBar.IsVisible &&
+            persistentScrollBar.RailWidth >= 16 &&
+            persistentScrollBar.RailHeight > 100 &&
+            persistentScrollBar.ThumbHeight >= 35 &&
+            persistentScrollBar.ThumbHeight < persistentScrollBar.RailHeight;
         var verticalScrollBarInteractive =
-            EpgVerticalScrollBar.IsEnabled &&
-            EpgVerticalScrollBar.IsHitTestVisible &&
-            EpgVerticalScrollBar.Width >= 14;
+            verticalScrollBarVisible &&
+            persistentScrollBar.ThumbWidth >= 8 &&
+            persistentScrollBar.Maximum > persistentScrollBar.Minimum;
         var verticalScrollBarValueTracksOffset =
-            Math.Abs(EpgVerticalScrollBar.Value - _verticalOffset) < 1;
+            Math.Abs(persistentScrollBar.Value - _verticalOffset) < 1;
         var verticalScrollBarDragChanged = false;
         var verticalScrollChanged = false;
         var rapidScrollCompleted = false;
@@ -163,6 +167,17 @@ public sealed partial class ProgrammeGuideView
                         visual.Root.Visibility == Microsoft.UI.Xaml.Visibility.Visible));
             }
 
+            persistentScrollBar = GetPersistentVerticalScrollBarEvidence();
+            verticalScrollBarVisible =
+                persistentScrollBar.IsVisible &&
+                persistentScrollBar.RailWidth >= 16 &&
+                persistentScrollBar.RailHeight > 100 &&
+                persistentScrollBar.ThumbHeight >= 35 &&
+                persistentScrollBar.ThumbHeight < persistentScrollBar.RailHeight;
+            verticalScrollBarInteractive =
+                verticalScrollBarVisible &&
+                persistentScrollBar.ThumbWidth >= 8 &&
+                persistentScrollBar.Maximum > persistentScrollBar.Minimum;
             verticalScrollChanged =
                 maximum > RowHeight * 20 &&
                 verticalScrollBarDragChanged &&
@@ -237,7 +252,7 @@ public sealed partial class ProgrammeGuideView
             EpgVerticalScrollBar.Maximum,
             verticalScrollBarVisible,
             verticalScrollBarInteractive,
-            EpgVerticalScrollBar.Width,
+            persistentScrollBar.RailWidth,
             EpgVerticalScrollBar.ViewportSize,
             verticalScrollBarValueTracksOffset,
             verticalScrollBarDragChanged,
