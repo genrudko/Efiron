@@ -38,7 +38,7 @@ jobs:
           dotnet restore Efiron.Greenfield.sln
           dotnet build Efiron.Greenfield.sln -c Release --no-restore
 
-      - name: Prepare canonical ultrawide H264 fixture
+      - name: Prepare canonical looping ultrawide H264 fixture
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -64,6 +64,7 @@ jobs:
           @'
           #EXTM3U
           #EXTINF:-1 tvg-id="fullscreen.one" group-title="Fullscreen",Fullscreen One
+          #EXTVLCOPT:input-repeat=-1
           http://127.0.0.1:18770/fullscreen.mp4
           '@ | Set-Content (Join-Path $fixture "playlist.m3u") -Encoding utf8
 
