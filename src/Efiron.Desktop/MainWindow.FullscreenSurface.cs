@@ -44,6 +44,7 @@ public sealed partial class MainWindow
     private bool _fullscreenWindowSurfaceFixEnabled;
     private bool? _fullscreenWindowSurfaceApplied;
     private bool _fullscreenFinalizeQueued;
+    private bool _switchingFullscreenPresenter;
     private int _fullscreenFinalizeRemaining;
     private Brush? _normalWindowRootBackground;
     private Brush? _normalShellRootBackground;
@@ -71,6 +72,7 @@ public sealed partial class MainWindow
 
         _fullscreenWindowSurfaceApplied = false;
         AppWindow.Changed += FullscreenWindowSurface_AppWindowChanged;
+        WindowRoot.LayoutUpdated += FullscreenWindowSurface_WindowRootLayoutUpdated;
         Closed += FullscreenWindowSurface_Closed;
     }
 
@@ -85,7 +87,9 @@ public sealed partial class MainWindow
             return;
         }
 
-        if (_fullscreenWindowSurfaceApplied != _isFullscreen)
+        if (_fullscreenWindowSurfaceApplied != _isFullscreen ||
+            (_isFullscreen &&
+             sender.Presenter.Kind == AppWindowPresenterKind.FullScreen))
         {
             ApplyFullscreenWindowSurfaceState(force: true);
             return;
@@ -101,10 +105,40 @@ public sealed partial class MainWindow
         }
     }
 
+    private void FullscreenWindowSurface_WindowRootLayoutUpdated(
+        object? sender,
+        object e) =>
+        ApplyFullscreenWindowSurfaceState(force: false);
+
     private void ApplyFullscreenWindowSurfaceState(bool force)
     {
-        if (!_fullscreenWindowSurfaceFixEnabled ||
-            (!force && _fullscreenWindowSurfaceApplied == _isFullscreen))
+        if (!_fullscreenWindowSurfaceFixEnabled)
+        {
+            return;
+        }
+
+        if (_isFullscreen &&
+            AppWindow.Presenter.Kind == AppWindowPresenterKind.FullScreen)
+        {
+            if (_switchingFullscreenPresenter)
+            {
+                return;
+            }
+
+            _switchingFullscreenPresenter = true;
+            try
+            {
+                AppWindow.SetPresenter(AppWindowPresenterKind.Default);
+            }
+            finally
+            {
+                _switchingFullscreenPresenter = false;
+            }
+
+            return;
+        }
+
+        if (!force && _fullscreenWindowSurfaceApplied == _isFullscreen)
         {
             return;
         }
@@ -121,7 +155,7 @@ public sealed partial class MainWindow
         if (_isFullscreen)
         {
             EnterNativePopupFullscreen(windowHandle);
-            _fullscreenFinalizeRemaining = 2;
+            _fullscreenFinalizeRemaining = 4;
             QueueFullscreenWindowFinalize();
         }
         else
@@ -300,68 +334,42 @@ public sealed partial class MainWindow
             return;
         }
 
-        var clientAlreadyCoversMonitor =
-            TryGetClientScreenBounds(windowHandle, out var currentClient) &&
-            currentClient.Left <= info.Monitor.Left &&
-            currentClient.Top <= info.Monitor.Top &&
-            currentClient.Right >= info.Monitor.Right &&
-            currentClient.Bottom >= info.Monitor.Bottom;
+        _ = SetWindowRgn(windowHandle, 0, false);
+        _ = SetWindowPos(
+            windowHandle,
+            0,
+            info.Monitor.Left,
+            info.Monitor.Top,
+            monitorWidth,
+            monitorHeight,
+            SwpNoZOrder |
+            SwpNoActivate |
+            SwpNoOwnerZOrder |
+            SwpFrameChanged |
+            SwpShowWindow);
 
-        if (!clientAlreadyCoversMonitor)
+        if (TryGetClientScreenBounds(windowHandle, out var client))
         {
-            _ = SetWindowRgn(windowHandle, 0, false);
-            _ = SetWindowPos(
-                windowHandle,
-                0,
-                info.Monitor.Left,
-                info.Monitor.Top,
-                monitorWidth,
-                monitorHeight,
-                SwpNoZOrder |
-                SwpNoActivate |
-                SwpNoOwnerZOrder |
-                SwpFrameChanged |
-                SwpShowWindow);
-
-            if (TryGetClientScreenBounds(windowHandle, out var client))
+            var insetLeft = Math.Max(0, client.Left - info.Monitor.Left);
+            var insetTop = Math.Max(0, client.Top - info.Monitor.Top);
+            var insetRight = Math.Max(0, info.Monitor.Right - client.Right);
+            var insetBottom = Math.Max(0, info.Monitor.Bottom - client.Bottom);
+            if (insetLeft > 0 || insetTop > 0 ||
+                insetRight > 0 || insetBottom > 0)
             {
-                var insetLeft = Math.Max(0, client.Left - info.Monitor.Left);
-                var insetTop = Math.Max(0, client.Top - info.Monitor.Top);
-                var insetRight = Math.Max(0, info.Monitor.Right - client.Right);
-                var insetBottom = Math.Max(0, info.Monitor.Bottom - client.Bottom);
-                if (insetLeft > 0 || insetTop > 0 ||
-                    insetRight > 0 || insetBottom > 0)
-                {
-                    _ = SetWindowPos(
-                        windowHandle,
-                        0,
-                        info.Monitor.Left - insetLeft,
-                        info.Monitor.Top - insetTop,
-                        monitorWidth + insetLeft + insetRight,
-                        monitorHeight + insetTop + insetBottom,
-                        SwpNoZOrder |
-                        SwpNoActivate |
-                        SwpNoOwnerZOrder |
-                        SwpFrameChanged |
-                        SwpShowWindow);
-                }
+                _ = SetWindowPos(
+                    windowHandle,
+                    0,
+                    info.Monitor.Left - insetLeft,
+                    info.Monitor.Top - insetTop,
+                    monitorWidth + insetLeft + insetRight,
+                    monitorHeight + insetTop + insetBottom,
+                    SwpNoZOrder |
+                    SwpNoActivate |
+                    SwpNoOwnerZOrder |
+                    SwpFrameChanged |
+                    SwpShowWindow);
             }
-        }
-        else
-        {
-            _ = SetWindowPos(
-                windowHandle,
-                0,
-                0,
-                0,
-                0,
-                0,
-                SwpNoSize |
-                SwpNoMove |
-                SwpNoZOrder |
-                SwpNoActivate |
-                SwpNoOwnerZOrder |
-                SwpFrameChanged);
         }
 
         if (!GetWindowRect(windowHandle, out var finalWindow))
@@ -474,6 +482,7 @@ public sealed partial class MainWindow
         WindowEventArgs args)
     {
         AppWindow.Changed -= FullscreenWindowSurface_AppWindowChanged;
+        WindowRoot.LayoutUpdated -= FullscreenWindowSurface_WindowRootLayoutUpdated;
         Closed -= FullscreenWindowSurface_Closed;
     }
 
