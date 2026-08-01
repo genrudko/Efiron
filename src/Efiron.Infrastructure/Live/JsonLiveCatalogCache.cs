@@ -7,7 +7,7 @@ namespace Efiron.Infrastructure.Live;
 
 public sealed class JsonLiveCatalogCache(string path)
 {
-    private const int CurrentVersion = 1;
+    private const int CurrentVersion = 2;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -86,7 +86,7 @@ public sealed class JsonLiveCatalogCache(string path)
             configuration.Playlist?.Location,
             configuration.ProgrammeGuide?.Location,
             DateTimeOffset.UtcNow,
-            catalog with { CatalogCacheHit = false });
+            CreateStartupCatalog(catalog));
 
         try
         {
@@ -124,6 +124,24 @@ public sealed class JsonLiveCatalogCache(string path)
             {
             }
         }
+    }
+
+    private static LiveCatalogSnapshot CreateStartupCatalog(
+        LiveCatalogSnapshot catalog)
+    {
+        var channels = catalog.Channels
+            .Select(static channel => channel with
+            {
+                Schedule = Array.Empty<Efiron.Domain.ProgrammeGuide.Programme>(),
+            })
+            .ToArray();
+
+        return catalog with
+        {
+            Channels = channels,
+            ProgrammeGuideWarnings = [],
+            CatalogCacheHit = false,
+        };
     }
 
     private static bool Matches(
