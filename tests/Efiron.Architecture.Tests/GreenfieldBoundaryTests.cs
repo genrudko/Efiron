@@ -109,10 +109,17 @@ public sealed class GreenfieldBoundaryTests
         var lazyWorkspaces = File.ReadAllText(Path.Combine(
             desktopDirectory,
             "MainWindow.LazyWorkspaces.cs"));
+        var appearance = File.ReadAllText(Path.Combine(
+            desktopDirectory,
+            "MainWindow.Appearance.cs"));
         var live = File.ReadAllText(Path.Combine(
             desktopDirectory,
             "Views",
             "LiveTvView.xaml"));
+        var presentationPolish = File.ReadAllText(Path.Combine(
+            desktopDirectory,
+            "Views",
+            "LiveTvView.PresentationPolish.cs"));
         var programme = File.ReadAllText(Path.Combine(
             desktopDirectory,
             "Views",
@@ -148,6 +155,14 @@ public sealed class GreenfieldBoundaryTests
         Assert.Contains("new ProgrammeGuideView", lazyWorkspaces, StringComparison.Ordinal);
         Assert.Contains("EnsureLiveTvWorkspace", lazyWorkspaces, StringComparison.Ordinal);
         Assert.Contains("EnsureProgrammeGuideWorkspace", lazyWorkspaces, StringComparison.Ordinal);
+        Assert.Contains(
+            "RequestedTheme = WindowRoot.RequestedTheme",
+            lazyWorkspaces,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "ApplyThemeToLazyWorkspaces();",
+            appearance,
+            StringComparison.Ordinal);
 
         Assert.Contains("x:Name=\"CategoryRailCard\"", live, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"ChannelBrowserCard\"", live, StringComparison.Ordinal);
@@ -158,6 +173,11 @@ public sealed class GreenfieldBoundaryTests
         Assert.Contains("Text=\"ДАЛЕЕ\"", live, StringComparison.Ordinal);
         Assert.Contains("Source=\"{Binding LogoUrl}\"", live, StringComparison.Ordinal);
         Assert.Contains("snapshot.Channel.LogoUri", channelPresentation, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "LiveRoot.LayoutUpdated +=",
+            presentationPolish,
+            StringComparison.Ordinal);
+        Assert.Contains("SetIfChanged", presentationPolish, StringComparison.Ordinal);
 
         Assert.Contains("x:Name=\"TimelineHeaderCanvas\"", programme, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"EpgRowsViewport\"", programme, StringComparison.Ordinal);
