@@ -26,6 +26,7 @@ public sealed partial class LiveTvView
     {
         SyncCategoryRail();
         ApplyResponsiveLayout(LiveRoot.ActualWidth, force: true);
+        EnableLayoutActivityEvidence();
         TryStartInteractionEvidence();
     }
 
