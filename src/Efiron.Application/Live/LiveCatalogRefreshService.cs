@@ -1,4 +1,7 @@
+using System.IO.Compression;
+using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Efiron.Application.Playlists;
 using Efiron.Application.ProgrammeGuide;
 using Efiron.Application.Sources;
@@ -14,10 +17,21 @@ public sealed class LiveCatalogRefreshService(
 {
     private const int PastProgrammeGuideDays = 1;
     private const int FutureProgrammeGuideDays = 7;
+    private const int MaximumGuideCacheFiles = 4;
 
     private static readonly UTF8Encoding StrictUtf8 = new(
         encoderShouldEmitUTF8Identifier: false,
         throwOnInvalidBytes: true);
+
+    private static readonly JsonSerializerOptions CacheJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+    };
+
+    private static readonly string GuideCacheDirectory = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "Efiron",
+        "epg-cache");
 
     public async ValueTask<LiveCatalogSnapshot> RefreshAsync(
         SourceConfiguration configuration,
@@ -43,12 +57,16 @@ public sealed class LiveCatalogRefreshService(
             playlistPayload.EffectiveUri);
 
         ProgrammeGuideDocument guide = ProgrammeGuideDocument.Empty;
+        var guideSourceCacheHit = false;
+        var guideParseCacheHit = false;
         if (configuration.ProgrammeGuide is { IsEnabled: true } guideSource)
         {
             var guidePayload = await sourceContentLoader.LoadAsync(
                     guideSource,
                     cancellationToken)
                 .ConfigureAwait(false);
+            guideSourceCacheHit = guidePayload.IsCacheHit;
+
             var dayStart = new DateTimeOffset(
                 now.Year,
                 now.Month,
@@ -59,9 +77,22 @@ public sealed class LiveCatalogRefreshService(
                 now.Offset);
             var windowStart = dayStart.AddDays(-PastProgrammeGuideDays);
             var windowEnd = dayStart.AddDays(FutureProgrammeGuideDays + 1);
-            guide = programmeGuideParser is IWindowedProgrammeGuideParser windowed
-                ? windowed.Parse(guidePayload.Content, windowStart, windowEnd)
-                : programmeGuideParser.Parse(guidePayload.Content);
+            var cachePath = GetGuideCachePath(
+                guidePayload.Content,
+                windowStart,
+                windowEnd);
+            guide = TryLoadGuideCache(cachePath);
+            if (!ReferenceEquals(guide, ProgrammeGuideDocument.Empty))
+            {
+                guideParseCacheHit = true;
+            }
+            else
+            {
+                guide = programmeGuideParser is IWindowedProgrammeGuideParser windowed
+                    ? windowed.Parse(guidePayload.Content, windowStart, windowEnd)
+                    : programmeGuideParser.Parse(guidePayload.Content);
+                TrySaveGuideCache(cachePath, guide);
+            }
         }
 
         var matches = programmeGuideMatcher.Match(
@@ -97,7 +128,12 @@ public sealed class LiveCatalogRefreshService(
             guide.Warnings,
             matches.ExactIdMatches,
             matches.UniqueNameMatches,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow)
+        {
+            PlaylistSourceCacheHit = playlistPayload.IsCacheHit,
+            ProgrammeGuideSourceCacheHit = guideSourceCacheHit,
+            ProgrammeGuideParseCacheHit = guideParseCacheHit,
+        };
     }
 
     private static LiveChannelSnapshot BuildChannelSnapshot(
@@ -149,6 +185,114 @@ public sealed class LiveCatalogRefreshService(
         {
             Schedule = schedule,
         };
+    }
+
+    private static string GetGuideCachePath(
+        ReadOnlyMemory<byte> content,
+        DateTimeOffset windowStart,
+        DateTimeOffset windowEnd)
+    {
+        var hash = Convert.ToHexString(SHA256.HashData(content.Span));
+        var fileName = string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"guide-{hash}-{windowStart:yyyyMMdd}-{windowEnd:yyyyMMdd}.json.gz");
+        return Path.Combine(GuideCacheDirectory, fileName);
+    }
+
+    private static ProgrammeGuideDocument TryLoadGuideCache(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return ProgrammeGuideDocument.Empty;
+        }
+
+        try
+        {
+            using var file = new FileStream(
+                path,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                64 * 1024,
+                FileOptions.SequentialScan);
+            using var gzip = new GZipStream(
+                file,
+                CompressionMode.Decompress,
+                leaveOpen: false);
+            return JsonSerializer.Deserialize<ProgrammeGuideDocument>(
+                       gzip,
+                       CacheJsonOptions) ??
+                   ProgrammeGuideDocument.Empty;
+        }
+        catch (Exception exception) when (
+            exception is IOException or
+                UnauthorizedAccessException or
+                InvalidDataException or
+                JsonException or
+                NotSupportedException)
+        {
+            return ProgrammeGuideDocument.Empty;
+        }
+    }
+
+    private static void TrySaveGuideCache(
+        string path,
+        ProgrammeGuideDocument guide)
+    {
+        try
+        {
+            Directory.CreateDirectory(GuideCacheDirectory);
+            var temporaryPath = path + ".tmp";
+            try
+            {
+                using (var file = new FileStream(
+                           temporaryPath,
+                           FileMode.Create,
+                           FileAccess.Write,
+                           FileShare.None,
+                           64 * 1024,
+                           FileOptions.SequentialScan))
+                using (var gzip = new GZipStream(
+                           file,
+                           CompressionLevel.Fastest,
+                           leaveOpen: false))
+                {
+                    JsonSerializer.Serialize(gzip, guide, CacheJsonOptions);
+                }
+
+                File.Move(temporaryPath, path, overwrite: true);
+            }
+            finally
+            {
+                TryDelete(temporaryPath);
+            }
+
+            foreach (var stale in new DirectoryInfo(GuideCacheDirectory)
+                         .EnumerateFiles("guide-*.json.gz")
+                         .OrderByDescending(static file => file.LastWriteTimeUtc)
+                         .Skip(MaximumGuideCacheFiles))
+            {
+                TryDelete(stale.FullName);
+            }
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException or JsonException)
+        {
+        }
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
     }
 
     private static string DecodePlaylist(ReadOnlyMemory<byte> content)
