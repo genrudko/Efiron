@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   footprint:
-    name: Cold startup and playback process footprint
+    name: Cold startup, mpv Auto footprint and graceful exit
     runs-on: windows-latest
     timeout-minutes: 25
 
@@ -50,8 +50,7 @@ jobs:
           New-Item -ItemType Directory -Path $fixture,$data -Force | Out-Null
 
           $fixtureBase64 = Get-Content `
-            "tests/fixtures/fullscreen-21x9-h264.mp4.b64" `
-            -Raw
+            "tests/fixtures/fullscreen-21x9-h264.mp4.b64" -Raw
           $videoPath = Join-Path $fixture "footprint.mp4"
           [IO.File]::WriteAllBytes(
             $videoPath,
@@ -78,7 +77,7 @@ jobs:
           @{ version = 1; theme = 2; accent = 1 } | ConvertTo-Json |
             Set-Content (Join-Path $data "appearance.json") -Encoding utf8
 
-      - name: Verify startup, footprint and graceful exit
+      - name: Verify startup, mpv Auto footprint and graceful exit
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -87,10 +86,12 @@ jobs:
           $fixture = Join-Path $env:RUNNER_TEMP "efiron-footprint-fixture"
           $localAppData = [Environment]::GetFolderPath(
             [Environment+SpecialFolder]::LocalApplicationData)
-          $diagnostics = Join-Path $localAppData "Efiron/diagnostics"
+          $data = Join-Path $localAppData "Efiron"
+          $diagnostics = Join-Path $data "diagnostics"
           $startupPath = Join-Path $diagnostics "startup-process.json"
           $playbackPath = Join-Path $diagnostics "playback-current.json"
           $footprintPath = Join-Path $diagnostics "process-footprint.jsonl"
+          $programmeCachePath = Join-Path $data "programme-catalog.json.gz"
           $process = $null
           $server = $null
 
@@ -149,13 +150,14 @@ jobs:
                 if (-not (Test-Path $playbackPath)) { return $false }
                 try {
                   $candidate = Get-Content $playbackPath -Raw | ConvertFrom-Json
-                  return $candidate.BackendId -eq "LibVlc" -and
+                  return $candidate.BackendId -eq "Mpv" -and
+                    $candidate.SelectedProfile -eq "Auto" -and
                     $candidate.PlaybackState -eq "Playing"
                 }
                 catch { return $false }
               } `
               -TimeoutSeconds 45 `
-              -Description "LibVLC H264 playback"
+              -Description "mpv Auto H264 playback"
 
             Start-Sleep -Seconds 8
             Wait-ForCondition `
@@ -163,7 +165,12 @@ jobs:
               -TimeoutSeconds 8 `
               -Description "process footprint samples"
 
+            if (Test-Path $programmeCachePath) {
+              throw "Full programme cache was created during Live-only footprint validation."
+            }
+
             $process.Refresh()
+            $playback = Get-Content $playbackPath -Raw | ConvertFrom-Json
             $lastLine = Get-Content $footprintPath | Select-Object -Last 1
             $footprint = $lastLine | ConvertFrom-Json
             if ($process.WorkingSet64 -gt 786432000 -or
@@ -189,6 +196,8 @@ jobs:
             Copy-Item $footprintPath footprint-artifacts/process-footprint.jsonl -Force
             [ordered]@{
               HeadSha = "${{ github.event.pull_request.head.sha || github.sha }}"
+              BackendId = [string]$playback.BackendId
+              SelectedProfile = [string]$playback.SelectedProfile
               ProcessToShellMilliseconds = [double]$startup.ProcessToShellMilliseconds
               ShellWorkingSetBytes = [int64]$startup.WorkingSetBytes
               ShellPrivateMemoryBytes = [int64]$startup.PrivateMemoryBytes
@@ -197,6 +206,7 @@ jobs:
               ManagedHeapBytes = [int64]$footprint.ManagedHeapBytes
               ThreadCount = [int]$footprint.ThreadCount
               HandleCount = [int]$footprint.HandleCount
+              FullEpgStartedDuringLive = $false
             } | ConvertTo-Json |
               Set-Content footprint-artifacts/footprint-summary.json -Encoding utf8
 
