@@ -136,23 +136,44 @@ public sealed partial class MainWindow
                     }));
             }
 
-            await Task.Delay(TimeSpan.FromMilliseconds(350), _lifetime.Token);
-            var bitmap = new RenderTargetBitmap();
-            await bitmap.RenderAsync(WindowRoot);
-            var pixels = await bitmap.GetPixelsAsync();
-            if (bitmap.PixelWidth <= 0 || bitmap.PixelHeight <= 0)
-            {
-                throw new InvalidOperationException(
-                    "The EPG preview rendered with an empty pixel size.");
-            }
+            const int maximumCaptureAttempts = 8;
+            RenderTargetBitmap? bitmap = null;
+            byte[]? pixelBytes = null;
+            BgraPixel? thumbPixel = null;
+            BgraPixel? railPixel = null;
+            double colorDistance = 0;
+            double luminanceDelta = 0;
+            var captureAttempts = 0;
 
-            Directory.CreateDirectory(diagnosticsDirectory);
-            var pixelBytes = pixels.ToArray();
-            if (evidence.AllChannelsMode)
+            for (var attempt = 0; attempt < maximumCaptureAttempts; attempt++)
             {
-                var scaleX = bitmap.PixelWidth / Math.Max(1d, WindowRoot.ActualWidth);
-                var scaleY = bitmap.PixelHeight / Math.Max(1d, WindowRoot.ActualHeight);
-                var thumbPixel = ReadBgraPixel(
+                await Task.Delay(
+                    TimeSpan.FromMilliseconds(attempt == 0 ? 350 : 175),
+                    _lifetime.Token);
+
+                var candidateBitmap = new RenderTargetBitmap();
+                await candidateBitmap.RenderAsync(WindowRoot);
+                var candidatePixels = await candidateBitmap.GetPixelsAsync();
+                if (candidateBitmap.PixelWidth <= 0 ||
+                    candidateBitmap.PixelHeight <= 0)
+                {
+                    continue;
+                }
+
+                bitmap = candidateBitmap;
+                pixelBytes = candidatePixels.ToArray();
+                captureAttempts = attempt + 1;
+
+                if (!evidence.AllChannelsMode)
+                {
+                    break;
+                }
+
+                var scaleX = bitmap.PixelWidth /
+                    Math.Max(1d, WindowRoot.ActualWidth);
+                var scaleY = bitmap.PixelHeight /
+                    Math.Max(1d, WindowRoot.ActualHeight);
+                thumbPixel = ReadBgraPixel(
                     pixelBytes,
                     bitmap.PixelWidth,
                     bitmap.PixelHeight,
@@ -169,26 +190,47 @@ public sealed partial class MainWindow
                         scrollbarPixelGeometry.RailBounds.Height * 0.55;
                 }
 
-                var railPixel = ReadBgraPixel(
+                railPixel = ReadBgraPixel(
                     pixelBytes,
                     bitmap.PixelWidth,
                     bitmap.PixelHeight,
                     (scrollbarPixelGeometry.RailBounds.X +
                      scrollbarPixelGeometry.RailBounds.Width / 2) * scaleX,
                     railSampleY * scaleY);
-                var colorDistance = ColorDistance(thumbPixel, railPixel);
-                var luminanceDelta = Math.Abs(
+                colorDistance = ColorDistance(thumbPixel, railPixel);
+                luminanceDelta = Math.Abs(
                     RelativeLuminance(thumbPixel) -
                     RelativeLuminance(railPixel));
-                if (thumbPixel.A < 180 ||
+
+                if (thumbPixel.A >= 180 &&
+                    colorDistance >= 45 &&
+                    luminanceDelta >= 24)
+                {
+                    break;
+                }
+            }
+
+            if (bitmap is null || pixelBytes is null)
+            {
+                throw new InvalidOperationException(
+                    "The EPG preview rendered with an empty pixel size.");
+            }
+
+            Directory.CreateDirectory(diagnosticsDirectory);
+            if (evidence.AllChannelsMode)
+            {
+                if (thumbPixel is null || railPixel is null ||
+                    thumbPixel.A < 180 ||
                     colorDistance < 45 ||
                     luminanceDelta < 24)
                 {
                     throw new InvalidOperationException(
-                        "The physical EPG scrollbar thumb merges with its rail: " +
+                        "The physical EPG scrollbar thumb did not become visible after repeated composition frames: " +
                         JsonSerializer.Serialize(new
                         {
                             scrollbarPixelGeometry.ActualTheme,
+                            CaptureAttempts = captureAttempts,
+                            MaximumCaptureAttempts = maximumCaptureAttempts,
                             ThumbPixel = thumbPixel,
                             RailPixel = railPixel,
                             ColorDistance = colorDistance,
@@ -206,6 +248,7 @@ public sealed partial class MainWindow
                         ExpectedRailColor = scrollbarPixelGeometry.RailColor,
                         ExpectedThumbColor = scrollbarPixelGeometry.ThumbColor,
                         scrollbarPixelGeometry.ThumbOpacity,
+                        CaptureAttempts = captureAttempts,
                         ThumbPixel = thumbPixel,
                         RailPixel = railPixel,
                         ColorDistance = colorDistance,
