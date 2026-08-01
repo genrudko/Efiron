@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   interaction:
-    name: Light overlay and category interaction
+    name: Persisted Light theme, overlay and category interaction
     runs-on: windows-latest
     timeout-minutes: 20
 
@@ -100,12 +100,12 @@ jobs:
             programmeGuide = @{ location = (Join-Path $fixture "guide.xml"); isEnabled = $true }
           } | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $data "sources.json") -Encoding utf8
 
-          # AppearanceTheme.Light = 1. The overlay itself remains dark and must
-          # therefore use a theme-independent light glyph palette.
+          # AppearanceTheme.Light = 1. This is deliberately persisted before
+          # launch so the gate covers the lazy-workspace cold-start path.
           @{ version = 1; theme = 1; accent = 1 } |
             ConvertTo-Json | Set-Content (Join-Path $data "appearance.json") -Encoding utf8
 
-      - name: Verify stable category filtering and light overlay contrast
+      - name: Verify persisted light surface, category filtering and overlay contrast
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -118,6 +118,7 @@ jobs:
             [Environment+SpecialFolder]::LocalApplicationData)
           $diagnostics = Join-Path $localAppData "Efiron/diagnostics"
           $evidencePath = Join-Path $diagnostics "interaction-runtime.json"
+          $themeEvidencePath = Join-Path $diagnostics "cold-start-theme-runtime.json"
           $crashPath = Join-Path $diagnostics "startup-crash.log"
           $process = $null
           $server = $null
@@ -134,16 +135,33 @@ jobs:
             $process = Start-Process $exe -WorkingDirectory $output -PassThru
 
             $deadline = [DateTime]::UtcNow.AddSeconds(100)
-            while ([DateTime]::UtcNow -lt $deadline -and -not (Test-Path $evidencePath)) {
+            while ([DateTime]::UtcNow -lt $deadline -and
+                   (-not (Test-Path $evidencePath) -or
+                    -not (Test-Path $themeEvidencePath))) {
               Start-Sleep -Milliseconds 500
               if ($process.HasExited) {
                 $crash = if (Test-Path $crashPath) { Get-Content $crashPath -Raw } else { "no crash log" }
-                throw "Efiron exited before interaction evidence. $crash"
+                throw "Efiron exited before interaction/theme evidence. $crash"
               }
             }
 
             if (-not (Test-Path $evidencePath)) {
               throw "Timed out waiting for interaction-runtime.json"
+            }
+            if (-not (Test-Path $themeEvidencePath)) {
+              throw "Timed out waiting for cold-start-theme-runtime.json"
+            }
+
+            $themeEvidence = Get-Content $themeEvidencePath -Raw | ConvertFrom-Json
+            if ([string]$themeEvidence.WorkspaceRequestedTheme -ne "Light") {
+              throw "Persisted Light preference was not applied to lazy Live workspace: requested=$($themeEvidence.WorkspaceRequestedTheme)."
+            }
+            if ([string]$themeEvidence.WorkspaceActualTheme -ne "Light" -or
+                [string]$themeEvidence.RootActualTheme -ne "Light") {
+              throw "Lazy Live workspace did not resolve Light on cold start: workspace=$($themeEvidence.WorkspaceActualTheme), root=$($themeEvidence.RootActualTheme)."
+            }
+            if ([string]$themeEvidence.RootBackgroundColor -ne "#FFEEF2F7") {
+              throw "Lazy Live root retained a stale non-Light background: $($themeEvidence.RootBackgroundColor)."
             }
 
             $evidence = Get-Content $evidencePath -Raw | ConvertFrom-Json
@@ -173,7 +191,8 @@ jobs:
               throw "Efiron exited after interaction evidence."
             }
 
-            Write-Host "Stable category filter and Light overlay contrast verified."
+            Write-Host "Persisted Light root, stable category filter and overlay contrast verified."
+            Get-Content $themeEvidencePath -Raw
             Get-Content $evidencePath -Raw
           }
           finally {
@@ -190,4 +209,5 @@ jobs:
           if-no-files-found: ignore
           path: |
             ~/AppData/Local/Efiron/diagnostics/interaction-runtime.json
+            ~/AppData/Local/Efiron/diagnostics/cold-start-theme-runtime.json
             ~/AppData/Local/Efiron/diagnostics/startup-crash.log
