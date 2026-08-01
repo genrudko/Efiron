@@ -49,26 +49,17 @@ jobs:
           Remove-Item $fixture,$data -Recurse -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Path $fixture,$data -Force | Out-Null
 
-          $wave = Join-Path $fixture "channel.wav"
-          $sampleRate = 8000
-          $dataLength = $sampleRate * 2 * 180
-          $stream = [IO.File]::Create($wave)
-          $writer = [IO.BinaryWriter]::new($stream)
-          try {
-            $ascii = [Text.Encoding]::ASCII
-            $writer.Write($ascii.GetBytes("RIFF")); $writer.Write([int](36 + $dataLength))
-            $writer.Write($ascii.GetBytes("WAVEfmt ")); $writer.Write([int]16)
-            $writer.Write([int16]1); $writer.Write([int16]1)
-            $writer.Write([int]$sampleRate); $writer.Write([int]($sampleRate * 2))
-            $writer.Write([int16]2); $writer.Write([int16]16)
-            $writer.Write($ascii.GetBytes("data")); $writer.Write([int]$dataLength)
-            $silence = [byte[]]::new(65536)
-            for ($remaining = $dataLength; $remaining -gt 0; $remaining -= $count) {
-              $count = [Math]::Min($silence.Length, $remaining)
-              $writer.Write($silence, 0, $count)
-            }
+          # Auto resolves to mpv. Use a real H264 fixture so Live reaches a
+          # stable video state before the automatic EPG verification navigation.
+          $fixtureBase64 = Get-Content `
+            "tests/fixtures/fullscreen-21x9-h264.mp4.b64" -Raw
+          $video = Join-Path $fixture "channel.mp4"
+          [IO.File]::WriteAllBytes(
+            $video,
+            [Convert]::FromBase64String($fixtureBase64.Trim()))
+          if ((Get-Item $video).Length -lt 2500) {
+            throw "The scale H264 fixture was not decoded."
           }
-          finally { $writer.Dispose(); $stream.Dispose() }
 
           $utf8 = [Text.UTF8Encoding]::new($false)
           $playlistWriter = [IO.StreamWriter]::new(
@@ -81,7 +72,8 @@ jobs:
               $category = "Category $([int](($index - 1) % 12 + 1))"
               $playlistWriter.WriteLine(
                 "#EXTINF:-1 tvg-id=`"scale.$index`" group-title=`"$category`",Scale Channel $index")
-              $playlistWriter.WriteLine("http://127.0.0.1:18769/channel.wav")
+              $playlistWriter.WriteLine("#EXTVLCOPT:input-repeat=-1")
+              $playlistWriter.WriteLine("http://127.0.0.1:18769/channel.mp4")
             }
           }
           finally { $playlistWriter.Dispose() }
@@ -143,7 +135,8 @@ jobs:
           $fixture = Join-Path $env:RUNNER_TEMP "efiron-epg-scale-fixture"
           $localAppData = [Environment]::GetFolderPath(
             [Environment+SpecialFolder]::LocalApplicationData)
-          $diagnostics = Join-Path $localAppData "Efiron/diagnostics"
+          $data = Join-Path $localAppData "Efiron"
+          $diagnostics = Join-Path $data "diagnostics"
           $projectionPath = Join-Path $diagnostics "epg-projection-runtime.json"
           $interactionPath = Join-Path $diagnostics "epg-runtime.json"
           $previewPath = Join-Path $diagnostics "epg-preview.png"
@@ -154,6 +147,7 @@ jobs:
           $responsiveSamples = 0
           $peakWorkingSet = 0L
           $clock = [Diagnostics.Stopwatch]::StartNew()
+          New-Item -ItemType Directory -Path scale-artifacts -Force | Out-Null
 
           try {
             $python = (Get-Command python -ErrorAction Stop).Source
@@ -183,7 +177,6 @@ jobs:
               throw "Provider-scale interaction evidence did not finish within 180 seconds."
             }
 
-            New-Item -ItemType Directory -Path scale-artifacts -Force | Out-Null
             Copy-Item $projectionPath scale-artifacts/ -Force
             Copy-Item $interactionPath scale-artifacts/ -Force
             if (Test-Path $previewPath) { Copy-Item $previewPath scale-artifacts/ -Force }
@@ -265,6 +258,16 @@ jobs:
             }
             $result | ConvertTo-Json | Set-Content scale-artifacts/epg-scale-runtime.json -Encoding utf8
             $result | ConvertTo-Json -Compress
+          }
+          catch {
+            $_ | Out-String | Set-Content scale-artifacts/epg-scale-error.txt -Encoding utf8
+            if (Test-Path $diagnostics) {
+              Copy-Item $diagnostics scale-artifacts/diagnostics -Recurse -Force
+            }
+            if (Test-Path (Join-Path $data "programme-catalog.json.gz")) {
+              Copy-Item (Join-Path $data "programme-catalog.json.gz") scale-artifacts/ -Force
+            }
+            throw
           }
           finally {
             if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force }
