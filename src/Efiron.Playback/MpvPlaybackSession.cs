@@ -285,20 +285,12 @@ public sealed class MpvPlaybackSession : IPlaybackSession
         MpvNative.SetOption(_context, "osd-level", "0");
         MpvNative.SetOption(_context, "idle", "yes");
         MpvNative.SetOption(_context, "force-window", "no");
-        MpvNative.SetOption(_context, "vo", "gpu");
+        MpvNative.SetOption(_context, "vo", "gpu-next");
         MpvNative.SetOption(_context, "gpu-api", "d3d11");
         MpvNative.SetOption(_context, "gpu-context", "d3d11");
         MpvNative.SetOption(_context, "d3d11-output-mode", "composition");
         MpvNative.SetOption(_context, "d3d11-composition-size", "16x16");
-        MpvNative.SetOption(_context, "d3d11-output-format", "bgra8");
-        MpvNative.SetOption(_context, "d3d11-output-csp", "srgb");
         MpvNative.SetOption(_context, "d3d11-flip", "yes");
-        MpvNative.SetOption(_context, "d3d11-sync-interval", "1");
-        MpvNative.SetOption(_context, "swapchain-depth", "2");
-        MpvNative.SetOption(_context, "cache", "yes");
-        MpvNative.SetOption(_context, "cache-secs", "8");
-        MpvNative.SetOption(_context, "demuxer-max-bytes", "33554432");
-        MpvNative.SetOption(_context, "demuxer-max-back-bytes", "8388608");
         MpvNative.SetOption(_context, "keep-open", "no");
 
         if (_profile == MpvPlaybackProfile.SmoothMotion)
