@@ -47,7 +47,17 @@ public sealed record PlaybackBackendDiagnostics(
     TimeSpan? SessionDuration,
     TimeSpan? MediaPosition,
     string? AudioTrack,
-    string? SubtitleTrack)
+    string? SubtitleTrack,
+    double? DisplayFramesPerSecond = null,
+    double? EstimatedDisplayFramesPerSecond = null,
+    double? VideoSpeedCorrection = null,
+    double? AudioSpeedCorrection = null,
+    double? VSyncRatio = null,
+    long? MistimedFrames = null,
+    long? DelayedFrames = null,
+    string? PixelFormat = null,
+    string? PresentationMode = null,
+    bool? InterpolationActive = null)
 {
     public static PlaybackBackendDiagnostics Unsupported(
         PlaybackBackendId backendId,
