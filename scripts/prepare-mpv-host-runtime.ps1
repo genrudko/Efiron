@@ -8,7 +8,9 @@ $PSNativeCommandUseErrorActionPreference = $true
 $releaseTag = "20260610"
 $buildId = "20260610-git-304426c"
 $archiveName = "mpv-x86_64-$buildId.7z"
-$releaseApiUrl = "https://api.github.com/repos/shinchiro/mpv-winbuild-cmake/releases/tags/$releaseTag"
+$archiveUrl = "https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/$releaseTag/$archiveName"
+$archiveLength = 32691385L
+$archiveSha256 = "facac536baa73c7b925771af5e39a3c9cb16b8d75b59a6e9800de89799dffca7"
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $runtimeRoot = if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
@@ -21,6 +23,7 @@ $cacheRoot = Join-Path $repositoryRoot "artifacts/mpv-host/cache"
 $archivePath = Join-Path $cacheRoot $archiveName
 $exePath = Join-Path $runtimeRoot "mpv.exe"
 $manifestPath = Join-Path $runtimeRoot "runtime-manifest.json"
+$noticePath = Join-Path $runtimeRoot "NOTICE.txt"
 
 function Get-Sha256([string]$Path) {
     $stream = [IO.File]::OpenRead($Path)
@@ -51,23 +54,13 @@ function Resolve-SevenZip {
     throw "7-Zip is required to prepare the pinned mpv host runtime."
 }
 
+function Test-PinnedArchive([string]$Path) {
+    return (Test-Path $Path) -and
+        (Get-Item $Path).Length -eq $archiveLength -and
+        (Get-Sha256 $Path) -eq $archiveSha256
+}
+
 New-Item -ItemType Directory -Path $runtimeRoot,$cacheRoot -Force | Out-Null
-
-$release = Invoke-RestMethod `
-    -Uri $releaseApiUrl `
-    -Headers @{ "User-Agent" = "Efiron-build" }
-$asset = $release.assets |
-    Where-Object name -eq $archiveName |
-    Select-Object -First 1
-if (-not $asset) {
-    throw "Pinned mpv release contains no asset '$archiveName'."
-}
-
-$assetDigest = [string]$asset.digest
-if (-not $assetDigest.StartsWith("sha256:", [StringComparison]::OrdinalIgnoreCase)) {
-    throw "GitHub did not publish a SHA-256 digest for '$archiveName'."
-}
-$archiveSha256 = $assetDigest.Substring("sha256:".Length).ToLowerInvariant()
 
 $manifestValid = $false
 if ((Test-Path $exePath) -and (Test-Path $manifestPath)) {
@@ -77,6 +70,7 @@ if ((Test-Path $exePath) -and (Test-Path $manifestPath)) {
             $manifest.releaseTag -eq $releaseTag -and
             $manifest.buildId -eq $buildId -and
             $manifest.archiveName -eq $archiveName -and
+            [int64]$manifest.archiveLength -eq $archiveLength -and
             $manifest.archiveSha256 -eq $archiveSha256 -and
             $manifest.exeSha256 -eq (Get-Sha256 $exePath) -and
             (Get-Item $exePath).Length -gt 20MB
@@ -91,19 +85,31 @@ if ($manifestValid) {
     exit 0
 }
 
-$archiveValid = (Test-Path $archivePath) -and
-    ((Get-Sha256 $archivePath) -eq $archiveSha256)
-if (-not $archiveValid) {
+if (-not (Test-PinnedArchive $archivePath)) {
     Remove-Item $archivePath -Force -ErrorAction SilentlyContinue
     Write-Host "Downloading pinned mpv host runtime $buildId..."
     Invoke-WebRequest `
-        -Uri ([string]$asset.browser_download_url) `
+        -Uri $archiveUrl `
         -OutFile $archivePath `
         -UseBasicParsing
-    $actualArchiveSha = Get-Sha256 $archivePath
-    if ($actualArchiveSha -ne $archiveSha256) {
+    if (-not (Test-PinnedArchive $archivePath)) {
+        $actualLength = if (Test-Path $archivePath) {
+            (Get-Item $archivePath).Length
+        }
+        else {
+            0
+        }
+        $actualSha = if (Test-Path $archivePath) {
+            Get-Sha256 $archivePath
+        }
+        else {
+            "missing"
+        }
         Remove-Item $archivePath -Force -ErrorAction SilentlyContinue
-        throw "mpv host archive SHA-256 mismatch. Expected $archiveSha256, got $actualArchiveSha."
+        throw (
+            "mpv host archive verification failed. " +
+            "Expected length/SHA $archiveLength/$archiveSha256, " +
+            "got $actualLength/$actualSha.")
     }
 }
 
@@ -136,8 +142,9 @@ $versionLine = (& $exePath --no-config --version | Select-Object -First 1).Trim(
     releaseTag = $releaseTag
     buildId = $buildId
     archiveName = $archiveName
+    archiveLength = $archiveLength
     archiveSha256 = $archiveSha256
-    downloadUrl = [string]$asset.browser_download_url
+    downloadUrl = $archiveUrl
     executableFileName = "mpv.exe"
     executableLength = (Get-Item $exePath).Length
     exeSha256 = $exeSha256
@@ -145,6 +152,20 @@ $versionLine = (& $exePath --no-config --version | Select-Object -First 1).Trim(
     preparedAtUtc = [DateTimeOffset]::UtcNow.ToString("O")
 } | ConvertTo-Json -Depth 3 |
     Set-Content $manifestPath -Encoding utf8
+
+@"
+Efiron packages an unmodified pinned mpv Windows build for the experimental
+out-of-process playback host.
+
+Source project: shinchiro/mpv-winbuild-cmake
+Release tag: $releaseTag
+Build: $buildId
+Archive: $archiveName
+Archive SHA-256: $archiveSha256
+Executable SHA-256: $exeSha256
+Upstream licensing files, when present in the archive, are retained beside
+this notice in the prepared runtime directory.
+"@ | Set-Content $noticePath -Encoding utf8
 
 Remove-Item $extractRoot -Recurse -Force -ErrorAction SilentlyContinue
 Write-Host "Prepared mpv.exe ($((Get-Item $exePath).Length) bytes, SHA-256 $exeSha256)."
