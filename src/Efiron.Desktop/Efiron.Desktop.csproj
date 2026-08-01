@@ -68,6 +68,9 @@
         Condition="!Exists('$(MpvHostRuntimeExe)')"
         Text="Pinned mpv host runtime was not prepared: $(MpvHostRuntimeExe)" />
     <Error
+        Condition="!Exists('$(MpvHostRuntimeManifest)')"
+        Text="Pinned mpv host runtime manifest was not prepared: $(MpvHostRuntimeManifest)" />
+    <Error
         Condition="!Exists('$(MpvHostRuntimeNotice)')"
         Text="Pinned mpv host provenance notice was not prepared: $(MpvHostRuntimeNotice)" />
     <ItemGroup>
@@ -87,5 +90,33 @@
         <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       </ContentWithTargetPath>
     </ItemGroup>
+  </Target>
+
+  <Target Name="CopyDesktopMpvHostRuntimeToOutput" AfterTargets="Build">
+    <MakeDir Directories="$(TargetDir)mpv-host" />
+    <Copy
+        SourceFiles="$(MpvHostRuntimeExe);$(MpvHostRuntimeManifest);$(MpvHostRuntimeNotice)"
+        DestinationFiles="$(TargetDir)mpv-host\mpv.exe;$(TargetDir)mpv-host\runtime-manifest.json;$(TargetDir)mpv-host\NOTICE.txt"
+        SkipUnchangedFiles="true" />
+    <Error
+        Condition="!Exists('$(TargetDir)mpv-host\mpv.exe')"
+        Text="Desktop output is missing the mpv host executable." />
+    <Error
+        Condition="!Exists('$(TargetDir)mpv-host\runtime-manifest.json')"
+        Text="Desktop output is missing the mpv host runtime manifest." />
+    <Error
+        Condition="!Exists('$(TargetDir)mpv-host\NOTICE.txt')"
+        Text="Desktop output is missing the mpv host provenance notice." />
+  </Target>
+
+  <Target
+      Name="CopyDesktopMpvHostRuntimeToPublish"
+      AfterTargets="Publish"
+      Condition="'$(PublishDir)' != ''">
+    <MakeDir Directories="$(PublishDir)mpv-host" />
+    <Copy
+        SourceFiles="$(MpvHostRuntimeExe);$(MpvHostRuntimeManifest);$(MpvHostRuntimeNotice)"
+        DestinationFiles="$(PublishDir)mpv-host\mpv.exe;$(PublishDir)mpv-host\runtime-manifest.json;$(PublishDir)mpv-host\NOTICE.txt"
+        SkipUnchangedFiles="true" />
   </Target>
 </Project>
