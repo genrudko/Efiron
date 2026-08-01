@@ -38,7 +38,7 @@ jobs:
           dotnet restore Efiron.Greenfield.sln
           dotnet build Efiron.Greenfield.sln -c Release --no-restore
 
-      - name: Prepare verified native-host candidate package
+      - name: Prepare verified and cleaned native-host candidate package
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -64,17 +64,54 @@ jobs:
             }
           }
 
+          $sourceFiles = @(Get-ChildItem $source -Recurse -File)
+          $sourceBytes = ($sourceFiles | Measure-Object Length -Sum).Sum
           Copy-Item $source $stage -Recurse
 
-          # Remove only real satellite-resource directories. A name-shaped
-          # heuristic is forbidden because it previously deleted mpv-host.
+          # VideoLAN.LibVLC.Windows is copied once for the executable and once
+          # below the referenced Efiron.Playback project. Runtime lookup uses
+          # the root libvlc directory, so the nested tree is a byte-identical
+          # packaging duplicate and must never reach a user candidate.
+          $duplicateLibVlc = Join-Path $stage "Efiron.Playback/libvlc"
+          if (Test-Path $duplicateLibVlc) {
+            Remove-Item $duplicateLibVlc -Recurse -Force
+          }
+          $playbackOutputDirectory = Join-Path $stage "Efiron.Playback"
+          if ((Test-Path $playbackOutputDirectory) -and
+              @(Get-ChildItem $playbackOutputDirectory -Force).Count -eq 0) {
+            Remove-Item $playbackOutputDirectory -Force
+          }
+
+          # Windows App SDK language payloads are *.mui, while some dependency
+          # satellites are *.resources.dll. Remove a top-level directory only
+          # when every file below it is a localization payload. This content-
+          # based rule cannot mistake mpv-host or any product directory for a
+          # locale merely because its name contains a hyphen.
           $allowedLocales = @("en-us", "ru-ru")
           Get-ChildItem $stage -Directory -ErrorAction SilentlyContinue |
-            Where-Object {
-              $_.Name.ToLowerInvariant() -notin $allowedLocales -and
-              @(Get-ChildItem $_.FullName -File -Filter "*.resources.dll" -ErrorAction SilentlyContinue).Count -gt 0
-            } |
-            Remove-Item -Recurse -Force
+            ForEach-Object {
+              $directory = $_
+              $files = @(Get-ChildItem $directory.FullName -Recurse -File -ErrorAction SilentlyContinue)
+              if ($files.Count -gt 0) {
+                $localizedFiles = @($files | Where-Object {
+                  $_.Extension -ieq ".mui" -or
+                  $_.Name.EndsWith(
+                    ".resources.dll",
+                    [StringComparison]::OrdinalIgnoreCase)
+                })
+                if ($directory.Name.ToLowerInvariant() -notin $allowedLocales -and
+                    $localizedFiles.Count -eq $files.Count) {
+                  Remove-Item $directory.FullName -Recurse -Force
+                }
+              }
+            }
+
+          # Symbols and native import libraries are build-time artifacts, not
+          # runtime dependencies of the portable user candidate.
+          Get-ChildItem $stage -Recurse -File -Filter "*.pdb" -ErrorAction SilentlyContinue |
+            Remove-Item -Force
+          Get-ChildItem (Join-Path $stage "libvlc/win-x64") -File -Filter "*.lib" -ErrorAction SilentlyContinue |
+            Remove-Item -Force
 
           $requiredPackageEntries = @(
             "Efiron.exe",
@@ -92,6 +129,29 @@ jobs:
             if (-not (Test-Path (Join-Path $stage $entry))) {
               throw "Native-host candidate package is missing required entry: $entry"
             }
+          }
+
+          if (Test-Path $duplicateLibVlc) {
+            throw "Clean candidate still contains nested duplicate Efiron.Playback/libvlc."
+          }
+
+          $remainingLocaleDirectories = @(Get-ChildItem $stage -Directory |
+            Where-Object {
+              $directory = $_
+              $files = @(Get-ChildItem $directory.FullName -Recurse -File -ErrorAction SilentlyContinue)
+              if ($files.Count -eq 0) { return $false }
+              $localizedFiles = @($files | Where-Object {
+                $_.Extension -ieq ".mui" -or
+                $_.Name.EndsWith(
+                  ".resources.dll",
+                  [StringComparison]::OrdinalIgnoreCase)
+              })
+              return $localizedFiles.Count -eq $files.Count
+            })
+          $unexpectedLocales = @($remainingLocaleDirectories |
+            Where-Object { $_.Name.ToLowerInvariant() -notin $allowedLocales })
+          if ($unexpectedLocales.Count -gt 0) {
+            throw "Unexpected packaged locale directories: $($unexpectedLocales.Name -join ', ')."
           }
 
           $mpvExe = Join-Path $stage "mpv-host/mpv.exe"
@@ -114,6 +174,18 @@ jobs:
           if ($efironExeCount -ne 1) {
             throw "Expected exactly one packaged Efiron.exe, got $efironExeCount."
           }
+          $libVlcDllCount = @(Get-ChildItem $stage -Recurse -File -Filter "libvlc.dll").Count
+          if ($libVlcDllCount -ne 1) {
+            throw "Expected exactly one packaged LibVLC runtime, got $libVlcDllCount copies."
+          }
+          $pdbCount = @(Get-ChildItem $stage -Recurse -File -Filter "*.pdb").Count
+          if ($pdbCount -ne 0) {
+            throw "Clean candidate still contains $pdbCount PDB files."
+          }
+          $importLibraryCount = @(Get-ChildItem $stage -Recurse -File -Filter "*.lib").Count
+          if ($importLibraryCount -ne 0) {
+            throw "Clean candidate still contains $importLibraryCount native import libraries."
+          }
           $pluginCount = @(
             Get-ChildItem (Join-Path $stage "libvlc/win-x64/plugins") -Recurse -File
           ).Count
@@ -121,11 +193,20 @@ jobs:
             throw "Native-host candidate contains no LibVLC fallback plugins."
           }
 
+          $packageFiles = @(Get-ChildItem $stage -Recurse -File)
+          $packageBytes = ($packageFiles | Measure-Object Length -Sum).Sum
+          if ($packageFiles.Count -ge 900) {
+            throw "Candidate cleanup regressed: expected fewer than 900 files, got $($packageFiles.Count)."
+          }
+          if ($packageBytes -ge 600MB) {
+            throw "Candidate cleanup regressed: expected less than 600 MiB unpacked, got $packageBytes bytes."
+          }
+
           [ordered]@{
             product = "Efiron"
             platform = "Windows 11 x64"
             architecture = "greenfield"
-            repair = "Repair J native-window playback host"
+            repair = "Repair J.1 native-window host, theme and package sanitation"
             status = "physical playback validation candidate"
             headSha = "${{ github.event.pull_request.head.sha || github.sha }}"
             validationRefSha = "${{ github.sha }}"
@@ -141,8 +222,16 @@ jobs:
               deterministicProcessBoundary = $true
             }
             packageChecks = [ordered]@{
+              sourceFileCount = $sourceFiles.Count
+              sourceBytes = $sourceBytes
+              packagedFileCount = $packageFiles.Count
+              packagedBytes = $packageBytes
               efironExeCount = $efironExeCount
               mpvExeCount = $mpvExeCount
+              libVlcRuntimeCount = $libVlcDllCount
+              duplicatePlaybackLibVlcPresent = $false
+              pdbCount = $pdbCount
+              importLibraryCount = $importLibraryCount
               libVlcPluginCount = $pluginCount
               locales = @("en-US", "ru-RU")
             }
@@ -150,10 +239,12 @@ jobs:
           } | ConvertTo-Json -Depth 6 |
             Set-Content "$stage/native-host-candidate-manifest.json" -Encoding utf8
 
+          Write-Host "Candidate sanitation: $($sourceFiles.Count) -> $($packageFiles.Count) files; $sourceBytes -> $packageBytes bytes."
+
       - name: Upload native-host Windows candidate
         uses: actions/upload-artifact@v4
         with:
-          name: efiron-repair-j-native-host-win-x64
+          name: efiron-repair-j1-native-host-win-x64
           path: native-host-candidate-package/
           if-no-files-found: error
           retention-days: 90
