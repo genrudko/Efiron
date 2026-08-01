@@ -11,50 +11,49 @@ namespace Efiron.Infrastructure.Tests.Live;
 
 public sealed class LiveCatalogRefreshServiceTests
 {
+    private const string Playlist = """
+        #EXTM3U
+        #EXTINF:-1 tvg-id="guide.one" tvg-name="Первый HD" group-title="Новости",Первый
+        streams/one.m3u8
+        #EXTINF:-1 tvg-name="Второй HD" group-title="Кино",Второй
+        https://media.example/two.m3u8
+        """;
+
+    private const string Guide = """
+        <tv>
+          <channel id="guide.one"><display-name>Первый канал</display-name></channel>
+          <channel id="guide.two"><display-name>Второй HD</display-name></channel>
+          <programme channel="guide.one" start="20260730180000 +0300" stop="20260730190000 +0300">
+            <title>Новости</title>
+          </programme>
+          <programme channel="guide.one" start="20260730190000 +0300" stop="20260730200000 +0300">
+            <title>Вечер</title>
+          </programme>
+          <programme channel="guide.two" start="20260730180000 +0300" stop="20260730200000 +0300">
+            <title>Фильм</title>
+          </programme>
+        </tv>
+        """;
+
+    private static readonly DateTimeOffset Now = new(
+        2026,
+        7,
+        30,
+        18,
+        30,
+        0,
+        TimeSpan.FromHours(3));
+
     [Fact]
     public async Task RefreshAsync_builds_categories_matches_now_next_and_schedule()
     {
-        const string playlist = """
-            #EXTM3U
-            #EXTINF:-1 tvg-id="guide.one" tvg-name="Первый HD" group-title="Новости",Первый
-            streams/one.m3u8
-            #EXTINF:-1 tvg-name="Второй HD" group-title="Кино",Второй
-            https://media.example/two.m3u8
-            """;
-        const string guide = """
-            <tv>
-              <channel id="guide.one"><display-name>Первый канал</display-name></channel>
-              <channel id="guide.two"><display-name>Второй HD</display-name></channel>
-              <programme channel="guide.one" start="20260730180000 +0300" stop="20260730190000 +0300">
-                <title>Новости</title>
-              </programme>
-              <programme channel="guide.one" start="20260730190000 +0300" stop="20260730200000 +0300">
-                <title>Вечер</title>
-              </programme>
-              <programme channel="guide.two" start="20260730180000 +0300" stop="20260730200000 +0300">
-                <title>Фильм</title>
-              </programme>
-            </tv>
-            """;
-        var configuration = new SourceConfiguration(
-            SourceDefinition.Create(SourceKind.Playlist, "https://provider.example/list.m3u"),
-            SourceDefinition.Create(SourceKind.ProgrammeGuide, "https://provider.example/guide.xml"));
-        var loader = new StubSourceContentLoader(
-            Encoding.UTF8.GetBytes(playlist),
-            Encoding.UTF8.GetBytes(guide));
+        var configuration = CreateRemoteConfiguration();
+        var loader = CreateLoader();
         var service = CreateService(loader);
-        var now = new DateTimeOffset(
-            2026,
-            7,
-            30,
-            18,
-            30,
-            0,
-            TimeSpan.FromHours(3));
 
         var result = await service.RefreshAsync(
             configuration,
-            now,
+            Now,
             TestContext.Current.CancellationToken);
 
         Assert.Equal(["Новости", "Кино"], result.Categories);
@@ -76,6 +75,44 @@ public sealed class LiveCatalogRefreshServiceTests
         Assert.Equal("Фильм", second.CurrentProgramme?.Title);
         Assert.Null(second.NextProgramme);
         Assert.Equal("Фильм", Assert.Single(second.Schedule).Title);
+    }
+
+    [Fact]
+    public async Task RefreshPlaylistAsync_exposes_remote_playlist_before_epg()
+    {
+        var loader = CreateLoader();
+        var service = CreateService(loader);
+
+        var result = await service.RefreshPlaylistAsync(
+            CreateRemoteConfiguration(),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, result.Channels.Count);
+        Assert.Equal(["Новости", "Кино"], result.Categories);
+        Assert.Equal(0, result.MatchedChannelCount);
+        Assert.Equal(0, result.RetainedProgrammeCount);
+        Assert.Equal(1, loader.PlaylistLoads);
+        Assert.Equal(0, loader.GuideLoads);
+    }
+
+    [Fact]
+    public async Task RefreshPlaylistAsync_keeps_complete_readiness_for_local_sources()
+    {
+        var loader = CreateLoader();
+        var service = CreateService(loader);
+        var configuration = new SourceConfiguration(
+            SourceDefinition.Create(SourceKind.Playlist, "C:\\fixture\\playlist.m3u"),
+            SourceDefinition.Create(SourceKind.ProgrammeGuide, "C:\\fixture\\guide.xml"));
+
+        var result = await service.RefreshPlaylistAsync(
+            configuration,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, result.Channels.Count);
+        Assert.Equal(2, result.MatchedChannelCount);
+        Assert.Equal(3, result.RetainedProgrammeCount);
+        Assert.Equal(1, loader.PlaylistLoads);
+        Assert.Equal(1, loader.GuideLoads);
     }
 
     [Fact]
@@ -107,6 +144,16 @@ public sealed class LiveCatalogRefreshServiceTests
         Assert.Equal(["Общие"], result.Categories);
     }
 
+    private static SourceConfiguration CreateRemoteConfiguration() =>
+        new(
+            SourceDefinition.Create(SourceKind.Playlist, "https://provider.example/list.m3u"),
+            SourceDefinition.Create(SourceKind.ProgrammeGuide, "https://provider.example/guide.xml"));
+
+    private static StubSourceContentLoader CreateLoader() =>
+        new(
+            Encoding.UTF8.GetBytes(Playlist),
+            Encoding.UTF8.GetBytes(Guide));
+
     private static LiveCatalogRefreshService CreateService(
         ISourceContentLoader loader) =>
         new(
@@ -120,6 +167,10 @@ public sealed class LiveCatalogRefreshServiceTests
         byte[]? guideContent)
         : ISourceContentLoader
     {
+        public int PlaylistLoads { get; private set; }
+
+        public int GuideLoads { get; private set; }
+
         public ValueTask<LoadedSourceContent> LoadAsync(
             SourceDefinition source,
             CancellationToken cancellationToken = default)
@@ -127,8 +178,8 @@ public sealed class LiveCatalogRefreshServiceTests
             cancellationToken.ThrowIfCancellationRequested();
             var content = source.Kind switch
             {
-                SourceKind.Playlist => playlistContent,
-                SourceKind.ProgrammeGuide when guideContent is not null => guideContent,
+                SourceKind.Playlist => LoadPlaylist(),
+                SourceKind.ProgrammeGuide when guideContent is not null => LoadGuide(),
                 _ => throw new InvalidOperationException("Unexpected source request."),
             };
             var effectiveUri = source.Kind == SourceKind.Playlist
@@ -141,6 +192,18 @@ public sealed class LiveCatalogRefreshServiceTests
                 effectiveUri,
                 "application/octet-stream",
                 DateTimeOffset.UtcNow));
+        }
+
+        private byte[] LoadPlaylist()
+        {
+            PlaylistLoads++;
+            return playlistContent;
+        }
+
+        private byte[] LoadGuide()
+        {
+            GuideLoads++;
+            return guideContent!;
         }
     }
 }
