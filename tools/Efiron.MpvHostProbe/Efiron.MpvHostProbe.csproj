@@ -9,6 +9,7 @@
     <MpvHostRuntimeDirectory>$(MSBuildThisFileDirectory)..\..\artifacts\mpv-host\win-x64</MpvHostRuntimeDirectory>
     <MpvHostRuntimeExe>$(MpvHostRuntimeDirectory)\mpv.exe</MpvHostRuntimeExe>
     <MpvHostRuntimeManifest>$(MpvHostRuntimeDirectory)\runtime-manifest.json</MpvHostRuntimeManifest>
+    <MpvHostRuntimeNotice>$(MpvHostRuntimeDirectory)\NOTICE.txt</MpvHostRuntimeNotice>
   </PropertyGroup>
 
   <ItemGroup>
@@ -23,6 +24,9 @@
     <Error
         Condition="!Exists('$(MpvHostRuntimeExe)')"
         Text="Pinned mpv host runtime was not prepared: $(MpvHostRuntimeExe)" />
+    <Error
+        Condition="!Exists('$(MpvHostRuntimeNotice)')"
+        Text="Pinned mpv host provenance notice was not prepared: $(MpvHostRuntimeNotice)" />
     <ItemGroup>
       <ContentWithTargetPath Include="$(MpvHostRuntimeExe)">
         <TargetPath>mpv-host\mpv.exe</TargetPath>
@@ -30,6 +34,10 @@
       </ContentWithTargetPath>
       <ContentWithTargetPath Include="$(MpvHostRuntimeManifest)">
         <TargetPath>mpv-host\runtime-manifest.json</TargetPath>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </ContentWithTargetPath>
+      <ContentWithTargetPath Include="$(MpvHostRuntimeNotice)">
+        <TargetPath>mpv-host\NOTICE.txt</TargetPath>
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </ContentWithTargetPath>
     </ItemGroup>
