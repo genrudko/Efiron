@@ -1,0 +1,148 @@
+name: rewrite mpv host
+
+on:
+  pull_request:
+  push:
+    branches:
+      - rewrite/001-greenfield-desktop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  mpv-host:
+    name: Out-of-process mpv native-window lifecycle
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.302
+
+      - name: Restore and build exact head plus host probe
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          dotnet restore Efiron.Greenfield.sln
+          dotnet build Efiron.Greenfield.sln -c Release --no-restore
+          dotnet restore tools/Efiron.MpvHostProbe/Efiron.MpvHostProbe.csproj
+          dotnet build tools/Efiron.MpvHostProbe/Efiron.MpvHostProbe.csproj -c Release --no-restore
+
+      - name: Prepare deterministic H264 fixture
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $fixture = Join-Path $env:RUNNER_TEMP "efiron-mpv-host-fixture"
+          Remove-Item $fixture -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $fixture -Force | Out-Null
+          $fixtureBase64 = Get-Content `
+            "tests/fixtures/fullscreen-21x9-h264.mp4.b64" `
+            -Raw
+          $videoPath = Join-Path $fixture "host-probe.mp4"
+          [IO.File]::WriteAllBytes(
+            $videoPath,
+            [Convert]::FromBase64String($fixtureBase64.Trim()))
+          if ((Get-Item $videoPath).Length -lt 2500) {
+            throw "mpv host H264 fixture was not decoded."
+          }
+
+      - name: Verify process restart IPC and deterministic teardown
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          New-Item -ItemType Directory -Path mpv-host-artifacts -Force | Out-Null
+          $fixture = Join-Path $env:RUNNER_TEMP "efiron-mpv-host-fixture"
+          $evidence = Join-Path $env:RUNNER_TEMP "mpv-host-runtime.json"
+          $python = (Get-Command python -ErrorAction Stop).Source
+          $server = Start-Process $python -ArgumentList @(
+            "-m","http.server","18774","--bind","127.0.0.1","--directory",$fixture) `
+            -WindowStyle Hidden -PassThru
+          try {
+            Start-Sleep -Seconds 2
+            if ($server.HasExited) { throw "mpv host fixture server exited." }
+
+            dotnet run `
+              --project tools/Efiron.MpvHostProbe/Efiron.MpvHostProbe.csproj `
+              -c Release `
+              --no-build `
+              -- `
+              "http://127.0.0.1:18774/host-probe.mp4" `
+              $evidence
+
+            if (-not (Test-Path $evidence)) {
+              throw "mpv host runtime evidence was not written."
+            }
+
+            $result = Get-Content $evidence -Raw | ConvertFrom-Json
+            if ($result.Backend -ne "MpvHost" -or
+                -not [bool]$result.PidChanged -or
+                -not [bool]$result.FirstProcessExitedAfterSwitch -or
+                -not [bool]$result.SecondProcessExitedAfterDispose -or
+                [int]$result.First.ProcessId -le 0 -or
+                [int]$result.Second.ProcessId -le 0 -or
+                [string]$result.First.State -ne "Playing" -or
+                [string]$result.Second.State -ne "Playing" -or
+                [string]$result.First.VideoRenderer -ne "gpu-next" -or
+                [string]$result.First.PresentationMode -notmatch "out-of-process" -or
+                [string]$result.First.PresentationMode -notmatch "native-window") {
+              throw "mpv host lifecycle evidence is incomplete: $($result | ConvertTo-Json -Depth 6 -Compress)"
+            }
+
+            Copy-Item $evidence mpv-host-artifacts/ -Force
+          }
+          catch {
+            $_ | Out-String |
+              Set-Content mpv-host-artifacts/mpv-host-error.txt -Encoding utf8
+            throw
+          }
+          finally {
+            if ($server -and -not $server.HasExited) {
+              Stop-Process -Id $server.Id -Force
+            }
+          }
+
+      - name: Inventory packaged host runtime
+        if: always()
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $output = "tools/Efiron.MpvHostProbe/bin/x64/Release/net10.0-windows10.0.22000.0/win-x64"
+          $host = Join-Path $output "mpv-host/mpv.exe"
+          $manifest = Join-Path $output "mpv-host/runtime-manifest.json"
+          if (-not (Test-Path $host)) {
+            throw "Packaged mpv host executable is missing: $host"
+          }
+          if (-not (Test-Path $manifest)) {
+            throw "Packaged mpv host manifest is missing: $manifest"
+          }
+
+          $runtimeManifest = Get-Content $manifest -Raw | ConvertFrom-Json
+          [ordered]@{
+            HeadSha = "${{ github.event.pull_request.head.sha || github.sha }}"
+            ExecutableLength = (Get-Item $host).Length
+            ExecutableSha256 = (Get-FileHash $host -Algorithm SHA256).Hash.ToLowerInvariant()
+            RuntimeManifest = $runtimeManifest
+          } | ConvertTo-Json -Depth 6 |
+            Set-Content mpv-host-artifacts/mpv-host-package.json -Encoding utf8
+
+      - name: Upload mpv host evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rewrite-mpv-host-evidence
+          path: mpv-host-artifacts/
+          if-no-files-found: error
+          retention-days: 30
