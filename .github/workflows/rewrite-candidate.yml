@@ -54,33 +54,27 @@ jobs:
           Remove-Item $fixture,$data -Recurse -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Path $fixture,$data -Force | Out-Null
 
-          $wave = Join-Path $fixture "candidate.wav"
-          $sampleRate = 8000
-          $dataLength = $sampleRate * 2 * 60
-          $stream = [IO.File]::Create($wave)
-          $writer = [IO.BinaryWriter]::new($stream)
-          try {
-            $ascii = [Text.Encoding]::ASCII
-            $writer.Write($ascii.GetBytes("RIFF")); $writer.Write([int](36 + $dataLength))
-            $writer.Write($ascii.GetBytes("WAVEfmt ")); $writer.Write([int]16)
-            $writer.Write([int16]1); $writer.Write([int16]1)
-            $writer.Write([int]$sampleRate); $writer.Write([int]($sampleRate * 2))
-            $writer.Write([int16]2); $writer.Write([int16]16)
-            $writer.Write($ascii.GetBytes("data")); $writer.Write([int]$dataLength)
-            $silence = [byte[]]::new(65536)
-            for ($remaining = $dataLength; $remaining -gt 0; $remaining -= $count) {
-              $count = [Math]::Min($silence.Length, $remaining)
-              $writer.Write($silence, 0, $count)
-            }
+          # Auto now resolves to mpv, so the visual candidate gate must use a
+          # real video stream. An audio-only WAV can transiently report Playing
+          # without ever creating the WinUI composition swapchain.
+          $fixtureBase64 = Get-Content `
+            "tests/fixtures/fullscreen-21x9-h264.mp4.b64" -Raw
+          $video = Join-Path $fixture "candidate.mp4"
+          [IO.File]::WriteAllBytes(
+            $video,
+            [Convert]::FromBase64String($fixtureBase64.Trim()))
+          if ((Get-Item $video).Length -lt 2500) {
+            throw "The candidate H264 fixture was not decoded."
           }
-          finally { $writer.Dispose(); $stream.Dispose() }
 
           @'
           #EXTM3U
           #EXTINF:-1 tvg-id="candidate.news" group-title="News",Candidate News
-          http://127.0.0.1:18766/candidate.wav
+          #EXTVLCOPT:input-repeat=-1
+          http://127.0.0.1:18766/candidate.mp4
           #EXTINF:-1 tvg-id="candidate.cinema" group-title="Cinema",Candidate Cinema
-          http://127.0.0.1:18766/candidate.wav
+          #EXTVLCOPT:input-repeat=-1
+          http://127.0.0.1:18766/candidate.mp4
           '@ | Set-Content (Join-Path $fixture "playlist.m3u") -Encoding utf8
 
           $now = [DateTimeOffset]::UtcNow
@@ -122,6 +116,7 @@ jobs:
           $appearancePath = Join-Path $diagnostics "appearance-runtime.json"
           $layoutPath = Join-Path $diagnostics "layout-runtime.json"
           $playingPath = Join-Path $diagnostics "playback-playing.json"
+          $playbackPath = Join-Path $diagnostics "playback-current.json"
           $controlsPath = Join-Path $diagnostics "playback-controls.json"
           $previewPath = Join-Path $diagnostics "poster-preview.png"
           $previewErrorPath = Join-Path $diagnostics "poster-preview-error.log"
@@ -149,6 +144,7 @@ jobs:
                    (-not (Test-Path $appearancePath) -or
                     -not (Test-Path $layoutPath) -or
                     -not (Test-Path $playingPath) -or
+                    -not (Test-Path $playbackPath) -or
                     -not (Test-Path $controlsPath) -or
                     -not (Test-Path $previewPath))) {
               Start-Sleep -Milliseconds 400
@@ -161,7 +157,7 @@ jobs:
             if (Test-Path $previewErrorPath) {
               throw "Rendered preview capture failed: $(Get-Content $previewErrorPath -Raw)"
             }
-            foreach ($required in @($appearancePath,$layoutPath,$playingPath,$controlsPath,$previewPath)) {
+            foreach ($required in @($appearancePath,$layoutPath,$playingPath,$playbackPath,$controlsPath,$previewPath)) {
               if (-not (Test-Path $required)) { throw "Missing candidate evidence: $required" }
             }
 
@@ -206,6 +202,16 @@ jobs:
             $playing = Get-Content $playingPath -Raw | ConvertFrom-Json
             if ($playing.State -ne "Playing" -or [string]::IsNullOrWhiteSpace($playing.Source)) {
               throw "Playback did not reach Playing."
+            }
+
+            $playback = Get-Content $playbackPath -Raw | ConvertFrom-Json
+            if ($playback.BackendId -ne "Mpv" -or
+                $playback.SelectedProfile -ne "Auto" -or
+                $playback.PlaybackState -ne "Playing" -or
+                [int]$playback.VideoWidth -le 0 -or
+                [int]$playback.VideoHeight -le 0 -or
+                $playback.VideoRenderer -ne "gpu-next") {
+              throw "Candidate did not expose a ready mpv video surface: $($playback | ConvertTo-Json -Compress)"
             }
 
             $controls = Get-Content $controlsPath -Raw | ConvertFrom-Json
@@ -271,6 +277,7 @@ jobs:
 
           $requiredPackageEntries = @(
             "Efiron.exe",
+            "libmpv-2.dll",
             "libvlc/win-x64/libvlc.dll",
             "libvlc/win-x64/libvlccore.dll",
             "libvlc/win-x64/plugins",
@@ -296,6 +303,12 @@ jobs:
           if ($efironExeCount -ne 1) {
             throw "Expected exactly one Efiron.exe, got $efironExeCount."
           }
+          $libMpvCount = @(
+            Get-ChildItem $stage -Recurse -File -Filter "libmpv-2.dll"
+          ).Count
+          if ($libMpvCount -ne 1) {
+            throw "Expected exactly one libmpv-2.dll, got $libMpvCount."
+          }
 
           @{
             product = "Efiron"
@@ -308,6 +321,7 @@ jobs:
             runId = "${{ github.run_id }}"
             packageChecks = @{
               efironExeCount = $efironExeCount
+              libMpvCount = $libMpvCount
               libVlcPluginCount = $pluginCount
               nativeLibVlc = $true
               locales = @("en-US", "ru-RU")
