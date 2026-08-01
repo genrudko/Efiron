@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Efiron.Application.Playback;
 using Efiron.Domain.Playback;
 
@@ -49,6 +50,7 @@ public sealed class MpvProcessPlaybackBackend : IPlaybackBackend
             _ => null,
         };
         var hardwareDecoder = NormalizeHardwareDecoder(sample.HardwareDecoder);
+        var videoRenderer = NormalizeVideoRenderer(sample.VideoRenderer);
         var diagnostics = PlaybackBackendDiagnostics.Unsupported(
             Id,
             sample.Version,
@@ -75,7 +77,7 @@ public sealed class MpvProcessPlaybackBackend : IPlaybackBackend
             BufferedPercentage = sample.BufferedPercentage,
             HardwareDecodingActive = hardwareDecoder is not null,
             Decoder = hardwareDecoder ?? sample.VideoCodec,
-            VideoRenderer = sample.VideoRenderer,
+            VideoRenderer = videoRenderer,
             AudioVideoDrift = sample.AudioVideoDrift,
             StartupLatency = sample.StartupLatency,
             TimeToFirstFrame = sample.StartupLatency,
@@ -127,5 +129,40 @@ public sealed class MpvProcessPlaybackBackend : IPlaybackBackend
         }
 
         return value.Trim();
+    }
+
+    private static string? NormalizeVideoRenderer(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var trimmed = value.Trim();
+        if (!trimmed.StartsWith('[', StringComparison.Ordinal))
+        {
+            return trimmed;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(trimmed);
+            foreach (var output in document.RootElement.EnumerateArray())
+            {
+                var enabled = !output.TryGetProperty("enabled", out var enabledElement) ||
+                    enabledElement.ValueKind != JsonValueKind.False;
+                if (enabled &&
+                    output.TryGetProperty("name", out var nameElement) &&
+                    nameElement.GetString() is { Length: > 0 } name)
+                {
+                    return name;
+                }
+            }
+        }
+        catch (JsonException)
+        {
+        }
+
+        return trimmed;
     }
 }
