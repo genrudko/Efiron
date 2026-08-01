@@ -46,6 +46,9 @@ public sealed class MpvPlaybackBackend : IPlaybackBackend
     public void SetCompositionSize(int width, int height) =>
         _session.SetCompositionSize(width, height);
 
+    public void SetFullscreenVideoFill(bool isFullscreen) =>
+        _session.SetFullscreenVideoFill(isFullscreen);
+
     public PlaybackBackendDiagnostics CaptureDiagnostics()
     {
         var sample = _session.CaptureDiagnosticSnapshot();
