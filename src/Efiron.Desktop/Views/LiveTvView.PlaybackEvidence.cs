@@ -38,6 +38,7 @@ public sealed partial class LiveTvView
     protected override void OnApplyTemplate()
     {
         base.OnApplyTemplate();
+        ApplyAutoBackendPolicyFromTemplate();
         EnsurePlaybackEvidenceHooks();
 
         _ = TracePlaybackStageAsync(
