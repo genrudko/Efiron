@@ -16,7 +16,7 @@ public sealed class JsonLiveCatalogCacheTests : IDisposable
         Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public async Task Save_and_load_restore_the_last_known_good_catalog()
+    public async Task Save_and_load_restore_a_lightweight_startup_catalog()
     {
         var path = Path.Combine(_directory, "live-catalog.json.gz");
         var cache = new JsonLiveCatalogCache(path);
@@ -67,8 +67,11 @@ public sealed class JsonLiveCatalogCacheTests : IDisposable
 
         Assert.NotNull(restored);
         Assert.True(restored.CatalogCacheHit);
-        Assert.Equal("Channel One", Assert.Single(restored.Channels).Channel.Name);
-        Assert.Equal("Programme", Assert.Single(restored.Channels[0].Schedule).Title);
+        var restoredChannel = Assert.Single(restored.Channels);
+        Assert.Equal("Channel One", restoredChannel.Channel.Name);
+        Assert.Equal("Programme", restoredChannel.CurrentProgramme?.Title);
+        Assert.Empty(restoredChannel.Schedule);
+        Assert.Equal(0, restored.RetainedProgrammeCount);
     }
 
     [Fact]
