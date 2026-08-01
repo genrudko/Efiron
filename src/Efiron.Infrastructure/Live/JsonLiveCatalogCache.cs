@@ -50,7 +50,7 @@ public sealed class JsonLiveCatalogCache(string path)
                 return null;
             }
 
-            return envelope.Catalog;
+            return envelope.Catalog with { CatalogCacheHit = true };
         }
         catch (Exception exception) when (
             exception is IOException or
@@ -86,7 +86,7 @@ public sealed class JsonLiveCatalogCache(string path)
             configuration.Playlist?.Location,
             configuration.ProgrammeGuide?.Location,
             DateTimeOffset.UtcNow,
-            catalog);
+            catalog with { CatalogCacheHit = false });
 
         try
         {
