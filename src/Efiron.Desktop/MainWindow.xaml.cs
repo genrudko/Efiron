@@ -146,8 +146,8 @@ public sealed partial class MainWindow : Window
                 if (cachedCatalog is { Channels.Count: > 0 })
                 {
                     ApplyCatalog(cachedCatalog);
+                    _ = StartOrGetBackgroundCatalogRefresh(configuration);
                     await ShowLiveWorkspaceAsync();
-                    _ = RefreshCatalogInBackgroundAsync(configuration);
                 }
                 else
                 {
@@ -251,8 +251,8 @@ public sealed partial class MainWindow : Window
             ApplyCatalog(playlistCatalog);
             if (playlistCatalog.Channels.Count > 0)
             {
+                _ = StartOrGetBackgroundCatalogRefresh(configuration);
                 await ShowLiveWorkspaceAsync();
-                _ = RefreshCatalogInBackgroundAsync(configuration);
             }
 
             return true;
@@ -392,34 +392,7 @@ public sealed partial class MainWindow : Window
     private async Task RefreshCatalogInBackgroundAsync(
         SourceConfiguration configuration)
     {
-        try
-        {
-            var catalog = await _liveCatalogRefreshService.RefreshAsync(
-                configuration,
-                DateTimeOffset.Now,
-                _lifetime.Token);
-            await TrySaveProgrammeGuideCatalogCacheAsync(configuration, catalog);
-            await TrySaveCatalogCacheAsync(configuration, catalog);
-            ApplyCatalog(catalog);
-            await RecordBackgroundCatalogReadyAsync(catalog);
-        }
-        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
-        {
-        }
-        catch (Exception exception) when (
-            exception is OperationCanceledException or
-                HttpRequestException or
-                FileNotFoundException or
-                DirectoryNotFoundException or
-                UnauthorizedAccessException or
-                InvalidDataException or
-                XmlException or
-                NotSupportedException or
-                IOException)
-        {
-            // Keep the last-known-good catalogue visible. The source cache
-            // refreshes atomically for the next non-blocking catalogue pass.
-        }
+        await StartOrGetBackgroundCatalogRefresh(configuration);
     }
 
     private async Task TrySaveCatalogCacheAsync(
