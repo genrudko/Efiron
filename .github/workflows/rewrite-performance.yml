@@ -294,7 +294,7 @@ jobs:
             $appearance = Get-Content $appearanceTransitionPath -Raw | ConvertFrom-Json
             if ($appearance.InitialTheme -ne "Dark" -or
                 $appearance.WindowActualTheme -ne "Light" -or
-                $appearance.Live.WorkspaceRequestedTheme -ne "Default" -or
+                $appearance.Live.WorkspaceRequestedTheme -ne "Light" -or
                 $appearance.Live.WorkspaceActualTheme -ne "Light" -or
                 $appearance.Live.RootRequestedTheme -ne "Default" -or
                 $appearance.Live.RootActualTheme -ne "Light" -or
