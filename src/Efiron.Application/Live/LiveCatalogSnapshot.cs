@@ -18,6 +18,8 @@ public sealed record LiveCatalogSnapshot(
     public int RetainedProgrammeCount =>
         Channels.Sum(static channel => channel.Schedule.Count);
 
+    public bool CatalogCacheHit { get; init; }
+
     public bool PlaylistSourceCacheHit { get; init; }
 
     public bool ProgrammeGuideSourceCacheHit { get; init; }
