@@ -156,6 +156,10 @@ public sealed class GreenfieldBoundaryTests
         Assert.Contains("EnsureLiveTvWorkspace", lazyWorkspaces, StringComparison.Ordinal);
         Assert.Contains("EnsureProgrammeGuideWorkspace", lazyWorkspaces, StringComparison.Ordinal);
         Assert.Contains(
+            "RequestedTheme = ElementTheme.Default",
+            lazyWorkspaces,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
             "RequestedTheme = WindowRoot.RequestedTheme",
             lazyWorkspaces,
             StringComparison.Ordinal);
