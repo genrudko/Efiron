@@ -15,6 +15,13 @@ public sealed partial class ProgrammeGuideView
     protected override void OnApplyTemplate()
     {
         base.OnApplyTemplate();
+
+        // The rail/thumb must enter the visual tree before the first stable EPG
+        // frame. Creating it only after projection left valid layout geometry
+        // but allowed RenderTargetBitmap—and occasionally the first user-visible
+        // frame—to capture the background underneath the scrollbar column.
+        EnsurePersistentVerticalScrollBar();
+
         if (_programmeNavigationAttached)
         {
             return;
