@@ -14,10 +14,12 @@ public sealed partial class LiveTvView
     {
         if (_playbackBackendControllerDisposed)
         {
+            DisposeNativePlaybackHost();
             return;
         }
 
         _playbackBackendControllerDisposed = true;
+        HideNativePlaybackHost();
         IPlaybackBackend? backend = null;
         var lockTaken = false;
 
@@ -69,6 +71,7 @@ public sealed partial class LiveTvView
         var diagnosticsDispose =
             _playbackDiagnosticsWriter.DisposeAsync().AsTask();
         await ObserveWithinDeadlineAsync(diagnosticsDispose);
+        DisposeNativePlaybackHost();
     }
 
     private IPlaybackBackend? DetachPlaybackBackendForShutdown()
@@ -85,6 +88,7 @@ public sealed partial class LiveTvView
             mpv.DisplaySwapChainChanged -= MpvBackend_DisplaySwapChainChanged;
         }
 
+        HideNativePlaybackHost();
         try
         {
             ClearMpvSwapChain();
