@@ -1,4 +1,5 @@
 using Efiron.Desktop.Views;
+using Efiron.Domain.Appearance;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -53,6 +54,7 @@ public sealed partial class MainWindow
         _liveTvWorkspace = workspace;
         LiveTvWorkspaceHost.Content = workspace;
         LiveTvWorkspaceHost.Visibility = Visibility.Visible;
+        ApplyThemeToLazyWorkspace(workspace, _appearancePreferences.Theme);
         if (_catalog is not null)
         {
             workspace.SetCatalog(_catalog, _favoriteStableIds);
@@ -83,6 +85,7 @@ public sealed partial class MainWindow
         _programmeGuideWorkspace = workspace;
         ProgrammeGuideWorkspaceHost.Content = workspace;
         ProgrammeGuideWorkspaceHost.Visibility = Visibility.Visible;
+        ApplyThemeToLazyWorkspace(workspace, _appearancePreferences.Theme);
         return workspace;
     }
 
@@ -104,19 +107,41 @@ public sealed partial class MainWindow
 
     private void ApplyThemeToLazyWorkspaces()
     {
-        // Keep lazy workspaces on the inherited theme. Explicitly copying the
-        // current Light/Dark value creates a second theme boundary and can
-        // leave root ThemeResource values stale during an in-process switch.
-        if (_liveTvWorkspace is not null &&
-            _liveTvWorkspace.RequestedTheme != ElementTheme.Default)
+        if (_liveTvWorkspace is not null)
         {
-            _liveTvWorkspace.RequestedTheme = ElementTheme.Default;
+            ApplyThemeToLazyWorkspace(
+                _liveTvWorkspace,
+                _appearancePreferences.Theme);
         }
 
-        if (_programmeGuideWorkspace is not null &&
-            _programmeGuideWorkspace.RequestedTheme != ElementTheme.Default)
+        if (_programmeGuideWorkspace is not null)
         {
-            _programmeGuideWorkspace.RequestedTheme = ElementTheme.Default;
+            ApplyThemeToLazyWorkspace(
+                _programmeGuideWorkspace,
+                _appearancePreferences.Theme);
+        }
+    }
+
+    private static void ApplyThemeToLazyWorkspace(
+        FrameworkElement workspace,
+        AppearanceTheme preference)
+    {
+        // A lazy UserControl is constructed while detached from WindowRoot.
+        // With a persisted Light preference and a dark Windows theme its root
+        // ThemeResource can therefore be resolved from the system theme before
+        // inheritance starts. Apply the explicit user preference only after the
+        // control has been attached to its host. Do not copy ActualTheme here:
+        // ActualTheme can still contain the previous value during a live switch.
+        var requestedTheme = preference switch
+        {
+            AppearanceTheme.Light => ElementTheme.Light,
+            AppearanceTheme.Dark => ElementTheme.Dark,
+            _ => ElementTheme.Default,
+        };
+
+        if (workspace.RequestedTheme != requestedTheme)
+        {
+            workspace.RequestedTheme = requestedTheme;
         }
     }
 
