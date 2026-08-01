@@ -56,6 +56,7 @@ public sealed partial class MainWindow
             workspace.SetCatalog(_catalog, _favoriteStableIds);
         }
 
+        TryStartAppearanceTransitionVerification();
         return workspace;
     }
 
