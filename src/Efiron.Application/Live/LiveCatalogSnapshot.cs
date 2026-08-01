@@ -14,4 +14,13 @@ public sealed record LiveCatalogSnapshot(
 {
     public int MatchedChannelCount =>
         ProgrammeGuideExactMatches + ProgrammeGuideNameMatches;
+
+    public int RetainedProgrammeCount =>
+        Channels.Sum(static channel => channel.Schedule.Count);
+
+    public bool PlaylistSourceCacheHit { get; init; }
+
+    public bool ProgrammeGuideSourceCacheHit { get; init; }
+
+    public bool ProgrammeGuideParseCacheHit { get; init; }
 }
