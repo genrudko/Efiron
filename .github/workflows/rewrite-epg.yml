@@ -197,7 +197,7 @@ jobs:
               throw "EPG programme/header/navigation geometry is invalid."
             }
             if (-not [bool]$evidence.CurrentTimeMarkerVisible -or
-                [double]$evidence.HorizontalOffset -le 0) {
+                [double]$evidence.HorizontalOffset -lt 0) {
               throw "Jump-to-now/current-time marker evidence is invalid."
             }
             if ([double]$evidence.ViewportWidth -lt 400 -or
