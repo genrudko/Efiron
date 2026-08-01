@@ -32,19 +32,29 @@ void SnapshotChanged(
     snapshots.Writer.TryWrite(eventArgs.Snapshot);
 }
 
-async Task<PlaybackSnapshot> WaitForPlayingAsync(TimeSpan timeout)
+async Task<PlaybackSnapshot> WaitForPlayingAsync(
+    string expectedChannelStableId,
+    TimeSpan timeout)
 {
     using var timeoutSource = new CancellationTokenSource(timeout);
     while (await snapshots.Reader.WaitToReadAsync(timeoutSource.Token))
     {
         while (snapshots.Reader.TryRead(out var snapshot))
         {
-            if (snapshot.State == PlaybackState.Playing)
+            if (snapshot.State == PlaybackState.Playing &&
+                string.Equals(
+                    snapshot.ChannelStableId,
+                    expectedChannelStableId,
+                    StringComparison.Ordinal))
             {
                 return snapshot;
             }
 
-            if (snapshot.State == PlaybackState.Failed)
+            if (snapshot.State == PlaybackState.Failed &&
+                string.Equals(
+                    snapshot.ChannelStableId,
+                    expectedChannelStableId,
+                    StringComparison.Ordinal))
             {
                 throw new InvalidOperationException(
                     snapshot.ErrorMessage ?? "mpv host playback failed.");
@@ -52,7 +62,8 @@ async Task<PlaybackSnapshot> WaitForPlayingAsync(TimeSpan timeout)
         }
     }
 
-    throw new TimeoutException("mpv host did not reach Playing.");
+    throw new TimeoutException(
+        $"mpv host did not reach Playing for {expectedChannelStableId}.");
 }
 
 async Task<PlaybackBackendDiagnostics> WaitForDiagnosticsAsync(
@@ -105,7 +116,9 @@ try
         mediaUri,
         "mpv.host.first",
         "mpv native-window host first"));
-    var firstPlaying = await WaitForPlayingAsync(TimeSpan.FromSeconds(30));
+    var firstPlaying = await WaitForPlayingAsync(
+        "mpv.host.first",
+        TimeSpan.FromSeconds(30));
     firstProcessId = backend.HostProcessId ?? throw new InvalidOperationException(
         "mpv host reached Playing without a child process ID.");
 
@@ -140,11 +153,17 @@ try
             JsonSerializer.Serialize(firstDiagnostics));
     }
 
+    while (snapshots.Reader.TryRead(out _))
+    {
+    }
+
     await session.PlayAsync(new PlaybackRequest(
         mediaUri,
         "mpv.host.second",
         "mpv native-window host second"));
-    var secondPlaying = await WaitForPlayingAsync(TimeSpan.FromSeconds(30));
+    var secondPlaying = await WaitForPlayingAsync(
+        "mpv.host.second",
+        TimeSpan.FromSeconds(30));
     secondProcessId = backend.HostProcessId ?? throw new InvalidOperationException(
         "The restarted mpv host has no child process ID.");
     if (secondProcessId == firstProcessId)
