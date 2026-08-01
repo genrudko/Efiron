@@ -1,5 +1,8 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
+using System.Text;
 using Efiron.Application.Sources;
 using Efiron.Domain.Sources;
 
@@ -9,6 +12,14 @@ public sealed class BoundedSourceContentLoader(HttpClient httpClient) : ISourceC
 {
     public const int MaximumPlaylistBytes = 32 * 1024 * 1024;
     public const int MaximumProgrammeGuidePayloadBytes = 64 * 1024 * 1024;
+
+    private static readonly ConcurrentDictionary<string, byte> ActiveRefreshes =
+        new(StringComparer.Ordinal);
+
+    private static readonly string CacheDirectory = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "Efiron",
+        "source-cache");
 
     public async ValueTask<LoadedSourceContent> LoadAsync(
         SourceDefinition source,
@@ -23,11 +34,33 @@ public sealed class BoundedSourceContentLoader(HttpClient httpClient) : ISourceC
 
         if (TryResolveRemoteUri(source.Location, out var remoteUri))
         {
-            return await LoadRemoteAsync(
+            var cachePath = GetCachePath(source, remoteUri);
+            var cached = await TryLoadCachedAsync(
+                source,
+                remoteUri,
+                cachePath,
+                maximumBytes,
+                cancellationToken);
+            if (cached is not null)
+            {
+                QueueBackgroundRefresh(
+                    source,
+                    remoteUri,
+                    cachePath,
+                    maximumBytes);
+                return cached;
+            }
+
+            var downloaded = await DownloadRemoteAsync(
                 source,
                 remoteUri,
                 maximumBytes,
                 cancellationToken);
+            await SaveCacheAsync(
+                cachePath,
+                downloaded.Content,
+                cancellationToken);
+            return downloaded;
         }
 
         var path = ResolveLocalPath(source.Location);
@@ -57,7 +90,92 @@ public sealed class BoundedSourceContentLoader(HttpClient httpClient) : ISourceC
             DateTimeOffset.UtcNow);
     }
 
-    private async ValueTask<LoadedSourceContent> LoadRemoteAsync(
+    private async ValueTask<LoadedSourceContent?> TryLoadCachedAsync(
+        SourceDefinition source,
+        Uri uri,
+        string cachePath,
+        int maximumBytes,
+        CancellationToken cancellationToken)
+    {
+        if (!File.Exists(cachePath))
+        {
+            return null;
+        }
+
+        try
+        {
+            await using var stream = new FileStream(
+                cachePath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete,
+                bufferSize: 64 * 1024,
+                useAsync: true);
+            var content = await ReadBoundedAsync(
+                stream,
+                maximumBytes,
+                cancellationToken);
+            if (content.Length == 0)
+            {
+                return null;
+            }
+
+            return new LoadedSourceContent(
+                source,
+                content,
+                uri,
+                ContentType: null,
+                new DateTimeOffset(File.GetLastWriteTimeUtc(cachePath), TimeSpan.Zero));
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            return null;
+        }
+    }
+
+    private void QueueBackgroundRefresh(
+        SourceDefinition source,
+        Uri uri,
+        string cachePath,
+        int maximumBytes)
+    {
+        if (!ActiveRefreshes.TryAdd(cachePath, 0))
+        {
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var downloaded = await DownloadRemoteAsync(
+                    source,
+                    uri,
+                    maximumBytes,
+                    CancellationToken.None);
+                await SaveCacheAsync(
+                    cachePath,
+                    downloaded.Content,
+                    CancellationToken.None);
+            }
+            catch (Exception exception) when (
+                exception is HttpRequestException or
+                    IOException or
+                    UnauthorizedAccessException or
+                    InvalidDataException or
+                    ObjectDisposedException or
+                    TaskCanceledException)
+            {
+            }
+            finally
+            {
+                ActiveRefreshes.TryRemove(cachePath, out _);
+            }
+        });
+    }
+
+    private async ValueTask<LoadedSourceContent> DownloadRemoteAsync(
         SourceDefinition source,
         Uri uri,
         int maximumBytes,
@@ -106,6 +224,45 @@ public sealed class BoundedSourceContentLoader(HttpClient httpClient) : ISourceC
             response.RequestMessage?.RequestUri ?? uri,
             response.Content.Headers.ContentType?.MediaType,
             DateTimeOffset.UtcNow);
+    }
+
+    private static async ValueTask SaveCacheAsync(
+        string cachePath,
+        ReadOnlyMemory<byte> content,
+        CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(CacheDirectory);
+        var temporaryPath = cachePath + ".tmp";
+        try
+        {
+            await File.WriteAllBytesAsync(
+                temporaryPath,
+                content.ToArray(),
+                cancellationToken);
+            File.Move(temporaryPath, cachePath, overwrite: true);
+        }
+        finally
+        {
+            try
+            {
+                File.Delete(temporaryPath);
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+        }
+    }
+
+    private static string GetCachePath(SourceDefinition source, Uri uri)
+    {
+        var hash = Convert.ToHexString(
+            SHA256.HashData(Encoding.UTF8.GetBytes(uri.AbsoluteUri)));
+        return Path.Combine(
+            CacheDirectory,
+            $"{source.Kind.ToString().ToLowerInvariant()}-{hash}.bin");
     }
 
     private static bool TryResolveRemoteUri(
