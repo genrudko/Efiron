@@ -38,7 +38,7 @@ public sealed partial class MainWindow
             Visibility = Visibility.Collapsed,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch,
-            RequestedTheme = WindowRoot.RequestedTheme,
+            RequestedTheme = ElementTheme.Default,
         };
         workspace.BackRequested += LiveTvWorkspace_BackRequested;
         workspace.FullscreenToggleRequested +=
@@ -72,7 +72,7 @@ public sealed partial class MainWindow
             Visibility = Visibility.Collapsed,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch,
-            RequestedTheme = WindowRoot.RequestedTheme,
+            RequestedTheme = ElementTheme.Default,
         };
         workspace.PlayChannelRequested +=
             ProgrammeGuideWorkspace_PlayChannelRequested;
@@ -85,14 +85,19 @@ public sealed partial class MainWindow
 
     private void ApplyThemeToLazyWorkspaces()
     {
-        if (_liveTvWorkspace is not null)
+        // Keep lazy workspaces on the inherited theme. Explicitly copying the
+        // current Light/Dark value creates a second theme boundary and can
+        // leave root ThemeResource values stale during an in-process switch.
+        if (_liveTvWorkspace is not null &&
+            _liveTvWorkspace.RequestedTheme != ElementTheme.Default)
         {
-            _liveTvWorkspace.RequestedTheme = WindowRoot.RequestedTheme;
+            _liveTvWorkspace.RequestedTheme = ElementTheme.Default;
         }
 
-        if (_programmeGuideWorkspace is not null)
+        if (_programmeGuideWorkspace is not null &&
+            _programmeGuideWorkspace.RequestedTheme != ElementTheme.Default)
         {
-            _programmeGuideWorkspace.RequestedTheme = WindowRoot.RequestedTheme;
+            _programmeGuideWorkspace.RequestedTheme = ElementTheme.Default;
         }
     }
 
