@@ -243,8 +243,8 @@ public sealed partial class MainWindow
             {
                 ProcessElapsedMilliseconds =
                     App.ProcessLifetimeElapsed.TotalMilliseconds,
-                catalog.Channels.Count,
-                catalog.Categories.Count,
+                ChannelCount = catalog.Channels.Count,
+                CategoryCount = catalog.Categories.Count,
                 catalog.CatalogCacheHit,
                 catalog.PlaylistSourceCacheHit,
                 RetainedProgrammeCount = catalog.RetainedProgrammeCount,
