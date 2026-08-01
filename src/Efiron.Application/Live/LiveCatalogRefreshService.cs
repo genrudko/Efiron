@@ -39,6 +39,16 @@ public sealed class LiveCatalogRefreshService(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(configuration);
+
+        if (!UsesRemoteHttpSource(configuration))
+        {
+            return await RefreshAsync(
+                    configuration,
+                    DateTimeOffset.Now,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+
         var (playlist, payload) = await LoadPlaylistAsync(
             configuration,
             cancellationToken).ConfigureAwait(false);
@@ -169,6 +179,15 @@ public sealed class LiveCatalogRefreshService(
             playlistParser.Parse(playlistContent, payload.EffectiveUri),
             payload);
     }
+
+    private static bool UsesRemoteHttpSource(SourceConfiguration configuration) =>
+        IsHttpLocation(configuration.Playlist?.Location) ||
+        IsHttpLocation(configuration.ProgrammeGuide?.Location);
+
+    private static bool IsHttpLocation(string? location) =>
+        Uri.TryCreate(location, UriKind.Absolute, out var uri) &&
+        (uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
+         uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase));
 
     private static IReadOnlyList<string> BuildCategories(PlaylistDocument playlist) =>
         playlist.Channels
