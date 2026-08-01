@@ -120,10 +120,10 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $output = "tools/Efiron.MpvHostProbe/bin/Release/net10.0-windows10.0.22000.0/win-x64"
-          $host = Join-Path $output "mpv-host/mpv.exe"
+          $hostExe = Join-Path $output "mpv-host/mpv.exe"
           $manifest = Join-Path $output "mpv-host/runtime-manifest.json"
-          if (-not (Test-Path $host)) {
-            throw "Packaged mpv host executable is missing: $host"
+          if (-not (Test-Path $hostExe)) {
+            throw "Packaged mpv host executable is missing: $hostExe"
           }
           if (-not (Test-Path $manifest)) {
             throw "Packaged mpv host manifest is missing: $manifest"
@@ -132,8 +132,8 @@ jobs:
           $runtimeManifest = Get-Content $manifest -Raw | ConvertFrom-Json
           [ordered]@{
             HeadSha = "${{ github.event.pull_request.head.sha || github.sha }}"
-            ExecutableLength = (Get-Item $host).Length
-            ExecutableSha256 = (Get-FileHash $host -Algorithm SHA256).Hash.ToLowerInvariant()
+            ExecutableLength = (Get-Item $hostExe).Length
+            ExecutableSha256 = (Get-FileHash $hostExe -Algorithm SHA256).Hash.ToLowerInvariant()
             RuntimeManifest = $runtimeManifest
           } | ConvertTo-Json -Depth 6 |
             Set-Content mpv-host-artifacts/mpv-host-package.json -Encoding utf8
