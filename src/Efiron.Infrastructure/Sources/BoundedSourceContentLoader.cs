@@ -8,7 +8,8 @@ using Efiron.Domain.Sources;
 
 namespace Efiron.Infrastructure.Sources;
 
-public sealed class BoundedSourceContentLoader(HttpClient httpClient) : ISourceContentLoader
+public sealed class BoundedSourceContentLoader
+    : ISourceContentLoader
 {
     public const int MaximumPlaylistBytes = 32 * 1024 * 1024;
     public const int MaximumProgrammeGuidePayloadBytes = 64 * 1024 * 1024;
@@ -16,10 +17,19 @@ public sealed class BoundedSourceContentLoader(HttpClient httpClient) : ISourceC
     private static readonly ConcurrentDictionary<string, byte> ActiveRefreshes =
         new(StringComparer.Ordinal);
 
-    private static readonly string CacheDirectory = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "Efiron",
-        "source-cache");
+    private readonly HttpClient _httpClient;
+    private readonly string _cacheDirectory;
+
+    public BoundedSourceContentLoader(
+        HttpClient httpClient,
+        string? cacheDirectory = null)
+    {
+        _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        _cacheDirectory = cacheDirectory ?? Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Efiron",
+            "source-cache");
+    }
 
     public async ValueTask<LoadedSourceContent> LoadAsync(
         SourceDefinition source,
@@ -87,7 +97,8 @@ public sealed class BoundedSourceContentLoader(HttpClient httpClient) : ISourceC
             content,
             new Uri(path),
             ContentType: null,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            IsCacheHit: false);
     }
 
     private async ValueTask<LoadedSourceContent?> TryLoadCachedAsync(
@@ -125,7 +136,8 @@ public sealed class BoundedSourceContentLoader(HttpClient httpClient) : ISourceC
                 content,
                 uri,
                 ContentType: null,
-                new DateTimeOffset(File.GetLastWriteTimeUtc(cachePath), TimeSpan.Zero));
+                new DateTimeOffset(File.GetLastWriteTimeUtc(cachePath), TimeSpan.Zero),
+                IsCacheHit: true);
         }
         catch (Exception exception) when (
             exception is IOException or UnauthorizedAccessException or InvalidDataException)
@@ -185,7 +197,7 @@ public sealed class BoundedSourceContentLoader(HttpClient httpClient) : ISourceC
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("*/*"));
         request.Headers.UserAgent.ParseAdd("Efiron/greenfield");
 
-        using var response = await httpClient.SendAsync(
+        using var response = await _httpClient.SendAsync(
             request,
             HttpCompletionOption.ResponseHeadersRead,
             cancellationToken);
@@ -223,15 +235,16 @@ public sealed class BoundedSourceContentLoader(HttpClient httpClient) : ISourceC
             content,
             response.RequestMessage?.RequestUri ?? uri,
             response.Content.Headers.ContentType?.MediaType,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            IsCacheHit: false);
     }
 
-    private static async ValueTask SaveCacheAsync(
+    private async ValueTask SaveCacheAsync(
         string cachePath,
         ReadOnlyMemory<byte> content,
         CancellationToken cancellationToken)
     {
-        Directory.CreateDirectory(CacheDirectory);
+        Directory.CreateDirectory(_cacheDirectory);
         var temporaryPath = cachePath + ".tmp";
         try
         {
@@ -256,12 +269,12 @@ public sealed class BoundedSourceContentLoader(HttpClient httpClient) : ISourceC
         }
     }
 
-    private static string GetCachePath(SourceDefinition source, Uri uri)
+    private string GetCachePath(SourceDefinition source, Uri uri)
     {
         var hash = Convert.ToHexString(
             SHA256.HashData(Encoding.UTF8.GetBytes(uri.AbsoluteUri)));
         return Path.Combine(
-            CacheDirectory,
+            _cacheDirectory,
             $"{source.Kind.ToString().ToLowerInvariant()}-{hash}.bin");
     }
 
