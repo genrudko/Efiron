@@ -30,6 +30,7 @@ public sealed partial class MainWindow : Window
     private readonly IFavoriteChannelStore _favoriteChannelStore;
     private readonly LiveCatalogRefreshService _liveCatalogRefreshService;
     private readonly JsonLiveCatalogCache _liveCatalogCache;
+    private readonly JsonProgrammeGuideCatalogCache _programmeGuideCatalogCache;
     private readonly HttpClient _httpClient;
     private readonly HashSet<string> _favoriteStableIds = new(StringComparer.Ordinal);
     private readonly string _configurationPath;
@@ -67,6 +68,8 @@ public sealed partial class MainWindow : Window
             Path.Combine(localDataDirectory, "favorites.json"));
         _liveCatalogCache = new JsonLiveCatalogCache(
             Path.Combine(localDataDirectory, "live-catalog.json.gz"));
+        _programmeGuideCatalogCache = new JsonProgrammeGuideCatalogCache(
+            Path.Combine(localDataDirectory, "programme-catalog.json.gz"));
         _httpClient = new HttpClient(new HttpClientHandler
         {
             AutomaticDecompression =
@@ -287,6 +290,7 @@ public sealed partial class MainWindow : Window
                 configuration,
                 DateTimeOffset.Now,
                 _lifetime.Token);
+            await TrySaveProgrammeGuideCatalogCacheAsync(configuration, catalog);
             await TrySaveCatalogCacheAsync(configuration, catalog);
             ApplyCatalog(catalog);
 
@@ -394,6 +398,7 @@ public sealed partial class MainWindow : Window
                 configuration,
                 DateTimeOffset.Now,
                 _lifetime.Token);
+            await TrySaveProgrammeGuideCatalogCacheAsync(configuration, catalog);
             await TrySaveCatalogCacheAsync(configuration, catalog);
             ApplyCatalog(catalog);
             await RecordBackgroundCatalogReadyAsync(catalog);
@@ -437,12 +442,54 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private async Task TrySaveProgrammeGuideCatalogCacheAsync(
+        SourceConfiguration configuration,
+        LiveCatalogSnapshot catalog)
+    {
+        try
+        {
+            await _programmeGuideCatalogCache.SaveAsync(
+                configuration,
+                catalog,
+                _lifetime.Token);
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+        }
+    }
+
     private void ApplyCatalog(LiveCatalogSnapshot catalog)
     {
-        _catalog = catalog;
-        _liveTvWorkspace?.SetCatalog(catalog, _favoriteStableIds);
-        OpenLiveButton.IsEnabled = catalog.Channels.Count > 0;
-        UpdateLoadedStatus(catalog.Channels.Count);
+        var liveCatalog = CreateLiveCatalog(catalog);
+        _catalog = liveCatalog;
+        _liveTvWorkspace?.SetCatalog(liveCatalog, _favoriteStableIds);
+        OpenLiveButton.IsEnabled = liveCatalog.Channels.Count > 0;
+        UpdateLoadedStatus(liveCatalog.Channels.Count);
+    }
+
+    private static LiveCatalogSnapshot CreateLiveCatalog(
+        LiveCatalogSnapshot catalog)
+    {
+        if (catalog.RetainedProgrammeCount == 0)
+        {
+            return catalog;
+        }
+
+        var channels = catalog.Channels
+            .Select(static channel => channel with
+            {
+                Schedule = Array.Empty<Efiron.Domain.ProgrammeGuide.Programme>(),
+            })
+            .ToArray();
+        return catalog with
+        {
+            Channels = channels,
+            ProgrammeGuideWarnings = [],
+        };
     }
 
     private void ClearCatalog()
@@ -533,10 +580,7 @@ public sealed partial class MainWindow : Window
         var liveWorkspace = EnsureLiveTvWorkspace();
         liveWorkspace.SetCatalog(_catalog, _favoriteStableIds);
         SourcesWorkspace.Visibility = Visibility.Collapsed;
-        if (_programmeGuideWorkspace is not null)
-        {
-            _programmeGuideWorkspace.Visibility = Visibility.Collapsed;
-        }
+        ReleaseProgrammeGuideWorkspace();
 
         liveWorkspace.Visibility = Visibility.Visible;
         WindowContextTitle.Text = _resources.GetString("WindowContextLiveMessage");
@@ -563,10 +607,7 @@ public sealed partial class MainWindow : Window
         {
             _liveTvWorkspace.Visibility = Visibility.Collapsed;
         }
-        if (_programmeGuideWorkspace is not null)
-        {
-            _programmeGuideWorkspace.Visibility = Visibility.Collapsed;
-        }
+        ReleaseProgrammeGuideWorkspace();
 
         SourcesWorkspace.Visibility = Visibility.Visible;
         WindowContextTitle.Text = _resources.GetString("WindowContextSourcesMessage");
@@ -674,15 +715,10 @@ public sealed partial class MainWindow : Window
     {
         try
         {
-            using var process = Process.GetCurrentProcess();
-            process.Refresh();
-            var startedAtUtc = new DateTimeOffset(
-                process.StartTime.ToUniversalTime(),
-                TimeSpan.Zero);
             var directory = Path.GetDirectoryName(_readinessPath)!;
             Directory.CreateDirectory(directory);
             var evidence = new StartupEvidence(
-                (DateTimeOffset.UtcNow - startedAtUtc).TotalMilliseconds,
+                App.ProcessLifetimeElapsed.TotalMilliseconds,
                 DateTimeOffset.UtcNow);
             await File.WriteAllTextAsync(
                 _readinessPath,
@@ -706,15 +742,12 @@ public sealed partial class MainWindow : Window
         {
             using var process = Process.GetCurrentProcess();
             process.Refresh();
-            var startedAtUtc = new DateTimeOffset(
-                process.StartTime.ToUniversalTime(),
-                TimeSpan.Zero);
             var recordedAtUtc = DateTimeOffset.UtcNow;
             var directory = Path.GetDirectoryName(_liveReadinessPath)!;
             Directory.CreateDirectory(directory);
             var evidence = new LiveReadinessEvidence(
                 ProcessToLiveReadyMilliseconds:
-                    (recordedAtUtc - startedAtUtc).TotalMilliseconds,
+                    App.ProcessLifetimeElapsed.TotalMilliseconds,
                 ChannelCount: catalog.Channels.Count,
                 CategoryCount: catalog.Categories.Count,
                 ProgrammeGuideMatchCount: catalog.MatchedChannelCount,
@@ -754,6 +787,7 @@ public sealed partial class MainWindow : Window
             var directory = Path.GetDirectoryName(_backgroundCatalogReadinessPath)!;
             Directory.CreateDirectory(directory);
             var evidence = new BackgroundCatalogEvidence(
+                App.ProcessLifetimeElapsed.TotalMilliseconds,
                 catalog.Channels.Count,
                 catalog.MatchedChannelCount,
                 catalog.RetainedProgrammeCount,
@@ -809,6 +843,7 @@ public sealed partial class MainWindow : Window
         DateTimeOffset RecordedAtUtc);
 
     private sealed record BackgroundCatalogEvidence(
+        double ProcessToBackgroundCatalogReadyMilliseconds,
         int ChannelCount,
         int ProgrammeGuideMatchCount,
         int RetainedProgrammeCount,
