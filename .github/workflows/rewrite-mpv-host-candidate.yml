@@ -1,0 +1,159 @@
+name: rewrite mpv host candidate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - rewrite/001-greenfield-desktop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  native-host-candidate:
+    name: Exact-head native mpv host Windows candidate
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.302
+
+      - name: Restore and build exact head
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          dotnet restore Efiron.Greenfield.sln
+          dotnet build Efiron.Greenfield.sln -c Release --no-restore
+
+      - name: Prepare verified native-host candidate package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $source = "src/Efiron.Desktop/bin/x64/Release/net10.0-windows10.0.22000.0/win-x64"
+          $stage = "native-host-candidate-package"
+          Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
+
+          $requiredSourceEntries = @(
+            "Efiron.exe",
+            "mpv-host/mpv.exe",
+            "mpv-host/runtime-manifest.json",
+            "mpv-host/NOTICE.txt",
+            "libmpv-2.dll",
+            "libvlc/win-x64/libvlc.dll",
+            "libvlc/win-x64/libvlccore.dll",
+            "libvlc/win-x64/plugins",
+            "en-US",
+            "ru-RU"
+          )
+          foreach ($entry in $requiredSourceEntries) {
+            if (-not (Test-Path (Join-Path $source $entry))) {
+              throw "Desktop output is missing required native-host entry: $entry"
+            }
+          }
+
+          Copy-Item $source $stage -Recurse
+
+          # Remove only real satellite-resource directories. A name-shaped
+          # heuristic is forbidden because it previously deleted mpv-host.
+          $allowedLocales = @("en-us", "ru-ru")
+          Get-ChildItem $stage -Directory -ErrorAction SilentlyContinue |
+            Where-Object {
+              $_.Name.ToLowerInvariant() -notin $allowedLocales -and
+              @(Get-ChildItem $_.FullName -File -Filter "*.resources.dll" -ErrorAction SilentlyContinue).Count -gt 0
+            } |
+            Remove-Item -Recurse -Force
+
+          $requiredPackageEntries = @(
+            "Efiron.exe",
+            "mpv-host/mpv.exe",
+            "mpv-host/runtime-manifest.json",
+            "mpv-host/NOTICE.txt",
+            "libmpv-2.dll",
+            "libvlc/win-x64/libvlc.dll",
+            "libvlc/win-x64/libvlccore.dll",
+            "libvlc/win-x64/plugins",
+            "en-US",
+            "ru-RU"
+          )
+          foreach ($entry in $requiredPackageEntries) {
+            if (-not (Test-Path (Join-Path $stage $entry))) {
+              throw "Native-host candidate package is missing required entry: $entry"
+            }
+          }
+
+          $mpvExe = Join-Path $stage "mpv-host/mpv.exe"
+          $mpvManifestPath = Join-Path $stage "mpv-host/runtime-manifest.json"
+          $mpvManifest = Get-Content $mpvManifestPath -Raw | ConvertFrom-Json
+          $mpvHash = (Get-FileHash $mpvExe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $mpvLength = (Get-Item $mpvExe).Length
+          if ($mpvHash -ne [string]$mpvManifest.exeSha256) {
+            throw "Packaged mpv.exe SHA-256 does not match its runtime manifest."
+          }
+          if ($mpvLength -ne [long]$mpvManifest.executableLength) {
+            throw "Packaged mpv.exe length does not match its runtime manifest."
+          }
+
+          $mpvExeCount = @(Get-ChildItem $stage -Recurse -File -Filter "mpv.exe").Count
+          if ($mpvExeCount -ne 1) {
+            throw "Expected exactly one packaged mpv.exe, got $mpvExeCount."
+          }
+          $efironExeCount = @(Get-ChildItem $stage -Recurse -File -Filter "Efiron.exe").Count
+          if ($efironExeCount -ne 1) {
+            throw "Expected exactly one packaged Efiron.exe, got $efironExeCount."
+          }
+          $pluginCount = @(
+            Get-ChildItem (Join-Path $stage "libvlc/win-x64/plugins") -Recurse -File
+          ).Count
+          if ($pluginCount -le 0) {
+            throw "Native-host candidate contains no LibVLC fallback plugins."
+          }
+
+          [ordered]@{
+            product = "Efiron"
+            platform = "Windows 11 x64"
+            architecture = "greenfield"
+            repair = "Repair J native-window playback host"
+            status = "physical playback validation candidate"
+            headSha = "${{ github.event.pull_request.head.sha || github.sha }}"
+            validationRefSha = "${{ github.sha }}"
+            runId = "${{ github.run_id }}"
+            playbackHost = [ordered]@{
+              backend = "MpvHost"
+              presentation = "out-of-process native D3D11 window"
+              executable = "mpv-host/mpv.exe"
+              buildId = [string]$mpvManifest.buildId
+              version = [string]$mpvManifest.version
+              sha256 = $mpvHash
+              length = $mpvLength
+              deterministicProcessBoundary = $true
+            }
+            packageChecks = [ordered]@{
+              efironExeCount = $efironExeCount
+              mpvExeCount = $mpvExeCount
+              libVlcPluginCount = $pluginCount
+              locales = @("en-US", "ru-RU")
+            }
+            builtAtUtc = [DateTimeOffset]::UtcNow.ToString("O")
+          } | ConvertTo-Json -Depth 6 |
+            Set-Content "$stage/native-host-candidate-manifest.json" -Encoding utf8
+
+      - name: Upload native-host Windows candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: efiron-repair-j-native-host-win-x64
+          path: native-host-candidate-package/
+          if-no-files-found: error
+          retention-days: 90
