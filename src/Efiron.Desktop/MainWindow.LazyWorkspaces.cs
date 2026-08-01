@@ -97,6 +97,7 @@ public sealed partial class MainWindow
         ProgrammeGuideWorkspaceHost.Content = null;
         ProgrammeGuideWorkspaceHost.Visibility = Visibility.Collapsed;
         _programmeGuideWorkspace = null;
+        workspace.DisposeWorkspace();
     }
 
     private void ApplyThemeToLazyWorkspaces()
