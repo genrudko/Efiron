@@ -19,6 +19,9 @@
     <LibMpvRuntimeDirectory>$(MSBuildThisFileDirectory)..\..\artifacts\libmpv\win-x64</LibMpvRuntimeDirectory>
     <LibMpvRuntimeDll>$(LibMpvRuntimeDirectory)\libmpv-2.dll</LibMpvRuntimeDll>
     <LibMpvRuntimeManifest>$(LibMpvRuntimeDirectory)\runtime-manifest.json</LibMpvRuntimeManifest>
+    <MpvHostRuntimeDirectory>$(MSBuildThisFileDirectory)..\..\artifacts\mpv-host\win-x64</MpvHostRuntimeDirectory>
+    <MpvHostRuntimeExe>$(MpvHostRuntimeDirectory)\mpv.exe</MpvHostRuntimeExe>
+    <MpvHostRuntimeManifest>$(MpvHostRuntimeDirectory)\runtime-manifest.json</MpvHostRuntimeManifest>
   </PropertyGroup>
 
   <ItemGroup>
@@ -51,6 +54,26 @@
       </ContentWithTargetPath>
       <ContentWithTargetPath Include="$(LibMpvRuntimeManifest)">
         <TargetPath>libmpv-runtime-manifest.json</TargetPath>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ContentWithTargetPath>
+    </ItemGroup>
+  </Target>
+
+  <Target Name="PrepareDesktopMpvHostRuntime" BeforeTargets="PrepareForBuild">
+    <Exec
+        Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\..\scripts\prepare-mpv-host-runtime.ps1&quot; -OutputDirectory &quot;$(MpvHostRuntimeDirectory)&quot;" />
+    <Error
+        Condition="!Exists('$(MpvHostRuntimeExe)')"
+        Text="Pinned mpv host runtime was not prepared: $(MpvHostRuntimeExe)" />
+    <ItemGroup>
+      <ContentWithTargetPath Include="$(MpvHostRuntimeExe)">
+        <TargetPath>mpv-host\mpv.exe</TargetPath>
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ContentWithTargetPath>
+      <ContentWithTargetPath Include="$(MpvHostRuntimeManifest)">
+        <TargetPath>mpv-host\runtime-manifest.json</TargetPath>
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       </ContentWithTargetPath>
