@@ -11,13 +11,11 @@ public sealed partial class MainWindow
         {
             using var process = Process.GetCurrentProcess();
             process.Refresh();
-            var startedAtUtc = new DateTimeOffset(
-                process.StartTime.ToUniversalTime(),
-                TimeSpan.Zero);
             var recordedAtUtc = DateTimeOffset.UtcNow;
+            var processLifetime = App.ProcessLifetimeElapsed;
+            var startedAtUtc = recordedAtUtc - processLifetime;
             var evidence = new ProcessStartupEvidence(
-                ProcessToShellMilliseconds:
-                    (recordedAtUtc - startedAtUtc).TotalMilliseconds,
+                ProcessToShellMilliseconds: processLifetime.TotalMilliseconds,
                 WorkingSetBytes: process.WorkingSet64,
                 PrivateMemoryBytes: process.PrivateMemorySize64,
                 ManagedHeapBytes: GC.GetTotalMemory(forceFullCollection: false),
@@ -28,15 +26,26 @@ public sealed partial class MainWindow
                 ProcessStartedAtUtc: startedAtUtc,
                 RecordedAtUtc: recordedAtUtc);
 
-            var path = Path.Combine(
+            var diagnosticsDirectory = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "Efiron",
-                "diagnostics",
-                "startup-process.json");
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                "diagnostics");
+            Directory.CreateDirectory(diagnosticsDirectory);
             await File.WriteAllTextAsync(
-                path,
+                Path.Combine(diagnosticsDirectory, "startup-process.json"),
                 JsonSerializer.Serialize(evidence),
+                _lifetime.Token);
+
+            // Overwrite the legacy wall-clock measurement with the same
+            // monotonic process-lifetime boundary used by the shell evidence.
+            await File.WriteAllTextAsync(
+                Path.Combine(diagnosticsDirectory, "first-useful-paint.json"),
+                JsonSerializer.Serialize(new
+                {
+                    FirstUsefulPaintMilliseconds = processLifetime.TotalMilliseconds,
+                    RecordedAtUtc = recordedAtUtc,
+                    Clock = "Stopwatch",
+                }),
                 _lifetime.Token);
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
