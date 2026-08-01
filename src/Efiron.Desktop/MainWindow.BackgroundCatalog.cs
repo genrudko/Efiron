@@ -17,17 +17,17 @@ public sealed partial class MainWindow
     private string? _playlistRefreshKey;
 
     private Task<bool> StartOrGetBackgroundCatalogRefresh(
-        SourceConfiguration configuration)
+        SourceConfiguration configuration,
+        bool requireProgrammeGuide = false)
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        // Repair H: a full XMLTV parse must never be part of the Live startup
-        // critical path. Startup callers invoke this method before the Live
-        // workspace becomes visible; in that state only schedule a delayed,
-        // playlist-only cache refresh and return immediately. The Programme
-        // workspace is made visible before it requests a full catalogue, so an
-        // explicit EPG navigation still executes the full single-flight task.
-        if (!IsProgrammeGuideWorkspaceVisible)
+        // Repair H: the caller states its intent explicitly. Live startup may
+        // only schedule a delayed playlist refresh; Programme navigation is
+        // the only path allowed to start the full XMLTV single-flight task.
+        // This avoids visibility-order races between queued Live and EPG
+        // navigation while keeping the full schedule out of the Live path.
+        if (!requireProgrammeGuide)
         {
             _ = StartOrGetPlaylistRefresh(configuration);
             return Task.FromResult(true);
