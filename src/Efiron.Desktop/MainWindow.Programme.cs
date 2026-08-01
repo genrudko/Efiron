@@ -75,7 +75,9 @@ public sealed partial class MainWindow
             return cached;
         }
 
-        await StartOrGetBackgroundCatalogRefresh(configuration);
+        await StartOrGetBackgroundCatalogRefresh(
+            configuration,
+            requireProgrammeGuide: true);
         return await TryLoadProgrammeCatalogAsync(configuration);
     }
 
