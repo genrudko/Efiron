@@ -5,6 +5,7 @@ using System.Text.Json;
 using Efiron.Application.Playlists;
 using Efiron.Application.ProgrammeGuide;
 using Efiron.Application.Sources;
+using Efiron.Domain.Playlists;
 using Efiron.Domain.ProgrammeGuide;
 
 namespace Efiron.Application.Live;
@@ -33,6 +34,35 @@ public sealed class LiveCatalogRefreshService(
         "Efiron",
         "epg-cache");
 
+    public async ValueTask<LiveCatalogSnapshot> RefreshPlaylistAsync(
+        SourceConfiguration configuration,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        var (playlist, payload) = await LoadPlaylistAsync(
+            configuration,
+            cancellationToken).ConfigureAwait(false);
+        var channels = playlist.Channels
+            .Select(static channel => new LiveChannelSnapshot(
+                channel,
+                ProgrammeGuideChannelId: null,
+                CurrentProgramme: null,
+                NextProgramme: null))
+            .ToArray();
+
+        return new LiveCatalogSnapshot(
+            channels,
+            BuildCategories(playlist),
+            playlist.Warnings,
+            [],
+            0,
+            0,
+            DateTimeOffset.UtcNow)
+        {
+            PlaylistSourceCacheHit = payload.IsCacheHit,
+        };
+    }
+
     public async ValueTask<LiveCatalogSnapshot> RefreshAsync(
         SourceConfiguration configuration,
         DateTimeOffset now,
@@ -40,21 +70,9 @@ public sealed class LiveCatalogRefreshService(
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        var playlistSource = configuration.Playlist;
-        if (playlistSource is not { IsEnabled: true })
-        {
-            throw new InvalidOperationException(
-                "A configured and enabled playlist source is required.");
-        }
-
-        var playlistPayload = await sourceContentLoader.LoadAsync(
-                playlistSource,
-                cancellationToken)
-            .ConfigureAwait(false);
-        var playlistContent = DecodePlaylist(playlistPayload.Content);
-        var playlist = playlistParser.Parse(
-            playlistContent,
-            playlistPayload.EffectiveUri);
+        var (playlist, playlistPayload) = await LoadPlaylistAsync(
+            configuration,
+            cancellationToken).ConfigureAwait(false);
 
         ProgrammeGuideDocument guide = ProgrammeGuideDocument.Empty;
         var guideSourceCacheHit = false;
@@ -114,16 +132,10 @@ public sealed class LiveCatalogRefreshService(
                 programmesByChannel,
                 now))
             .ToArray();
-        var categories = playlist.Channels
-            .Select(static channel => channel.Category)
-            .Where(static category => !string.IsNullOrWhiteSpace(category))
-            .Select(static category => category!)
-            .Distinct(StringComparer.CurrentCultureIgnoreCase)
-            .ToArray();
 
         return new LiveCatalogSnapshot(
             channels,
-            categories,
+            BuildCategories(playlist),
             playlist.Warnings,
             guide.Warnings,
             matches.ExactIdMatches,
@@ -135,6 +147,36 @@ public sealed class LiveCatalogRefreshService(
             ProgrammeGuideParseCacheHit = guideParseCacheHit,
         };
     }
+
+    private async ValueTask<(PlaylistDocument Document, LoadedSourceContent Payload)>
+        LoadPlaylistAsync(
+            SourceConfiguration configuration,
+            CancellationToken cancellationToken)
+    {
+        var playlistSource = configuration.Playlist;
+        if (playlistSource is not { IsEnabled: true })
+        {
+            throw new InvalidOperationException(
+                "A configured and enabled playlist source is required.");
+        }
+
+        var payload = await sourceContentLoader.LoadAsync(
+                playlistSource,
+                cancellationToken)
+            .ConfigureAwait(false);
+        var playlistContent = DecodePlaylist(payload.Content);
+        return (
+            playlistParser.Parse(playlistContent, payload.EffectiveUri),
+            payload);
+    }
+
+    private static IReadOnlyList<string> BuildCategories(PlaylistDocument playlist) =>
+        playlist.Channels
+            .Select(static channel => channel.Category)
+            .Where(static category => !string.IsNullOrWhiteSpace(category))
+            .Select(static category => category!)
+            .Distinct(StringComparer.CurrentCultureIgnoreCase)
+            .ToArray();
 
     private static LiveChannelSnapshot BuildChannelSnapshot(
         Efiron.Domain.Channels.ChannelDefinition channel,
