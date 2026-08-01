@@ -12,6 +12,9 @@ public sealed class LiveCatalogRefreshService(
     IProgrammeGuideParser programmeGuideParser,
     ProgrammeGuideChannelMatcher programmeGuideMatcher)
 {
+    private const int PastProgrammeGuideDays = 1;
+    private const int FutureProgrammeGuideDays = 7;
+
     private static readonly UTF8Encoding StrictUtf8 = new(
         encoderShouldEmitUTF8Identifier: false,
         throwOnInvalidBytes: true);
@@ -46,7 +49,19 @@ public sealed class LiveCatalogRefreshService(
                     guideSource,
                     cancellationToken)
                 .ConfigureAwait(false);
-            guide = programmeGuideParser.Parse(guidePayload.Content);
+            var dayStart = new DateTimeOffset(
+                now.Year,
+                now.Month,
+                now.Day,
+                0,
+                0,
+                0,
+                now.Offset);
+            var windowStart = dayStart.AddDays(-PastProgrammeGuideDays);
+            var windowEnd = dayStart.AddDays(FutureProgrammeGuideDays + 1);
+            guide = programmeGuideParser is IWindowedProgrammeGuideParser windowed
+                ? windowed.Parse(guidePayload.Content, windowStart, windowEnd)
+                : programmeGuideParser.Parse(guidePayload.Content);
         }
 
         var matches = programmeGuideMatcher.Match(
