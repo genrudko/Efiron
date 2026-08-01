@@ -26,7 +26,7 @@ public sealed class BoundedSourceContentLoaderTests : IDisposable
             TestContext.Current.CancellationToken);
         using var client = new HttpClient(new StubHandler(_ =>
             throw new InvalidOperationException("HTTP must not be used.")));
-        var loader = new BoundedSourceContentLoader(client, CacheDirectory);
+        var loader = CreateLoader(client);
 
         var result = await loader.LoadAsync(
             SourceDefinition.Create(SourceKind.Playlist, path),
@@ -56,7 +56,7 @@ public sealed class BoundedSourceContentLoaderTests : IDisposable
                     "audio/x-mpegurl"),
             };
         }));
-        var loader = new BoundedSourceContentLoader(client, CacheDirectory);
+        var loader = CreateLoader(client);
 
         var result = await loader.LoadAsync(
             SourceDefinition.Create(SourceKind.Playlist, requestedUri.AbsoluteUri),
@@ -89,7 +89,7 @@ public sealed class BoundedSourceContentLoaderTests : IDisposable
                     "audio/x-mpegurl"),
             };
         }));
-        var loader = new BoundedSourceContentLoader(client, CacheDirectory);
+        var loader = CreateLoader(client);
         var source = SourceDefinition.Create(
             SourceKind.Playlist,
             requestedUri.AbsoluteUri);
@@ -104,6 +104,7 @@ public sealed class BoundedSourceContentLoaderTests : IDisposable
         Assert.False(first.IsCacheHit);
         Assert.True(second.IsCacheHit);
         Assert.Contains("First", Encoding.UTF8.GetString(second.Content.Span));
+        Assert.Equal(1, responseNumber);
     }
 
     [Fact]
@@ -120,7 +121,7 @@ public sealed class BoundedSourceContentLoaderTests : IDisposable
                 BoundedSourceContentLoader.MaximumPlaylistBytes + 1L;
             return response;
         }));
-        var loader = new BoundedSourceContentLoader(client, CacheDirectory);
+        var loader = CreateLoader(client);
         var source = SourceDefinition.Create(
             SourceKind.Playlist,
             $"https://provider.example/{Guid.NewGuid():N}/oversized.m3u");
@@ -136,7 +137,7 @@ public sealed class BoundedSourceContentLoaderTests : IDisposable
     {
         using var client = new HttpClient(new StubHandler(_ =>
             throw new InvalidOperationException("HTTP must not be used.")));
-        var loader = new BoundedSourceContentLoader(client, CacheDirectory);
+        var loader = CreateLoader(client);
         var source = SourceDefinition.Create(
             SourceKind.Playlist,
             "ftp://provider.example/playlist.m3u");
@@ -154,6 +155,12 @@ public sealed class BoundedSourceContentLoaderTests : IDisposable
             Directory.Delete(_directory, recursive: true);
         }
     }
+
+    private BoundedSourceContentLoader CreateLoader(HttpClient client) =>
+        new(
+            client,
+            CacheDirectory,
+            refreshCachedSourcesInBackground: false);
 
     private sealed class StubHandler(
         Func<HttpRequestMessage, HttpResponseMessage> responseFactory)
