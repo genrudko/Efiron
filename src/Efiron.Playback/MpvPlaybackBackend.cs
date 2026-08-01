@@ -85,6 +85,17 @@ public sealed class MpvPlaybackBackend : IPlaybackBackend
             AudioVideoDrift = sample.AudioVideoDrift,
             StartupLatency = sample.StartupLatency,
             TimeToFirstFrame = sample.StartupLatency,
+            DisplayFramesPerSecond = sample.DisplayFramesPerSecond,
+            EstimatedDisplayFramesPerSecond =
+                sample.EstimatedDisplayFramesPerSecond,
+            VideoSpeedCorrection = sample.VideoSpeedCorrection,
+            AudioSpeedCorrection = sample.AudioSpeedCorrection,
+            VSyncRatio = sample.VSyncRatio,
+            MistimedFrames = sample.MistimedFrames,
+            DelayedFrames = sample.DelayedFrames,
+            PixelFormat = sample.PixelFormat,
+            PresentationMode = sample.PresentationMode,
+            InterpolationActive = sample.InterpolationActive,
         };
     }
 
