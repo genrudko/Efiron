@@ -93,8 +93,8 @@ jobs:
                 -not [bool]$result.SecondProcessExitedAfterDispose -or
                 [int]$result.First.ProcessId -le 0 -or
                 [int]$result.Second.ProcessId -le 0 -or
-                [string]$result.First.State -ne "Playing" -or
-                [string]$result.Second.State -ne "Playing" -or
+                [int]$result.First.State -ne 2 -or
+                [int]$result.Second.State -ne 2 -or
                 [string]$result.First.VideoRenderer -ne "gpu-next" -or
                 [string]$result.First.PresentationMode -notmatch "out-of-process" -or
                 [string]$result.First.PresentationMode -notmatch "native-window") {
