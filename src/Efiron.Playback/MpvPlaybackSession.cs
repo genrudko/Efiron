@@ -207,6 +207,19 @@ public sealed class MpvPlaybackSession : IPlaybackSession
         RefreshDisplaySwapChain();
     }
 
+    public void SetFullscreenVideoFill(bool isFullscreen)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        // The composition swapchain can fill the WinUI surface while mpv still
+        // letterboxes the decoded frame inside it. Panscan crops only the video
+        // in fullscreen and restores aspect-preserving windowed playback.
+        MpvNative.SetProperty(
+            _context,
+            "panscan",
+            isFullscreen ? "1.0" : "0.0");
+    }
+
     public MpvDiagnosticSnapshot CaptureDiagnosticSnapshot()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -319,6 +332,7 @@ public sealed class MpvPlaybackSession : IPlaybackSession
         MpvNative.SetOption(_context, "d3d11-composition-size", "16x16");
         MpvNative.SetOption(_context, "d3d11-flip", "yes");
         MpvNative.SetOption(_context, "d3d11-sync-interval", "1");
+        MpvNative.SetOption(_context, "panscan", "0.0");
         MpvNative.SetOption(_context, "keep-open", "no");
 
         if (_profile == MpvPlaybackProfile.SmoothMotion)
