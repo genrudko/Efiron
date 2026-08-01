@@ -19,16 +19,19 @@ public sealed class BoundedSourceContentLoader
 
     private readonly HttpClient _httpClient;
     private readonly string _cacheDirectory;
+    private readonly bool _refreshCachedSourcesInBackground;
 
     public BoundedSourceContentLoader(
         HttpClient httpClient,
-        string? cacheDirectory = null)
+        string? cacheDirectory = null,
+        bool refreshCachedSourcesInBackground = true)
     {
         _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
         _cacheDirectory = cacheDirectory ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "Efiron",
             "source-cache");
+        _refreshCachedSourcesInBackground = refreshCachedSourcesInBackground;
     }
 
     public async ValueTask<LoadedSourceContent> LoadAsync(
@@ -53,11 +56,15 @@ public sealed class BoundedSourceContentLoader
                 cancellationToken);
             if (cached is not null)
             {
-                QueueBackgroundRefresh(
-                    source,
-                    remoteUri,
-                    cachePath,
-                    maximumBytes);
+                if (_refreshCachedSourcesInBackground)
+                {
+                    QueueBackgroundRefresh(
+                        source,
+                        remoteUri,
+                        cachePath,
+                        maximumBytes);
+                }
+
                 return cached;
             }
 
