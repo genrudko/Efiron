@@ -1,4 +1,5 @@
 using Efiron.Application.Live;
+using Efiron.Application.Sources;
 using Efiron.Desktop.Views;
 using Microsoft.UI.Xaml;
 
@@ -6,6 +7,9 @@ namespace Efiron.Desktop;
 
 public sealed partial class MainWindow
 {
+    private static readonly TimeSpan ProgrammeCatalogWaitTimeout =
+        TimeSpan.FromSeconds(90);
+
     private async void ShowProgrammeWorkspace()
     {
         if (_catalog is null || _catalog.Channels.Count == 0)
@@ -32,32 +36,10 @@ public sealed partial class MainWindow
             "WindowContextProgrammeMessage");
         UpdateShellNavigation();
 
-        LiveCatalogSnapshot programmeCatalog = _catalog;
-        try
+        var programmeCatalog = await LoadProgrammeCatalogAsync();
+        if (programmeCatalog is null)
         {
-            var configuration = await _sourceConfigurationService.LoadAsync(
-                _lifetime.Token);
-            var cachedProgrammeCatalog = await _programmeGuideCatalogCache.LoadAsync(
-                configuration,
-                _lifetime.Token);
-            if (cachedProgrammeCatalog is
-                {
-                    Channels.Count: > 0,
-                    RetainedProgrammeCount: > 0,
-                })
-            {
-                programmeCatalog = cachedProgrammeCatalog;
-            }
-        }
-        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
-        {
-            return;
-        }
-        catch (Exception exception) when (
-            exception is InvalidDataException or IOException or UnauthorizedAccessException)
-        {
-            // The lightweight Live catalogue remains usable while a full
-            // background EPG catalogue is unavailable or being replaced.
+            programmeCatalog = _catalog;
         }
 
         try
@@ -70,6 +52,71 @@ public sealed partial class MainWindow
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
         {
         }
+    }
+
+    private async Task<LiveCatalogSnapshot?> LoadProgrammeCatalogAsync()
+    {
+        SourceConfiguration configuration;
+        try
+        {
+            configuration = await _sourceConfigurationService.LoadAsync(
+                _lifetime.Token);
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+            return null;
+        }
+        catch (Exception exception) when (
+            exception is InvalidDataException or IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+
+        var deadline = DateTimeOffset.UtcNow + ProgrammeCatalogWaitTimeout;
+        do
+        {
+            try
+            {
+                var cachedProgrammeCatalog =
+                    await _programmeGuideCatalogCache.LoadAsync(
+                        configuration,
+                        _lifetime.Token);
+                if (cachedProgrammeCatalog is
+                    {
+                        Channels.Count: > 0,
+                        RetainedProgrammeCount: > 0,
+                    })
+                {
+                    return cachedProgrammeCatalog;
+                }
+            }
+            catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+            {
+                return null;
+            }
+            catch (Exception exception) when (
+                exception is InvalidDataException or IOException or UnauthorizedAccessException)
+            {
+                // The background refresh writes the cache atomically. A read can
+                // temporarily miss while the first full EPG catalogue is still
+                // being prepared; retry until the bounded deadline.
+            }
+
+            if (DateTimeOffset.UtcNow >= deadline)
+            {
+                return null;
+            }
+
+            try
+            {
+                await Task.Delay(250, _lifetime.Token);
+            }
+            catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+            {
+                return null;
+            }
+        }
+        while (true);
     }
 
     private async void ProgrammeGuideWorkspace_PlayChannelRequested(
