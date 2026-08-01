@@ -218,6 +218,12 @@ public sealed class MpvPlaybackSession : IPlaybackSession
             ? null
             : Math.Max(0, droppedByVo ?? 0) + Math.Max(0, droppedByDecoder ?? 0);
         var avSyncSeconds = MpvNative.GetDouble(_context, "avsync");
+        var interpolation = ParseFlag(MpvNative.GetString(_context, "interpolation"));
+        var videoSync = MpvNative.GetString(_context, "video-sync");
+        var outputMode = MpvNative.GetString(_context, "d3d11-output-mode");
+        var pixelFormat =
+            MpvNative.GetString(_context, "video-params/pixelformat") ??
+            MpvNative.GetString(_context, "video-dec-params/pixelformat");
 
         return new MpvDiagnosticSnapshot(
             DateTimeOffset.UtcNow,
@@ -240,7 +246,28 @@ public sealed class MpvPlaybackSession : IPlaybackSession
             _startupLatency,
             SessionDuration,
             SecondsOrNull(MpvNative.GetDouble(_context, "time-pos")),
-            Snapshot);
+            Snapshot,
+            PositiveOrNull(MpvNative.GetDouble(_context, "display-fps")),
+            PositiveOrNull(MpvNative.GetDouble(_context, "estimated-display-fps")),
+            FiniteOrNull(MpvNative.GetDouble(_context, "video-speed-correction")),
+            FiniteOrNull(MpvNative.GetDouble(_context, "audio-speed-correction")),
+            PositiveOrNull(MpvNative.GetDouble(_context, "vsync-ratio")),
+            NonNegativeOrNull(MpvNative.GetInt64(_context, "mistimed-frame-count")),
+            NonNegativeOrNull(MpvNative.GetInt64(_context, "vo-delayed-frame-count")),
+            pixelFormat,
+            string.Join(
+                "; ",
+                new[]
+                {
+                    string.IsNullOrWhiteSpace(videoSync)
+                        ? null
+                        : $"video-sync={videoSync}",
+                    string.IsNullOrWhiteSpace(outputMode)
+                        ? null
+                        : $"d3d11-output={outputMode}",
+                    $"interpolation={interpolation?.ToString() ?? "unknown"}",
+                }.Where(static value => value is not null)),
+            interpolation);
     }
 
     public void Dispose()
@@ -291,18 +318,23 @@ public sealed class MpvPlaybackSession : IPlaybackSession
         MpvNative.SetOption(_context, "d3d11-output-mode", "composition");
         MpvNative.SetOption(_context, "d3d11-composition-size", "16x16");
         MpvNative.SetOption(_context, "d3d11-flip", "yes");
+        MpvNative.SetOption(_context, "d3d11-sync-interval", "1");
         MpvNative.SetOption(_context, "keep-open", "no");
 
         if (_profile == MpvPlaybackProfile.SmoothMotion)
         {
             MpvNative.SetOption(_context, "hwdec", "d3d11va");
+            MpvNative.SetOption(_context, "d3d11va-zero-copy", "yes");
+            MpvNative.SetOption(_context, "swapchain-depth", "3");
             MpvNative.SetOption(_context, "video-sync", "display-resample");
             MpvNative.SetOption(_context, "interpolation", "yes");
-            MpvNative.SetOption(_context, "tscale", "oversample");
+            MpvNative.SetOption(_context, "interpolation-threshold", "-1");
+            MpvNative.SetOption(_context, "tscale", "linear");
         }
         else
         {
             MpvNative.SetOption(_context, "hwdec", "auto-safe");
+            MpvNative.SetOption(_context, "swapchain-depth", "2");
             MpvNative.SetOption(_context, "video-sync", "audio");
             MpvNative.SetOption(_context, "interpolation", "no");
         }
@@ -441,6 +473,14 @@ public sealed class MpvPlaybackSession : IPlaybackSession
             ? value
             : null;
 
+    private static double? FiniteOrNull(double? value) =>
+        value is null || double.IsNaN(value.Value) || double.IsInfinity(value.Value)
+            ? null
+            : value;
+
+    private static long? NonNegativeOrNull(long? value) =>
+        value is >= 0 ? value : null;
+
     private static double? PercentOrNull(double? value) =>
         value is null || double.IsNaN(value.Value) || double.IsInfinity(value.Value)
             ? null
@@ -450,6 +490,23 @@ public sealed class MpvPlaybackSession : IPlaybackSession
         value is >= 0 && !double.IsNaN(value.Value) && !double.IsInfinity(value.Value)
             ? TimeSpan.FromSeconds(value.Value)
             : null;
+
+    private static bool? ParseFlag(string? value)
+    {
+        if (string.Equals(value, "yes", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(value, "true", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (string.Equals(value, "no", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(value, "false", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return null;
+    }
 }
 
 public sealed record MpvDiagnosticSnapshot(
@@ -471,4 +528,14 @@ public sealed record MpvDiagnosticSnapshot(
     TimeSpan? StartupLatency,
     TimeSpan? SessionDuration,
     TimeSpan? MediaPosition,
-    PlaybackSnapshot Snapshot);
+    PlaybackSnapshot Snapshot,
+    double? DisplayFramesPerSecond,
+    double? EstimatedDisplayFramesPerSecond,
+    double? VideoSpeedCorrection,
+    double? AudioSpeedCorrection,
+    double? VSyncRatio,
+    long? MistimedFrames,
+    long? DelayedFrames,
+    string? PixelFormat,
+    string? PresentationMode,
+    bool? InterpolationActive);
