@@ -136,6 +136,17 @@ public sealed partial class MainWindow
                     }));
             }
 
+            // Runtime interaction and XAML scrollbar evidence are independent
+            // from RenderTargetBitmap. Persist them first so the provider-scale
+            // gate cannot be blocked by a transparent headless compositor frame.
+            // The dedicated visual EPG gate still requires a valid PNG and fails
+            // when the physical pixel capture below is unavailable.
+            Directory.CreateDirectory(diagnosticsDirectory);
+            await File.WriteAllTextAsync(
+                evidencePath,
+                JsonSerializer.Serialize(evidence),
+                _lifetime.Token);
+
             const int maximumCaptureAttempts = 8;
             RenderTargetBitmap? bitmap = null;
             byte[]? pixelBytes = null;
@@ -216,7 +227,6 @@ public sealed partial class MainWindow
                     "The EPG preview rendered with an empty pixel size.");
             }
 
-            Directory.CreateDirectory(diagnosticsDirectory);
             if (evidence.AllChannelsMode)
             {
                 if (thumbPixel is null || railPixel is null ||
@@ -258,10 +268,6 @@ public sealed partial class MainWindow
                     _lifetime.Token);
             }
 
-            await File.WriteAllTextAsync(
-                evidencePath,
-                JsonSerializer.Serialize(evidence),
-                _lifetime.Token);
             await File.WriteAllBytesAsync(previewPath, [], _lifetime.Token);
             var file = await StorageFile.GetFileFromPathAsync(previewPath);
             await using var randomAccessStream = await file.OpenStreamForWriteAsync();
@@ -290,10 +296,6 @@ public sealed partial class MainWindow
                 exception);
             try
             {
-                if (File.Exists(evidencePath))
-                {
-                    File.Delete(evidencePath);
-                }
                 if (File.Exists(scrollbarPixelsPath))
                 {
                     File.Delete(scrollbarPixelsPath);
