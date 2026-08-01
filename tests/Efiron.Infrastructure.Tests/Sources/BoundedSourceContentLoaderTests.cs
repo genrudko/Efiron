@@ -13,6 +13,8 @@ public sealed class BoundedSourceContentLoaderTests : IDisposable
         "Efiron.Tests",
         Guid.NewGuid().ToString("N"));
 
+    private string CacheDirectory => Path.Combine(_directory, "source-cache");
+
     [Fact]
     public async Task LoadAsync_reads_local_playlist_and_returns_file_base_uri()
     {
@@ -24,13 +26,14 @@ public sealed class BoundedSourceContentLoaderTests : IDisposable
             TestContext.Current.CancellationToken);
         using var client = new HttpClient(new StubHandler(_ =>
             throw new InvalidOperationException("HTTP must not be used.")));
-        var loader = new BoundedSourceContentLoader(client);
+        var loader = new BoundedSourceContentLoader(client, CacheDirectory);
 
         var result = await loader.LoadAsync(
             SourceDefinition.Create(SourceKind.Playlist, path),
             TestContext.Current.CancellationToken);
 
         Assert.True(result.EffectiveUri?.IsFile);
+        Assert.False(result.IsCacheHit);
         Assert.Contains(
             "#EXTM3U",
             Encoding.UTF8.GetString(result.Content.Span));
@@ -39,7 +42,8 @@ public sealed class BoundedSourceContentLoaderTests : IDisposable
     [Fact]
     public async Task LoadAsync_reads_http_source_and_preserves_effective_uri()
     {
-        var requestedUri = new Uri("https://provider.example/playlist.m3u");
+        var requestedUri = new Uri(
+            $"https://provider.example/{Guid.NewGuid():N}/playlist.m3u");
         using var client = new HttpClient(new StubHandler(request =>
         {
             Assert.Equal(requestedUri, request.RequestUri);
@@ -52,7 +56,7 @@ public sealed class BoundedSourceContentLoaderTests : IDisposable
                     "audio/x-mpegurl"),
             };
         }));
-        var loader = new BoundedSourceContentLoader(client);
+        var loader = new BoundedSourceContentLoader(client, CacheDirectory);
 
         var result = await loader.LoadAsync(
             SourceDefinition.Create(SourceKind.Playlist, requestedUri.AbsoluteUri),
@@ -60,7 +64,46 @@ public sealed class BoundedSourceContentLoaderTests : IDisposable
 
         Assert.Equal(requestedUri, result.EffectiveUri);
         Assert.Equal("audio/x-mpegurl", result.ContentType);
+        Assert.False(result.IsCacheHit);
         Assert.NotEmpty(result.Content.ToArray());
+    }
+
+    [Fact]
+    public async Task LoadAsync_returns_cached_remote_content_without_waiting_for_refresh()
+    {
+        var requestedUri = new Uri(
+            $"https://provider.example/{Guid.NewGuid():N}/playlist.m3u");
+        var responseNumber = 0;
+        using var client = new HttpClient(new StubHandler(request =>
+        {
+            Assert.Equal(requestedUri, request.RequestUri);
+            responseNumber++;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                RequestMessage = request,
+                Content = new StringContent(
+                    responseNumber == 1
+                        ? "#EXTM3U\n#EXTINF:-1,First\nhttps://example.test/first.m3u8\n"
+                        : "#EXTM3U\n#EXTINF:-1,Second\nhttps://example.test/second.m3u8\n",
+                    Encoding.UTF8,
+                    "audio/x-mpegurl"),
+            };
+        }));
+        var loader = new BoundedSourceContentLoader(client, CacheDirectory);
+        var source = SourceDefinition.Create(
+            SourceKind.Playlist,
+            requestedUri.AbsoluteUri);
+
+        var first = await loader.LoadAsync(
+            source,
+            TestContext.Current.CancellationToken);
+        var second = await loader.LoadAsync(
+            source,
+            TestContext.Current.CancellationToken);
+
+        Assert.False(first.IsCacheHit);
+        Assert.True(second.IsCacheHit);
+        Assert.Contains("First", Encoding.UTF8.GetString(second.Content.Span));
     }
 
     [Fact]
@@ -77,10 +120,10 @@ public sealed class BoundedSourceContentLoaderTests : IDisposable
                 BoundedSourceContentLoader.MaximumPlaylistBytes + 1L;
             return response;
         }));
-        var loader = new BoundedSourceContentLoader(client);
+        var loader = new BoundedSourceContentLoader(client, CacheDirectory);
         var source = SourceDefinition.Create(
             SourceKind.Playlist,
-            "https://provider.example/oversized.m3u");
+            $"https://provider.example/{Guid.NewGuid():N}/oversized.m3u");
 
         await Assert.ThrowsAsync<InvalidDataException>(async () =>
             await loader.LoadAsync(
@@ -93,7 +136,7 @@ public sealed class BoundedSourceContentLoaderTests : IDisposable
     {
         using var client = new HttpClient(new StubHandler(_ =>
             throw new InvalidOperationException("HTTP must not be used.")));
-        var loader = new BoundedSourceContentLoader(client);
+        var loader = new BoundedSourceContentLoader(client, CacheDirectory);
         var source = SourceDefinition.Create(
             SourceKind.Playlist,
             "ftp://provider.example/playlist.m3u");
