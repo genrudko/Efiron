@@ -14,7 +14,7 @@ public sealed class XmlTvProgrammeGuideParserTests
     {
         const string xml = """
             <?xml version="1.0" encoding="utf-8"?>
-            <!DOCTYPE tv SYSTEM="https://example.test/xmltv.dtd">
+            <!DOCTYPE tv SYSTEM "https://example.test/xmltv.dtd">
             <tv>
               <channel id="channel.one">
                 <display-name lang="ru">Первый канал HD</display-name>
