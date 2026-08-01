@@ -17,13 +17,15 @@ public sealed class MpvProcessPlaybackBackend : IPlaybackBackend
         SubtitleTracks: false,
         MediaPosition: true);
 
-    private readonly MpvProcessPlaybackSession _session;
+    private readonly RestartingMpvProcessPlaybackSession _session;
 
     public MpvProcessPlaybackBackend(
         nint hostWindowHandle,
         MpvPlaybackProfile profile = MpvPlaybackProfile.Auto)
     {
-        _session = new MpvProcessPlaybackSession(hostWindowHandle, profile);
+        _session = new RestartingMpvProcessPlaybackSession(
+            hostWindowHandle,
+            profile);
     }
 
     public PlaybackBackendId Id => PlaybackBackendId.MpvHost;
