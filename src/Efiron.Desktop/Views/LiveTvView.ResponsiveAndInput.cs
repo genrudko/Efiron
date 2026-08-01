@@ -26,6 +26,7 @@ public sealed partial class LiveTvView
     {
         SyncCategoryRail();
         ApplyResponsiveLayout(LiveRoot.ActualWidth, force: true);
+        TryStartInteractionEvidence();
     }
 
     private void LiveRoot_SizeChanged(object sender, SizeChangedEventArgs e) =>
@@ -112,6 +113,8 @@ public sealed partial class LiveTvView
         {
             _categoryRailSyncing = false;
         }
+
+        TryStartInteractionEvidence();
     }
 
     private void CategoryRailListView_SelectionChanged(
@@ -430,7 +433,6 @@ public sealed partial class LiveTvView
 
             ApplyResponsiveLayout(actualWidth, force: true);
             await Task.Yield();
-
             var path = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "Efiron",
