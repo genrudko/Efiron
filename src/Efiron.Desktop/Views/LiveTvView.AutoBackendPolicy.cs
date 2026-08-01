@@ -1,5 +1,6 @@
 using Efiron.Domain.Playback;
 using Microsoft.UI.Xaml.Controls;
+using Windows.Foundation;
 
 namespace Efiron.Desktop.Views;
 
@@ -13,6 +14,14 @@ public sealed partial class LiveTvView
         {
             DispatcherQueue.TryEnqueue(() => TryApplyAutoBackendPolicy());
         }
+    }
+
+    protected override Size ArrangeOverride(Size finalSize)
+    {
+        // Arrange happens after InitializePlaybackBackendController has created
+        // the selectors and before the queued visible activation starts.
+        TryApplyAutoBackendPolicy();
+        return base.ArrangeOverride(finalSize);
     }
 
     private bool TryApplyAutoBackendPolicy()
