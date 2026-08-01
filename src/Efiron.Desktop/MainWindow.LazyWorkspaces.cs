@@ -50,6 +50,7 @@ public sealed partial class MainWindow
         workspace.EnablePresentationPolish();
         workspace.EnableCategoryController();
         workspace.EnableFullscreenSurfaceFix();
+        workspace.EnableColdStartThemeEvidence();
 
         _liveTvWorkspace = workspace;
         LiveTvWorkspaceHost.Content = workspace;
