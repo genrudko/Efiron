@@ -35,6 +35,7 @@ public sealed partial class MainWindow : Window
     private readonly string _configurationPath;
     private readonly string _readinessPath;
     private readonly string _liveReadinessPath;
+    private readonly string _backgroundCatalogReadinessPath;
 
     private LiveCatalogSnapshot? _catalog;
     private bool _isFullscreen;
@@ -57,6 +58,9 @@ public sealed partial class MainWindow : Window
         _liveReadinessPath = Path.Combine(
             diagnosticsDirectory,
             "live-vertical-slice.json");
+        _backgroundCatalogReadinessPath = Path.Combine(
+            diagnosticsDirectory,
+            "background-catalog-ready.json");
         _sourceConfigurationService = new SourceConfigurationService(
             new JsonSourceConfigurationStore(_configurationPath));
         _favoriteChannelStore = new JsonFavoriteChannelStore(
@@ -144,9 +148,7 @@ public sealed partial class MainWindow : Window
                 }
                 else
                 {
-                    await RefreshCatalogAsync(
-                        configuration,
-                        showSuccessMessage: false);
+                    await LoadPlaylistFirstAsync(configuration);
                 }
             }
             else
@@ -228,6 +230,47 @@ public sealed partial class MainWindow : Window
         finally
         {
             SetBusy(false);
+        }
+    }
+
+    private async Task<bool> LoadPlaylistFirstAsync(
+        SourceConfiguration configuration)
+    {
+        ClearCatalog();
+        UpdateRefreshingStatus();
+
+        try
+        {
+            var playlistCatalog = await _liveCatalogRefreshService.RefreshPlaylistAsync(
+                configuration,
+                _lifetime.Token);
+            await TrySaveCatalogCacheAsync(configuration, playlistCatalog);
+            ApplyCatalog(playlistCatalog);
+            if (playlistCatalog.Channels.Count > 0)
+            {
+                await ShowLiveWorkspaceAsync();
+                _ = RefreshCatalogInBackgroundAsync(configuration);
+            }
+
+            return true;
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+            return false;
+        }
+        catch (Exception exception) when (
+            exception is OperationCanceledException or
+                HttpRequestException or
+                FileNotFoundException or
+                DirectoryNotFoundException or
+                UnauthorizedAccessException or
+                InvalidDataException or
+                NotSupportedException or
+                IOException)
+        {
+            return await RefreshCatalogAsync(
+                configuration,
+                showSuccessMessage: false);
         }
     }
 
@@ -353,6 +396,7 @@ public sealed partial class MainWindow : Window
                 _lifetime.Token);
             await TrySaveCatalogCacheAsync(configuration, catalog);
             ApplyCatalog(catalog);
+            await RecordBackgroundCatalogReadyAsync(catalog);
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
         {
@@ -700,6 +744,41 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private async Task RecordBackgroundCatalogReadyAsync(
+        LiveCatalogSnapshot catalog)
+    {
+        try
+        {
+            using var process = Process.GetCurrentProcess();
+            process.Refresh();
+            var directory = Path.GetDirectoryName(_backgroundCatalogReadinessPath)!;
+            Directory.CreateDirectory(directory);
+            var evidence = new BackgroundCatalogEvidence(
+                catalog.Channels.Count,
+                catalog.MatchedChannelCount,
+                catalog.RetainedProgrammeCount,
+                catalog.PlaylistSourceCacheHit,
+                catalog.ProgrammeGuideSourceCacheHit,
+                catalog.ProgrammeGuideParseCacheHit,
+                process.WorkingSet64,
+                process.PrivateMemorySize64,
+                DateTimeOffset.UtcNow);
+            await File.WriteAllTextAsync(
+                _backgroundCatalogReadinessPath,
+                JsonSerializer.Serialize(evidence),
+                _lifetime.Token);
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
+
     private void MainWindow_Closed(object sender, WindowEventArgs args)
     {
         Closed -= MainWindow_Closed;
@@ -727,5 +806,16 @@ public sealed partial class MainWindow : Window
         long WorkingSetBytes,
         long PrivateMemoryBytes,
         long ManagedHeapBytes,
+        DateTimeOffset RecordedAtUtc);
+
+    private sealed record BackgroundCatalogEvidence(
+        int ChannelCount,
+        int ProgrammeGuideMatchCount,
+        int RetainedProgrammeCount,
+        bool PlaylistSourceCacheHit,
+        bool ProgrammeGuideSourceCacheHit,
+        bool ProgrammeGuideParseCacheHit,
+        long WorkingSetBytes,
+        long PrivateMemoryBytes,
         DateTimeOffset RecordedAtUtc);
 }
