@@ -14,7 +14,7 @@ public sealed class XmlTvProgrammeGuideParserTests
     {
         const string xml = """
             <?xml version="1.0" encoding="utf-8"?>
-            <!DOCTYPE tv SYSTEM "https://example.test/xmltv.dtd">
+            <!DOCTYPE tv SYSTEM="https://example.test/xmltv.dtd">
             <tv>
               <channel id="channel.one">
                 <display-name lang="ru">Первый канал HD</display-name>
@@ -69,6 +69,27 @@ public sealed class XmlTvProgrammeGuideParserTests
 
         Assert.Equal("gzip", Assert.Single(result.Channels).Id);
         Assert.Equal("Compressed programme", Assert.Single(result.Programmes).Title);
+    }
+
+    [Fact]
+    public void Parse_windowed_streams_gzip_and_retains_only_intersecting_programmes()
+    {
+        const string xml = """
+            <tv>
+              <channel id="window"><display-name>Window Channel</display-name></channel>
+              <programme channel="window" start="20260720090000 Z" stop="20260720100000 Z"><title>Old</title></programme>
+              <programme channel="window" start="20260726190000 Z" stop="20260726200000 Z"><title>Current</title></programme>
+              <programme channel="window" start="20260805090000 Z" stop="20260805100000 Z"><title>Future</title></programme>
+            </tv>
+            """;
+
+        var result = _parser.Parse(
+            Compress(xml),
+            new DateTimeOffset(2026, 7, 25, 0, 0, 0, TimeSpan.Zero),
+            new DateTimeOffset(2026, 8, 2, 0, 0, 0, TimeSpan.Zero));
+
+        Assert.Single(result.Channels);
+        Assert.Equal("Current", Assert.Single(result.Programmes).Title);
     }
 
     [Fact]
