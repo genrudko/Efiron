@@ -9,6 +9,7 @@ using Efiron.Application.ProgrammeGuide;
 using Efiron.Application.Sources;
 using Efiron.Desktop.Views;
 using Efiron.Infrastructure.Channels;
+using Efiron.Infrastructure.Live;
 using Efiron.Infrastructure.Playlists;
 using Efiron.Infrastructure.ProgrammeGuide;
 using Efiron.Infrastructure.Sources;
@@ -28,6 +29,7 @@ public sealed partial class MainWindow : Window
     private readonly SourceConfigurationService _sourceConfigurationService;
     private readonly IFavoriteChannelStore _favoriteChannelStore;
     private readonly LiveCatalogRefreshService _liveCatalogRefreshService;
+    private readonly JsonLiveCatalogCache _liveCatalogCache;
     private readonly HttpClient _httpClient;
     private readonly HashSet<string> _favoriteStableIds = new(StringComparer.Ordinal);
     private readonly string _configurationPath;
@@ -59,6 +61,8 @@ public sealed partial class MainWindow : Window
             new JsonSourceConfigurationStore(_configurationPath));
         _favoriteChannelStore = new JsonFavoriteChannelStore(
             Path.Combine(localDataDirectory, "favorites.json"));
+        _liveCatalogCache = new JsonLiveCatalogCache(
+            Path.Combine(localDataDirectory, "live-catalog.json.gz"));
         _httpClient = new HttpClient(new HttpClientHandler
         {
             AutomaticDecompression =
@@ -129,9 +133,21 @@ public sealed partial class MainWindow : Window
             if (configuration.IsReadyForLiveTv)
             {
                 UpdateConfiguredStatus();
-                await RefreshCatalogAsync(
+                var cachedCatalog = await _liveCatalogCache.LoadAsync(
                     configuration,
-                    showSuccessMessage: false);
+                    _lifetime.Token);
+                if (cachedCatalog is { Channels.Count: > 0 })
+                {
+                    ApplyCatalog(cachedCatalog);
+                    await ShowLiveWorkspaceAsync();
+                    _ = RefreshCatalogInBackgroundAsync(configuration);
+                }
+                else
+                {
+                    await RefreshCatalogAsync(
+                        configuration,
+                        showSuccessMessage: false);
+                }
             }
             else
             {
@@ -228,10 +244,8 @@ public sealed partial class MainWindow : Window
                 configuration,
                 DateTimeOffset.Now,
                 _lifetime.Token);
-            _catalog = catalog;
-            _liveTvWorkspace?.SetCatalog(catalog, _favoriteStableIds);
-            OpenLiveButton.IsEnabled = catalog.Channels.Count > 0;
-            UpdateLoadedStatus(catalog.Channels.Count);
+            await TrySaveCatalogCacheAsync(configuration, catalog);
+            ApplyCatalog(catalog);
 
             if (showSuccessMessage)
             {
@@ -326,6 +340,65 @@ public sealed partial class MainWindow : Window
         }
 
         return false;
+    }
+
+    private async Task RefreshCatalogInBackgroundAsync(
+        SourceConfiguration configuration)
+    {
+        try
+        {
+            var catalog = await _liveCatalogRefreshService.RefreshAsync(
+                configuration,
+                DateTimeOffset.Now,
+                _lifetime.Token);
+            await TrySaveCatalogCacheAsync(configuration, catalog);
+            ApplyCatalog(catalog);
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception) when (
+            exception is OperationCanceledException or
+                HttpRequestException or
+                FileNotFoundException or
+                DirectoryNotFoundException or
+                UnauthorizedAccessException or
+                InvalidDataException or
+                XmlException or
+                NotSupportedException or
+                IOException)
+        {
+            // Keep the last-known-good catalogue visible. The source cache
+            // refreshes atomically for the next non-blocking catalogue pass.
+        }
+    }
+
+    private async Task TrySaveCatalogCacheAsync(
+        SourceConfiguration configuration,
+        LiveCatalogSnapshot catalog)
+    {
+        try
+        {
+            await _liveCatalogCache.SaveAsync(
+                configuration,
+                catalog,
+                _lifetime.Token);
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+        }
+    }
+
+    private void ApplyCatalog(LiveCatalogSnapshot catalog)
+    {
+        _catalog = catalog;
+        _liveTvWorkspace?.SetCatalog(catalog, _favoriteStableIds);
+        OpenLiveButton.IsEnabled = catalog.Channels.Count > 0;
+        UpdateLoadedStatus(catalog.Channels.Count);
     }
 
     private void ClearCatalog()
@@ -587,14 +660,30 @@ public sealed partial class MainWindow : Window
     {
         try
         {
+            using var process = Process.GetCurrentProcess();
+            process.Refresh();
+            var startedAtUtc = new DateTimeOffset(
+                process.StartTime.ToUniversalTime(),
+                TimeSpan.Zero);
+            var recordedAtUtc = DateTimeOffset.UtcNow;
             var directory = Path.GetDirectoryName(_liveReadinessPath)!;
             Directory.CreateDirectory(directory);
             var evidence = new LiveReadinessEvidence(
-                catalog.Channels.Count,
-                catalog.Categories.Count,
-                catalog.MatchedChannelCount,
-                IsLiveWorkspaceVisible,
-                DateTimeOffset.UtcNow);
+                ProcessToLiveReadyMilliseconds:
+                    (recordedAtUtc - startedAtUtc).TotalMilliseconds,
+                ChannelCount: catalog.Channels.Count,
+                CategoryCount: catalog.Categories.Count,
+                ProgrammeGuideMatchCount: catalog.MatchedChannelCount,
+                RetainedProgrammeCount: catalog.RetainedProgrammeCount,
+                CatalogCacheHit: catalog.CatalogCacheHit,
+                PlaylistSourceCacheHit: catalog.PlaylistSourceCacheHit,
+                ProgrammeGuideSourceCacheHit: catalog.ProgrammeGuideSourceCacheHit,
+                ProgrammeGuideParseCacheHit: catalog.ProgrammeGuideParseCacheHit,
+                LiveWorkspaceVisible: IsLiveWorkspaceVisible,
+                WorkingSetBytes: process.WorkingSet64,
+                PrivateMemoryBytes: process.PrivateMemorySize64,
+                ManagedHeapBytes: GC.GetTotalMemory(forceFullCollection: false),
+                RecordedAtUtc: recordedAtUtc);
             await File.WriteAllTextAsync(
                 _liveReadinessPath,
                 JsonSerializer.Serialize(evidence),
@@ -625,9 +714,18 @@ public sealed partial class MainWindow : Window
         DateTimeOffset RecordedAtUtc);
 
     private sealed record LiveReadinessEvidence(
+        double ProcessToLiveReadyMilliseconds,
         int ChannelCount,
         int CategoryCount,
         int ProgrammeGuideMatchCount,
+        int RetainedProgrammeCount,
+        bool CatalogCacheHit,
+        bool PlaylistSourceCacheHit,
+        bool ProgrammeGuideSourceCacheHit,
+        bool ProgrammeGuideParseCacheHit,
         bool LiveWorkspaceVisible,
+        long WorkingSetBytes,
+        long PrivateMemoryBytes,
+        long ManagedHeapBytes,
         DateTimeOffset RecordedAtUtc);
 }
