@@ -331,7 +331,6 @@ public sealed class MpvPlaybackSession : IPlaybackSession
         MpvNative.SetOption(_context, "d3d11-output-mode", "composition");
         MpvNative.SetOption(_context, "d3d11-composition-size", "16x16");
         MpvNative.SetOption(_context, "d3d11-flip", "yes");
-        MpvNative.SetOption(_context, "d3d11-sync-interval", "1");
         MpvNative.SetOption(_context, "panscan", "0.0");
         MpvNative.SetOption(_context, "keep-open", "no");
 
