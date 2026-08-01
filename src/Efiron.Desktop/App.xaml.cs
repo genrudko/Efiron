@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Efiron.Application.Appearance;
 using Efiron.Application.Playback;
 using Efiron.Desktop.Diagnostics;
@@ -12,6 +13,9 @@ namespace Efiron.Desktop;
 
 public sealed partial class App : Microsoft.UI.Xaml.Application
 {
+    private static readonly long ProcessLifetimeStartTimestamp =
+        Stopwatch.GetTimestamp();
+
     private Window? _window;
 
     public App()
@@ -28,6 +32,9 @@ public sealed partial class App : Microsoft.UI.Xaml.Application
         AppearancePreferencesStore = new JsonAppearancePreferencesStore(
             Path.Combine(localDataDirectory, "appearance.json"));
     }
+
+    internal static TimeSpan ProcessLifetimeElapsed =>
+        Stopwatch.GetElapsedTime(ProcessLifetimeStartTimestamp);
 
     internal IPlaybackPreferencesStore PlaybackPreferencesStore { get; }
 
