@@ -5,6 +5,7 @@ public enum PlaybackBackendId
     Auto,
     LibVlc,
     Mpv,
+    MpvHost,
     WindowsMedia,
 }
 
