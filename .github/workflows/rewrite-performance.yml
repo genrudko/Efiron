@@ -155,6 +155,7 @@ jobs:
           $data = Join-Path $localAppData "Efiron"
           $diagnostics = Join-Path $data "diagnostics"
           $livePath = Join-Path $diagnostics "live-vertical-slice.json"
+          $backgroundPath = Join-Path $diagnostics "background-catalog-ready.json"
           $layoutActivityPath = Join-Path $diagnostics "layout-activity.json"
           $playbackPath = Join-Path $diagnostics "playback-current.json"
           $process = $null
@@ -203,18 +204,36 @@ jobs:
             Start-Sleep -Seconds 2
             if ($server.HasExited) { throw "Performance fixture server exited." }
 
-            # First run creates bounded raw, parsed-guide and complete catalogue caches.
+            # First run must expose the playlist quickly, then complete the bounded
+            # EPG catalogue in the background before the cache-validation restart.
             $env:EFIRON_CI_LAYOUT_ACTIVITY_VERIFICATION = "1"
             $process = Start-Process $exe -WorkingDirectory $output -PassThru
             Wait-ForCondition `
               -Condition { Test-Path $livePath } `
-              -TimeoutSeconds 150 `
-              -Description "first large-guide live readiness"
+              -TimeoutSeconds 25 `
+              -Description "first playlist-ready Live workspace"
             $first = Get-Content $livePath -Raw | ConvertFrom-Json
             if ([int]$first.ChannelCount -ne 1200) {
-              throw "First run did not load 1200 channels."
+              throw "First run did not expose 1200 playlist channels."
+            }
+            if ([double]$first.ProcessToLiveReadyMilliseconds -gt 10000) {
+              throw "First playlist-ready startup exceeded 10000 ms: $($first.ProcessToLiveReadyMilliseconds)."
             }
             Copy-Item $livePath performance-artifacts/first-live-ready.json -Force
+
+            Wait-ForCondition `
+              -Condition { Test-Path $backgroundPath } `
+              -TimeoutSeconds 150 `
+              -Description "first bounded background EPG catalogue"
+            $background = Get-Content $backgroundPath -Raw | ConvertFrom-Json
+            if ([int]$background.ChannelCount -ne 1200) {
+              throw "Background catalogue did not retain 1200 channels."
+            }
+            if ([int]$background.RetainedProgrammeCount -le 0 -or
+                [int]$background.RetainedProgrammeCount -gt 36000) {
+              throw "Background EPG retention is invalid: $($background.RetainedProgrammeCount)."
+            }
+            Copy-Item $backgroundPath performance-artifacts/first-background-catalog.json -Force
             Close-Efiron
 
             # Preserve caches but remove old evidence for the real cached cold start.
@@ -236,8 +255,9 @@ jobs:
             if ([int]$cached.ChannelCount -ne 1200) {
               throw "Cached run did not restore 1200 channels."
             }
-            if ([int]$cached.RetainedProgrammeCount -gt 36000) {
-              throw "Retained EPG exceeded the bounded window: $($cached.RetainedProgrammeCount)."
+            if ([int]$cached.RetainedProgrammeCount -le 0 -or
+                [int]$cached.RetainedProgrammeCount -gt 36000) {
+              throw "Cached EPG retention is invalid: $($cached.RetainedProgrammeCount)."
             }
             if ([int64]$cached.WorkingSetBytes -gt 629145600) {
               throw "Cached live-ready working set exceeded 600 MiB: $($cached.WorkingSetBytes)."
