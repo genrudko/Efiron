@@ -1,3 +1,4 @@
+using Efiron.Application.Live;
 using Efiron.Desktop.Views;
 using Microsoft.UI.Xaml;
 
@@ -9,11 +10,7 @@ public sealed partial class MainWindow
     {
         if (_catalog is null || _catalog.Channels.Count == 0)
         {
-            if (_programmeGuideWorkspace is not null)
-            {
-                _programmeGuideWorkspace.Visibility = Visibility.Collapsed;
-            }
-
+            ReleaseProgrammeGuideWorkspace();
             ShowSourcesWorkspace();
             return;
         }
@@ -35,10 +32,38 @@ public sealed partial class MainWindow
             "WindowContextProgrammeMessage");
         UpdateShellNavigation();
 
+        LiveCatalogSnapshot programmeCatalog = _catalog;
+        try
+        {
+            var configuration = await _sourceConfigurationService.LoadAsync(
+                _lifetime.Token);
+            var cachedProgrammeCatalog = await _programmeGuideCatalogCache.LoadAsync(
+                configuration,
+                _lifetime.Token);
+            if (cachedProgrammeCatalog is
+                {
+                    Channels.Count: > 0,
+                    RetainedProgrammeCount: > 0,
+                })
+            {
+                programmeCatalog = cachedProgrammeCatalog;
+            }
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception exception) when (
+            exception is InvalidDataException or IOException or UnauthorizedAccessException)
+        {
+            // The lightweight Live catalogue remains usable while a full
+            // background EPG catalogue is unavailable or being replaced.
+        }
+
         try
         {
             await programmeWorkspace.SetCatalogProgressivelyAsync(
-                _catalog,
+                programmeCatalog,
                 _lifetime.Token);
             _ = CaptureEpgEvidenceAsync();
         }
@@ -51,10 +76,7 @@ public sealed partial class MainWindow
         object? sender,
         PlayChannelRequestedEventArgs e)
     {
-        if (_programmeGuideWorkspace is not null)
-        {
-            _programmeGuideWorkspace.Visibility = Visibility.Collapsed;
-        }
+        ReleaseProgrammeGuideWorkspace();
 
         await ShowLiveWorkspaceAsync();
         if (_liveTvWorkspace is not null)
