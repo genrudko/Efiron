@@ -4,7 +4,9 @@ using Efiron.Domain.Playback;
 using Efiron.Playback;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Windows.Foundation;
+using Windows.System;
 
 namespace Efiron.Desktop.Views;
 
@@ -36,6 +38,7 @@ public sealed partial class LiveTvView
             });
         PlayerSurfaceBorder.LayoutUpdated +=
             NativePlaybackHost_PlayerSurfaceLayoutUpdated;
+        LiveRoot.KeyDown += NativePlaybackHost_KeyDown;
         ConfigureNativePlaybackSelector();
         _nativePlaybackHostAttached = true;
         UpdateNativePlaybackHostBounds();
@@ -104,6 +107,16 @@ public sealed partial class LiveTvView
 
         _selectedMpvProfile = selected;
         await SwitchToNativePlaybackHostAsync(restartCurrentRequest: true);
+    }
+
+    private void NativePlaybackHost_KeyDown(
+        object sender,
+        KeyRoutedEventArgs e)
+    {
+        if (e.Key == VirtualKey.F8 && TryLeaveNativePlaybackHost())
+        {
+            e.Handled = true;
+        }
     }
 
     private void ApplyNativeHostProfileSelectorVisibility()
@@ -301,6 +314,7 @@ public sealed partial class LiveTvView
         HideNativePlaybackHost();
         PlayerSurfaceBorder.LayoutUpdated -=
             NativePlaybackHost_PlayerSurfaceLayoutUpdated;
+        LiveRoot.KeyDown -= NativePlaybackHost_KeyDown;
         if (_nativePlaybackVisibilityCallbackToken != 0)
         {
             UnregisterPropertyChangedCallback(
