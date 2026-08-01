@@ -27,10 +27,7 @@ public sealed partial class MainWindow
 
     private async void LiveNavigationButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_programmeGuideWorkspace is not null)
-        {
-            _programmeGuideWorkspace.Visibility = Visibility.Collapsed;
-        }
+        ReleaseProgrammeGuideWorkspace();
 
         if (_catalog is { Channels.Count: > 0 })
         {
@@ -53,11 +50,7 @@ public sealed partial class MainWindow
 
     private void SettingsNavigationButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_programmeGuideWorkspace is not null)
-        {
-            _programmeGuideWorkspace.Visibility = Visibility.Collapsed;
-        }
-
+        ReleaseProgrammeGuideWorkspace();
         ShowSourcesWorkspace();
         UpdateShellNavigation();
     }
