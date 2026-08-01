@@ -1,5 +1,4 @@
 using Efiron.Domain.Playback;
-using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
 namespace Efiron.Desktop.Views;
@@ -8,9 +7,8 @@ public sealed partial class LiveTvView
 {
     private bool _autoBackendPolicyApplied;
 
-    protected override void OnApplyTemplate()
+    private void ApplyAutoBackendPolicyFromTemplate()
     {
-        base.OnApplyTemplate();
         if (!TryApplyAutoBackendPolicy())
         {
             DispatcherQueue.TryEnqueue(() => TryApplyAutoBackendPolicy());
