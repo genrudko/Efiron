@@ -139,7 +139,7 @@ public sealed class MpvProcessPlaybackBackend : IPlaybackBackend
         }
 
         var trimmed = value.Trim();
-        if (!trimmed.StartsWith('[', StringComparison.Ordinal))
+        if (!trimmed.StartsWith("[", StringComparison.Ordinal))
         {
             return trimmed;
         }
