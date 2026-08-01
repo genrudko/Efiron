@@ -83,6 +83,21 @@ public sealed partial class MainWindow
         return workspace;
     }
 
+    private void ReleaseProgrammeGuideWorkspace()
+    {
+        var workspace = _programmeGuideWorkspace;
+        if (workspace is null)
+        {
+            return;
+        }
+
+        workspace.PlayChannelRequested -= ProgrammeGuideWorkspace_PlayChannelRequested;
+        workspace.Visibility = Visibility.Collapsed;
+        ProgrammeGuideWorkspaceHost.Content = null;
+        ProgrammeGuideWorkspaceHost.Visibility = Visibility.Collapsed;
+        _programmeGuideWorkspace = null;
+    }
+
     private void ApplyThemeToLazyWorkspaces()
     {
         // Keep lazy workspaces on the inherited theme. Explicitly copying the
@@ -119,10 +134,6 @@ public sealed partial class MainWindow
             _liveTvWorkspace.FavoriteChanged -= LiveTvWorkspace_FavoriteChanged;
         }
 
-        if (_programmeGuideWorkspace is not null)
-        {
-            _programmeGuideWorkspace.PlayChannelRequested -=
-                ProgrammeGuideWorkspace_PlayChannelRequested;
-        }
+        ReleaseProgrammeGuideWorkspace();
     }
 }
