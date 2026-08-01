@@ -7,4 +7,5 @@ public sealed record LoadedSourceContent(
     ReadOnlyMemory<byte> Content,
     Uri? EffectiveUri,
     string? ContentType,
-    DateTimeOffset LoadedAtUtc);
+    DateTimeOffset LoadedAtUtc,
+    bool IsCacheHit = false);
