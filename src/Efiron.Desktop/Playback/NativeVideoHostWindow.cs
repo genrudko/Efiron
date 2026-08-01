@@ -17,6 +17,10 @@ internal sealed class NativeVideoHostWindow : IDisposable
     private const int SwHide = 0;
     private const int SwShowNoActivate = 4;
 
+    private int _x = int.MinValue;
+    private int _y = int.MinValue;
+    private int _width = -1;
+    private int _height = -1;
     private bool _disposed;
 
     public NativeVideoHostWindow(nint parentWindowHandle)
@@ -46,6 +50,7 @@ internal sealed class NativeVideoHostWindow : IDisposable
             throw new Win32Exception(Marshal.GetLastWin32Error());
         }
 
+        IsVisible = true;
         SetVisible(false);
     }
 
@@ -62,6 +67,11 @@ internal sealed class NativeVideoHostWindow : IDisposable
             return;
         }
 
+        if (_x == x && _y == y && _width == width && _height == height)
+        {
+            return;
+        }
+
         if (!SetWindowPos(
                 Handle,
                 0,
@@ -73,11 +83,21 @@ internal sealed class NativeVideoHostWindow : IDisposable
         {
             throw new Win32Exception(Marshal.GetLastWin32Error());
         }
+
+        _x = x;
+        _y = y;
+        _width = width;
+        _height = height;
     }
 
     public void SetVisible(bool isVisible)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        if (IsVisible == isVisible)
+        {
+            return;
+        }
+
         ShowWindow(Handle, isVisible ? SwShowNoActivate : SwHide);
         IsVisible = isVisible;
     }
@@ -91,6 +111,10 @@ internal sealed class NativeVideoHostWindow : IDisposable
 
         _disposed = true;
         IsVisible = false;
+        _x = int.MinValue;
+        _y = int.MinValue;
+        _width = -1;
+        _height = -1;
         var handle = Handle;
         Handle = 0;
         if (handle != 0)
