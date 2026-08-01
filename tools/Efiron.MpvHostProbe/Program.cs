@@ -55,6 +55,39 @@ async Task<PlaybackSnapshot> WaitForPlayingAsync(TimeSpan timeout)
     throw new TimeoutException("mpv host did not reach Playing.");
 }
 
+async Task<PlaybackBackendDiagnostics> WaitForDiagnosticsAsync(
+    TimeSpan timeout)
+{
+    var deadline = DateTimeOffset.UtcNow + timeout;
+    PlaybackBackendDiagnostics? latest = null;
+    while (DateTimeOffset.UtcNow < deadline)
+    {
+        latest = backend.CaptureDiagnostics();
+        if (latest.BackendId == PlaybackBackendId.MpvHost &&
+            latest.PlaybackState == PlaybackState.Playing &&
+            !string.IsNullOrWhiteSpace(latest.BackendVersion) &&
+            !string.IsNullOrWhiteSpace(latest.VideoCodec) &&
+            latest.VideoWidth is > 0 &&
+            latest.VideoHeight is > 0 &&
+            !string.IsNullOrWhiteSpace(latest.VideoRenderer) &&
+            latest.PresentationMode?.Contains(
+                "process=out-of-process",
+                StringComparison.Ordinal) == true &&
+            latest.PresentationMode?.Contains(
+                "d3d11-output=native-window",
+                StringComparison.Ordinal) == true)
+        {
+            return latest;
+        }
+
+        await Task.Delay(250);
+    }
+
+    throw new InvalidOperationException(
+        "mpv host diagnostic properties did not settle: " +
+        JsonSerializer.Serialize(latest));
+}
+
 session.SnapshotChanged += SnapshotChanged;
 int? firstProcessId = null;
 int? secondProcessId = null;
@@ -62,6 +95,7 @@ PlaybackBackendDiagnostics? firstDiagnostics = null;
 PlaybackBackendDiagnostics? secondDiagnostics = null;
 bool firstProcessExitedAfterSwitch = false;
 bool secondProcessExitedAfterDispose = false;
+var backendDisposed = false;
 
 try
 {
@@ -95,23 +129,15 @@ try
             "mpv host audio state did not remain synchronized.");
     }
 
-    await Task.Delay(1200);
-    firstDiagnostics = backend.CaptureDiagnostics();
-    if (firstDiagnostics.BackendId != PlaybackBackendId.MpvHost ||
-        firstDiagnostics.PlaybackState != PlaybackState.Playing ||
-        !string.Equals(
+    firstDiagnostics = await WaitForDiagnosticsAsync(TimeSpan.FromSeconds(10));
+    if (!string.Equals(
             firstDiagnostics.VideoRenderer,
             "gpu-next",
-            StringComparison.OrdinalIgnoreCase) ||
-        firstDiagnostics.PresentationMode?.Contains(
-            "process=out-of-process",
-            StringComparison.Ordinal) != true ||
-        firstDiagnostics.PresentationMode?.Contains(
-            "d3d11-output=native-window",
-            StringComparison.Ordinal) != true)
+            StringComparison.OrdinalIgnoreCase))
     {
         throw new InvalidOperationException(
-            "The first mpv host diagnostic sample is incomplete.");
+            "The first mpv host renderer is unexpected: " +
+            JsonSerializer.Serialize(firstDiagnostics));
     }
 
     await session.PlayAsync(new PlaybackRequest(
@@ -136,11 +162,8 @@ try
             "The previous mpv process remained alive after channel restart.");
     }
 
-    await Task.Delay(1200);
-    secondDiagnostics = backend.CaptureDiagnostics();
-    if (secondDiagnostics.BackendId != PlaybackBackendId.MpvHost ||
-        secondDiagnostics.PlaybackState != PlaybackState.Playing ||
-        secondPlaying.ChannelStableId != "mpv.host.second")
+    secondDiagnostics = await WaitForDiagnosticsAsync(TimeSpan.FromSeconds(10));
+    if (secondPlaying.ChannelStableId != "mpv.host.second")
     {
         throw new InvalidOperationException(
             "The restarted mpv host did not publish the second channel state.");
@@ -148,6 +171,7 @@ try
 
     session.SnapshotChanged -= SnapshotChanged;
     backend.Dispose();
+    backendDisposed = true;
     secondProcessExitedAfterDispose = await WaitForProcessExitAsync(
         secondProcessId.Value,
         TimeSpan.FromSeconds(6));
@@ -215,7 +239,10 @@ try
 finally
 {
     session.SnapshotChanged -= SnapshotChanged;
-    backend.Dispose();
+    if (!backendDisposed)
+    {
+        backend.Dispose();
+    }
 }
 
 static async Task<bool> WaitForProcessExitAsync(
