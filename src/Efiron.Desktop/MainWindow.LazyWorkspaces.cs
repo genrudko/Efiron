@@ -40,6 +40,8 @@ public sealed partial class MainWindow
             VerticalAlignment = VerticalAlignment.Stretch,
             RequestedTheme = ElementTheme.Default,
         };
+        workspace.AttachNativePlaybackParent(
+            WinRT.Interop.WindowNative.GetWindowHandle(this));
         workspace.BackRequested += LiveTvWorkspace_BackRequested;
         workspace.FullscreenToggleRequested +=
             LiveTvWorkspace_FullscreenToggleRequested;
