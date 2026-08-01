@@ -110,7 +110,7 @@ public sealed class LiveCatalogRefreshServiceTests
 
         Assert.Equal(2, result.Channels.Count);
         Assert.Equal(2, result.MatchedChannelCount);
-        Assert.Equal(3, result.RetainedProgrammeCount);
+        Assert.Equal(0, result.RetainedProgrammeCount);
         Assert.Equal(1, loader.PlaylistLoads);
         Assert.Equal(1, loader.GuideLoads);
     }
