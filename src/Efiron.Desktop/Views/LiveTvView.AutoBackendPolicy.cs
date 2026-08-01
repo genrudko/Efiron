@@ -64,10 +64,9 @@ public sealed partial class LiveTvView
             return false;
         }
 
-        // The user-visible option remains "Automatic", while its effective
-        // backend is mpv. On the provider HEVC 4K sample mpv produced exact
-        // 50 fps with zero decoder/VO drops and materially lower Video Codec
-        // load than LibVLC. LibVLC remains available as an explicit choice.
+        // Automatic remains on the existing in-process mpv path as the
+        // control/CI baseline during Repair J. The out-of-process native-window
+        // host stays an explicit experiment until physical Windows validation.
         autoOption.Tag = PlaybackBackendId.Mpv;
         _selectedPlaybackBackend = PlaybackBackendId.Mpv;
         _selectedMpvProfile = MpvPlaybackProfile.Auto;
