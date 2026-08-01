@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   performance:
-    name: Large-guide cached startup and layout activity
+    name: Provider-scale lightweight startup, memory and theme transition
     runs-on: windows-latest
     timeout-minutes: 35
 
@@ -73,6 +73,9 @@ jobs:
             [Text.UTF8Encoding]::new($false))
 
           $now = [DateTimeOffset]::UtcNow
+          $longDescription = (
+            "Detailed provider programme metadata with cast, episode, country, year, rating, " +
+            "age restriction, production notes and a realistic extended synopsis. ") * 5
           $guidePath = Join-Path $fixture "guide.xml.gz"
           $file = [IO.File]::Create($guidePath)
           $gzip = [IO.Compression.GZipStream]::new(
@@ -97,7 +100,7 @@ jobs:
                 $stopText = $stop.ToString("yyyyMMddHHmmss 'Z'")
                 for ($channel = 0; $channel -lt $channelCount; $channel++) {
                   $writer.WriteLine(
-                    "<programme channel=`"performance.$channel`" start=`"$startText`" stop=`"$stopText`"><title>Day $dayOffset slot $slot channel $channel</title><desc>Bounded performance fixture.</desc></programme>")
+                    "<programme channel=`"performance.$channel`" start=`"$startText`" stop=`"$stopText`"><title>Day $dayOffset slot $slot channel $channel</title><desc>$longDescription Channel $channel day $dayOffset slot $slot.</desc></programme>")
                 }
               }
             }
@@ -120,16 +123,19 @@ jobs:
             }
           } | ConvertTo-Json -Depth 4 |
             Set-Content (Join-Path $data "sources.json") -Encoding utf8
-          @{ version = 1; theme = 1; accent = 0 } | ConvertTo-Json |
+          # Start Dark. The application must switch the already-created Live
+          # workspace to Light without a restart under the CI transition hook.
+          @{ version = 1; theme = 2; accent = 0 } | ConvertTo-Json |
             Set-Content (Join-Path $data "appearance.json") -Encoding utf8
 
           [ordered]@{
             ChannelCount = $channelCount
+            DescriptionLength = $longDescription.Length
             CompressedGuideBytes = (Get-Item $guidePath).Length
           } | ConvertTo-Json |
             Set-Content (Join-Path $fixture "fixture-summary.json") -Encoding utf8
 
-      - name: Verify warm cache, cached live readiness, layout activity and Light theme
+      - name: Verify lightweight cache, on-demand EPG, memory and runtime Light theme
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -158,6 +164,9 @@ jobs:
           $backgroundPath = Join-Path $diagnostics "background-catalog-ready.json"
           $layoutActivityPath = Join-Path $diagnostics "layout-activity.json"
           $playbackPath = Join-Path $diagnostics "playback-current.json"
+          $appearanceTransitionPath = Join-Path $diagnostics "appearance-transition-runtime.json"
+          $liveCachePath = Join-Path $data "live-catalog.json.gz"
+          $programmeCachePath = Join-Path $data "programme-catalog.json.gz"
           $process = $null
           $server = $null
 
@@ -204,9 +213,8 @@ jobs:
             Start-Sleep -Seconds 2
             if ($server.HasExited) { throw "Performance fixture server exited." }
 
-            # First run must expose the playlist quickly, then complete the bounded
-            # EPG catalogue in the background before the cache-validation restart.
             $env:EFIRON_CI_LAYOUT_ACTIVITY_VERIFICATION = "1"
+            $env:EFIRON_CI_APPEARANCE_TRANSITION_VERIFICATION = "1"
             $process = Start-Process $exe -WorkingDirectory $output -PassThru
             Wait-ForCondition `
               -Condition { Test-Path $livePath } `
@@ -216,8 +224,12 @@ jobs:
             if ([int]$first.ChannelCount -ne 1200) {
               throw "First run did not expose 1200 playlist channels."
             }
-            if ([double]$first.ProcessToLiveReadyMilliseconds -gt 10000) {
-              throw "First playlist-ready startup exceeded 10000 ms: $($first.ProcessToLiveReadyMilliseconds)."
+            if ([double]$first.ProcessToLiveReadyMilliseconds -le 0 -or
+                [double]$first.ProcessToLiveReadyMilliseconds -gt 10000) {
+              throw "First monotonic playlist-ready startup is invalid: $($first.ProcessToLiveReadyMilliseconds)."
+            }
+            if ([int]$first.RetainedProgrammeCount -ne 0) {
+              throw "Playlist-ready Live unexpectedly retained full schedules."
             }
             Copy-Item $livePath performance-artifacts/first-live-ready.json -Force
 
@@ -233,37 +245,60 @@ jobs:
                 [int]$background.RetainedProgrammeCount -gt 36000) {
               throw "Background EPG retention is invalid: $($background.RetainedProgrammeCount)."
             }
+            if (-not (Test-Path $liveCachePath) -or
+                -not (Test-Path $programmeCachePath)) {
+              throw "Repair G did not produce both lightweight Live and full EPG caches."
+            }
+            $liveCacheBytes = (Get-Item $liveCachePath).Length
+            $programmeCacheBytes = (Get-Item $programmeCachePath).Length
+            if ($liveCacheBytes -ge $programmeCacheBytes) {
+              throw "Live startup cache is not lighter than the full EPG cache: live=$liveCacheBytes epg=$programmeCacheBytes."
+            }
             Copy-Item $backgroundPath performance-artifacts/first-background-catalog.json -Force
             Close-Efiron
 
-            # Preserve caches but remove old evidence for the real cached cold start.
             Remove-Item $diagnostics -Recurse -Force -ErrorAction SilentlyContinue
             New-Item -ItemType Directory -Path $diagnostics -Force | Out-Null
             $process = Start-Process $exe -WorkingDirectory $output -PassThru
             Wait-ForCondition `
               -Condition { Test-Path $livePath } `
               -TimeoutSeconds 20 `
-              -Description "cached live readiness"
+              -Description "lightweight cached live readiness"
 
             $cached = Get-Content $livePath -Raw | ConvertFrom-Json
             if (-not [bool]$cached.CatalogCacheHit) {
-              throw "Second run did not restore the parsed live catalogue cache."
+              throw "Second run did not restore the lightweight Live cache."
             }
-            if ([double]$cached.ProcessToLiveReadyMilliseconds -gt 8000) {
-              throw "Cached process-to-live-ready exceeded 8000 ms: $($cached.ProcessToLiveReadyMilliseconds)."
+            if ([double]$cached.ProcessToLiveReadyMilliseconds -le 0 -or
+                [double]$cached.ProcessToLiveReadyMilliseconds -gt 6000) {
+              throw "Cached monotonic process-to-live-ready is invalid: $($cached.ProcessToLiveReadyMilliseconds)."
             }
             if ([int]$cached.ChannelCount -ne 1200) {
               throw "Cached run did not restore 1200 channels."
             }
-            if ([int]$cached.RetainedProgrammeCount -le 0 -or
-                [int]$cached.RetainedProgrammeCount -gt 36000) {
-              throw "Cached EPG retention is invalid: $($cached.RetainedProgrammeCount)."
+            if ([int]$cached.RetainedProgrammeCount -ne 0) {
+              throw "Cached Live retained full EPG schedules: $($cached.RetainedProgrammeCount)."
             }
-            if ([int64]$cached.WorkingSetBytes -gt 629145600) {
-              throw "Cached live-ready working set exceeded 600 MiB: $($cached.WorkingSetBytes)."
+            if ([int64]$cached.WorkingSetBytes -gt 471859200) {
+              throw "Cached live-ready working set exceeded 450 MiB: $($cached.WorkingSetBytes)."
             }
-            if ([int64]$cached.PrivateMemoryBytes -gt 734003200) {
-              throw "Cached live-ready private memory exceeded 700 MiB: $($cached.PrivateMemoryBytes)."
+            if ([int64]$cached.PrivateMemoryBytes -gt 524288000) {
+              throw "Cached live-ready private memory exceeded 500 MiB: $($cached.PrivateMemoryBytes)."
+            }
+
+            Wait-ForCondition `
+              -Condition { Test-Path $appearanceTransitionPath } `
+              -TimeoutSeconds 15 `
+              -Description "in-process Dark-to-Light evidence"
+            $appearance = Get-Content $appearanceTransitionPath -Raw | ConvertFrom-Json
+            if ($appearance.InitialTheme -ne "Dark" -or
+                $appearance.WindowActualTheme -ne "Light" -or
+                $appearance.Live.WorkspaceRequestedTheme -ne "Default" -or
+                $appearance.Live.WorkspaceActualTheme -ne "Light" -or
+                $appearance.Live.RootRequestedTheme -ne "Default" -or
+                $appearance.Live.RootActualTheme -ne "Light" -or
+                $appearance.Live.RootBackgroundColor -ne "#FFEEF2F7") {
+              throw "Runtime Dark-to-Light inheritance is invalid: $($appearance | ConvertTo-Json -Depth 5 -Compress)"
             }
 
             Wait-ForCondition `
@@ -291,8 +326,8 @@ jobs:
             }
 
             $process.Refresh()
-            if ($process.WorkingSet64 -gt 681574400) {
-              throw "Playback working set exceeded 650 MiB: $($process.WorkingSet64)."
+            if ($process.WorkingSet64 -gt 576716800) {
+              throw "Playback working set exceeded 550 MiB: $($process.WorkingSet64)."
             }
 
             Wait-ForCondition `
@@ -325,7 +360,7 @@ jobs:
                 0.2126 * $_.R + 0.7152 * $_.G + 0.0722 * $_.B
               } | Measure-Object -Average).Average
               if ($luminance -lt 145) {
-                throw "Lazy Live TV did not retain the Light theme; sampled luminance=$luminance."
+                throw "Runtime-switched Live TV is not physically Light; sampled luminance=$luminance."
               }
             }
             finally {
@@ -333,9 +368,25 @@ jobs:
               $bitmap.Dispose()
             }
 
+            [ordered]@{
+              HeadSha = "${{ github.event.pull_request.head.sha || github.sha }}"
+              FirstProcessToLiveReadyMilliseconds = [double]$first.ProcessToLiveReadyMilliseconds
+              CachedProcessToLiveReadyMilliseconds = [double]$cached.ProcessToLiveReadyMilliseconds
+              CachedRetainedProgrammeCount = [int]$cached.RetainedProgrammeCount
+              LiveCacheBytes = $liveCacheBytes
+              ProgrammeCacheBytes = $programmeCacheBytes
+              CachedWorkingSetBytes = [int64]$cached.WorkingSetBytes
+              CachedPrivateMemoryBytes = [int64]$cached.PrivateMemoryBytes
+              PlaybackWorkingSetBytes = [int64]$process.WorkingSet64
+              LayoutUpdatedCount = [int64]$layout.LayoutUpdatedCount
+              RuntimeTheme = [string]$appearance.WindowActualTheme
+              RuntimeLiveRootBackground = [string]$appearance.Live.RootBackgroundColor
+            } | ConvertTo-Json |
+              Set-Content performance-artifacts/repair-g-performance-summary.json -Encoding utf8
             Copy-Item $livePath performance-artifacts/cached-live-ready.json -Force
             Copy-Item $layoutActivityPath performance-artifacts/layout-activity.json -Force
             Copy-Item $playbackPath performance-artifacts/playback-current.json -Force
+            Copy-Item $appearanceTransitionPath performance-artifacts/appearance-transition-runtime.json -Force
             Close-Efiron
           }
           catch {
@@ -345,6 +396,7 @@ jobs:
           }
           finally {
             Remove-Item Env:EFIRON_CI_LAYOUT_ACTIVITY_VERIFICATION -ErrorAction SilentlyContinue
+            Remove-Item Env:EFIRON_CI_APPEARANCE_TRANSITION_VERIFICATION -ErrorAction SilentlyContinue
             if ($process -and -not $process.HasExited) {
               Stop-Process -Id $process.Id -Force
             }
