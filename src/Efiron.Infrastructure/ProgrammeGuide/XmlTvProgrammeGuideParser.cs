@@ -8,23 +8,39 @@ using Efiron.Domain.ProgrammeGuide;
 
 namespace Efiron.Infrastructure.ProgrammeGuide;
 
-public sealed partial class XmlTvProgrammeGuideParser : IProgrammeGuideParser
+public sealed partial class XmlTvProgrammeGuideParser : IWindowedProgrammeGuideParser
 {
     public const int MaximumDecompressedBytes = 256 * 1024 * 1024;
 
-    public ProgrammeGuideDocument Parse(ReadOnlyMemory<byte> content)
+    public ProgrammeGuideDocument Parse(ReadOnlyMemory<byte> content) =>
+        Parse(content, DateTimeOffset.MinValue, DateTimeOffset.MaxValue);
+
+    public ProgrammeGuideDocument Parse(
+        ReadOnlyMemory<byte> content,
+        DateTimeOffset windowStart,
+        DateTimeOffset windowEnd)
     {
         if (content.IsEmpty)
         {
             throw new InvalidDataException("The XMLTV payload is empty.");
         }
 
+        if (windowEnd <= windowStart)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(windowEnd),
+                "The XMLTV retention window must end after it starts.");
+        }
+
         using var source = new MemoryStream(content.ToArray(), writable: false);
         using var xmlStream = OpenXmlStream(source);
-        return ParseXml(xmlStream);
+        return ParseXml(xmlStream, windowStart, windowEnd);
     }
 
-    private static ProgrammeGuideDocument ParseXml(Stream xmlStream)
+    private static ProgrammeGuideDocument ParseXml(
+        Stream xmlStream,
+        DateTimeOffset windowStart,
+        DateTimeOffset windowEnd)
     {
         var channels = new List<ProgrammeGuideChannel>();
         var programmes = new List<Programme>();
@@ -39,6 +55,7 @@ public sealed partial class XmlTvProgrammeGuideParser : IProgrammeGuideParser
             IgnoreProcessingInstructions = true,
             IgnoreWhitespace = true,
             XmlResolver = null,
+            MaxCharactersInDocument = MaximumDecompressedBytes,
         };
 
         using var reader = XmlReader.Create(xmlStream, settings);
@@ -87,6 +104,12 @@ public sealed partial class XmlTvProgrammeGuideParser : IProgrammeGuideParser
 
             if (reader.LocalName.Equals("programme", StringComparison.OrdinalIgnoreCase))
             {
+                if (IsOutsideWindow(reader, windowStart, windowEnd))
+                {
+                    reader.Skip();
+                    continue;
+                }
+
                 var element = ReadCurrentElement(reader);
                 var programme = ParseProgramme(element, warnings);
                 if (programme is not null)
@@ -104,44 +127,34 @@ public sealed partial class XmlTvProgrammeGuideParser : IProgrammeGuideParser
         return new ProgrammeGuideDocument(channels, programmes, warnings);
     }
 
+    private static bool IsOutsideWindow(
+        XmlReader reader,
+        DateTimeOffset windowStart,
+        DateTimeOffset windowEnd)
+    {
+        if (!TryParseTimestamp(reader.GetAttribute("start"), out var start))
+        {
+            return false;
+        }
+
+        if (start >= windowEnd)
+        {
+            return true;
+        }
+
+        var stopValue = reader.GetAttribute("stop");
+        return TryParseTimestamp(stopValue, out var stop) && stop <= windowStart;
+    }
+
     private static Stream OpenXmlStream(MemoryStream source)
     {
         var first = source.ReadByte();
         var second = source.ReadByte();
         source.Position = 0;
 
-        if (first != 0x1f || second != 0x8b)
-        {
-            return source;
-        }
-
-        using var gzip = new GZipStream(
-            source,
-            CompressionMode.Decompress,
-            leaveOpen: true);
-        var decompressed = new MemoryStream();
-        var buffer = new byte[64 * 1024];
-
-        while (true)
-        {
-            var count = gzip.Read(buffer, 0, buffer.Length);
-            if (count == 0)
-            {
-                break;
-            }
-
-            if (decompressed.Length + count > MaximumDecompressedBytes)
-            {
-                decompressed.Dispose();
-                throw new InvalidDataException(
-                    $"Decompressed XMLTV exceeds the {MaximumDecompressedBytes} byte limit.");
-            }
-
-            decompressed.Write(buffer, 0, count);
-        }
-
-        decompressed.Position = 0;
-        return decompressed;
+        return first == 0x1f && second == 0x8b
+            ? new GZipStream(source, CompressionMode.Decompress, leaveOpen: false)
+            : source;
     }
 
     private static XElement ReadCurrentElement(XmlReader reader)
