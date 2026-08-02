@@ -162,7 +162,6 @@ internal sealed class FlyleafPlaybackSession : IPlaybackSession
         config.Demuxer.BufferDuration = TimeSpan.FromSeconds(20).Ticks;
         config.Demuxer.OpenTimeout = TimeSpan.FromSeconds(20).Ticks;
         config.Demuxer.ReadLiveTimeout = TimeSpan.FromSeconds(12).Ticks;
-        config.Decoder.VideoAcceleration = true;
 
         _player = new Player(config);
         _player.PropertyChanged += Player_PropertyChanged;
