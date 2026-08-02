@@ -10,10 +10,11 @@ if (-not (Test-Path -LiteralPath $executable)) {
     throw "Efiron executable was not found at '$executable'."
 }
 
+$repositoryRoot = Split-Path -Parent $PSScriptRoot
 $fixture = Join-Path $env:RUNNER_TEMP "efiron-restart-fixture"
 $playlist = Join-Path $fixture "playlist.m3u"
 $guide = Join-Path $fixture "guide.xml"
-$wave = Join-Path $fixture "ci.wav"
+$video = Join-Path $fixture "ci.mp4"
 $localAppData = [Environment]::GetFolderPath(
     [Environment+SpecialFolder]::LocalApplicationData)
 $efironData = Join-Path $localAppData "Efiron"
@@ -114,50 +115,27 @@ try {
     New-Item -ItemType Directory -Path $fixture -Force | Out-Null
     New-Item -ItemType Directory -Path $efironData -Force | Out-Null
 
-    $sampleRate = 8000
-    $channels = 1
-    $bitsPerSample = 16
-    $durationSeconds = 60
-    $blockAlign = [int]($channels * $bitsPerSample / 8)
-    $byteRate = $sampleRate * $blockAlign
-    $dataLength = $byteRate * $durationSeconds
-    $stream = [System.IO.File]::Create($wave)
-    $writer = [System.IO.BinaryWriter]::new($stream)
-    try {
-        $ascii = [System.Text.Encoding]::ASCII
-        $writer.Write($ascii.GetBytes("RIFF"))
-        $writer.Write([int](36 + $dataLength))
-        $writer.Write($ascii.GetBytes("WAVE"))
-        $writer.Write($ascii.GetBytes("fmt "))
-        $writer.Write([int]16)
-        $writer.Write([int16]1)
-        $writer.Write([int16]$channels)
-        $writer.Write([int]$sampleRate)
-        $writer.Write([int]$byteRate)
-        $writer.Write([int16]$blockAlign)
-        $writer.Write([int16]$bitsPerSample)
-        $writer.Write($ascii.GetBytes("data"))
-        $writer.Write([int]$dataLength)
-
-        $silence = [byte[]]::new(65536)
-        $remaining = $dataLength
-        while ($remaining -gt 0) {
-            $count = [Math]::Min($silence.Length, $remaining)
-            $writer.Write($silence, 0, $count)
-            $remaining -= $count
-        }
-    }
-    finally {
-        $writer.Dispose()
-        $stream.Dispose()
+    # Restart state must exercise the same real video pipeline as the product.
+    # The old silent WAV reached a nominal Playing state without opening an
+    # audio codec in Flyleaf, so Pause could not be followed by a real Resume.
+    $fixtureBase64 = Get-Content `
+        (Join-Path $repositoryRoot "tests/fixtures/fullscreen-21x9-h264.mp4.b64") `
+        -Raw
+    [IO.File]::WriteAllBytes(
+        $video,
+        [Convert]::FromBase64String($fixtureBase64.Trim()))
+    if ((Get-Item $video).Length -lt 2500) {
+        throw "The restart H264 fixture is invalid."
     }
 
     @'
 #EXTM3U
 #EXTINF:-1 tvg-id="ci.news" tvg-name="CI News" group-title="News",CI News
-http://127.0.0.1:18766/ci.wav
+#EXTVLCOPT:input-repeat=-1
+http://127.0.0.1:18766/ci.mp4
 #EXTINF:-1 tvg-name="CI Cinema" group-title="Cinema",CI Cinema
-http://127.0.0.1:18766/ci.wav
+#EXTVLCOPT:input-repeat=-1
+http://127.0.0.1:18766/ci.mp4
 '@ | Set-Content -LiteralPath $playlist -Encoding utf8
 
     $now = [DateTimeOffset]::UtcNow
@@ -320,7 +298,7 @@ http://127.0.0.1:18766/ci.wav
     $secondProcess = $null
 
     @(
-        "First launch persisted playback preferences."
+        "First launch persisted playback preferences through Flyleaf H264 playback."
         "Second launch restored the selected channel, volume and mute state."
         "Both launches exited through a real main-window close request."
         "Restored channel: $($restart.ChannelStableId)"
