@@ -109,25 +109,56 @@ $tempRoot = Join-Path $runtimeRoot ".download"
 Remove-Item $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
 
+$downloadSpecs = @($requiredDlls | ForEach-Object {
+    [pscustomobject]@{
+        Name = $_
+        Url = "https://raw.githubusercontent.com/$sourceRepository/$sourceCommit/FFmpeg/$_"
+        TemporaryPath = Join-Path $tempRoot $_
+    }
+})
+$downloadJobs = @()
+
 try {
+    foreach ($spec in $downloadSpecs) {
+        Write-Host "Starting pinned Flyleaf FFmpeg download $($spec.Name)..."
+        $downloadJobs += Start-Job -ScriptBlock {
+            param([string]$Url, [string]$Path)
+            $client = New-Object System.Net.WebClient
+            try {
+                $client.DownloadFile($Url, $Path)
+            }
+            finally {
+                $client.Dispose()
+            }
+        } -ArgumentList $spec.Url,$spec.TemporaryPath
+    }
+
+    Wait-Job $downloadJobs | Out-Null
+    $failedJobs = @($downloadJobs | Where-Object State -ne "Completed")
+    if ($failedJobs.Count -gt 0) {
+        $details = @($failedJobs | ForEach-Object {
+            "$($_.State): $($_.ChildJobs[0].JobStateInfo.Reason)"
+        }) -join "; "
+        throw "One or more Flyleaf FFmpeg downloads failed: $details"
+    }
+    foreach ($job in $downloadJobs) {
+        Receive-Job $job -ErrorAction Stop | Out-Null
+    }
+
     $inventory = @()
-    foreach ($name in $requiredDlls) {
-        $url = "https://raw.githubusercontent.com/$sourceRepository/$sourceCommit/FFmpeg/$name"
-        $temporaryPath = Join-Path $tempRoot $name
-        Write-Host "Downloading pinned Flyleaf FFmpeg component $name..."
-        Invoke-WebRequest -Uri $url -OutFile $temporaryPath -UseBasicParsing
-        if (-not (Test-PortableExecutable $temporaryPath)) {
-            throw "Downloaded Flyleaf FFmpeg component is not a valid PE DLL: $name"
+    foreach ($spec in $downloadSpecs) {
+        if (-not (Test-PortableExecutable $spec.TemporaryPath)) {
+            throw "Downloaded Flyleaf FFmpeg component is not a valid PE DLL: $($spec.Name)"
         }
 
-        $destination = Join-Path $runtimeRoot $name
-        Move-Item $temporaryPath $destination -Force
+        $destination = Join-Path $runtimeRoot $spec.Name
+        Move-Item $spec.TemporaryPath $destination -Force
         $item = Get-Item $destination
         $inventory += [ordered]@{
-            name = $name
+            name = $spec.Name
             length = $item.Length
             sha256 = Get-Sha256 $destination
-            sourceUrl = $url
+            sourceUrl = $spec.Url
         }
     }
 
@@ -162,6 +193,9 @@ notice and the manifest with every engineering candidate.
 "@ | Set-Content $noticePath -Encoding utf8
 }
 finally {
+    if ($downloadJobs.Count -gt 0) {
+        $downloadJobs | Remove-Job -Force -ErrorAction SilentlyContinue
+    }
     Remove-Item $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
 
