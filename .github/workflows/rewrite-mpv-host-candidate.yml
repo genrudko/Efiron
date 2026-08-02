@@ -1,3 +1,4 @@
+# Historical filename retained to preserve the existing workflow identity and run history.
 name: rewrite flyleaf candidate
 
 on:
