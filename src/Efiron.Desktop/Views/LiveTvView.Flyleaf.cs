@@ -8,6 +8,9 @@ namespace Efiron.Desktop.Views;
 
 public sealed partial class LiveTvView
 {
+    private const string FlyleafVerificationEnvironmentVariable =
+        "EFIRON_CI_FLYLEAF_VERIFICATION";
+
     private FlyleafHost? _flyleafSurface;
     private bool _flyleafPlaybackEnabled;
 
@@ -47,6 +50,37 @@ public sealed partial class LiveTvView
         _playbackBackendSelector.SelectionChanged +=
             RepairKPlaybackBackendSelector_SelectionChanged;
         _flyleafPlaybackEnabled = true;
+
+        if (string.Equals(
+                Environment.GetEnvironmentVariable(
+                    FlyleafVerificationEnvironmentVariable),
+                "1",
+                StringComparison.Ordinal))
+        {
+            DispatcherQueue.TryEnqueue(SelectFlyleafVerificationBackend);
+        }
+    }
+
+    private void SelectFlyleafVerificationBackend()
+    {
+        if (_playbackBackendSelector is null)
+        {
+            return;
+        }
+
+        for (var index = 0;
+             index < _playbackBackendSelector.Items.Count;
+             index++)
+        {
+            if (_playbackBackendSelector.Items[index] is ComboBoxItem
+                {
+                    Tag: PlaybackBackendId.Flyleaf,
+                })
+            {
+                _playbackBackendSelector.SelectedIndex = index;
+                return;
+            }
+        }
     }
 
     private async void RepairKPlaybackBackendSelector_SelectionChanged(
