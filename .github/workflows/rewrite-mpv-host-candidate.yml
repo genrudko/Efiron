@@ -1,4 +1,4 @@
-name: rewrite mpv host candidate
+name: rewrite flyleaf candidate
 
 on:
   pull_request:
