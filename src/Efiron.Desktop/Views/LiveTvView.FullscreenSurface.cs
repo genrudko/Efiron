@@ -1,4 +1,5 @@
 using Efiron.Playback;
+using FlyleafLib;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -105,6 +106,22 @@ public sealed partial class LiveTvView
 
     private void ApplyVideoGeometry()
     {
+        if (_playbackBackend is FlyleafPlaybackBackend flyleaf)
+        {
+            var aspectRatio = _isFullscreen
+                ? AspectRatio.Fill
+                : AspectRatio.Keep;
+            if (flyleaf.Player.Config.Video.AspectRatio != aspectRatio)
+            {
+                flyleaf.Player.Config.Video.AspectRatio = aspectRatio;
+            }
+
+            _appliedVideoCropGeometry = _isFullscreen
+                ? "Flyleaf:AspectRatio.Fill"
+                : null;
+            return;
+        }
+
         if (_playbackBackend is WindowsMediaPlaybackBackend)
         {
             if (_windowsMediaSurface is not null)
