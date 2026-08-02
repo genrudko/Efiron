@@ -57,6 +57,20 @@ public sealed partial class LiveTvView
             return true;
         }
 
+        // The dedicated Repair K workflow inserts and selects Flyleaf before
+        // the first arrange pass. Do not let the normal Auto=mpv policy race
+        // that explicit selection back to mpv after Flyleaf has already opened
+        // the stream and started its control sequence.
+        if (string.Equals(
+                Environment.GetEnvironmentVariable(
+                    FlyleafVerificationEnvironmentVariable),
+                "1",
+                StringComparison.Ordinal))
+        {
+            _autoBackendPolicyApplied = true;
+            return true;
+        }
+
         if (_playbackBackendSelector is null ||
             _playbackBackendSelector.Items.Count == 0 ||
             _playbackBackendSelector.Items[0] is not ComboBoxItem autoOption)
@@ -65,8 +79,8 @@ public sealed partial class LiveTvView
         }
 
         // Automatic remains on the existing in-process mpv path as the
-        // control/CI baseline during Repair J. The out-of-process native-window
-        // host stays an explicit experiment until physical Windows validation.
+        // control/CI baseline during Repair K. Flyleaf stays an explicit
+        // experiment until physical Windows validation.
         autoOption.Tag = PlaybackBackendId.Mpv;
         _selectedPlaybackBackend = PlaybackBackendId.Mpv;
         _selectedMpvProfile = MpvPlaybackProfile.Auto;
