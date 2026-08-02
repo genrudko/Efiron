@@ -40,47 +40,26 @@ public sealed partial class LiveTvView
             Math.Min(3, playerSurface.Children.Count),
             _flyleafSurface);
 
+        // Repair K is deliberately a single-engine experiment. The rejected
+        // LibVLC/mpv/native-host paths remain in source history as controls,
+        // but are not exposed or packaged into this physical candidate.
         _playbackBackendSelector.SelectionChanged -=
             NativePlaybackBackendSelector_SelectionChanged;
-        _playbackBackendSelector.Items.Insert(
-            Math.Min(4, _playbackBackendSelector.Items.Count),
-            CreateBackendOption(
-                "Flyleaf DirectX (эксп.)",
-                PlaybackBackendId.Flyleaf));
+        _updatingPlaybackBackendSelectors = true;
+        _playbackBackendSelector.Items.Clear();
+        _playbackBackendSelector.Items.Add(CreateBackendOption(
+            "Flyleaf DirectX (эксп.)",
+            PlaybackBackendId.Flyleaf));
+        _playbackBackendSelector.SelectedIndex = 0;
+        _updatingPlaybackBackendSelectors = false;
         _playbackBackendSelector.SelectionChanged +=
             RepairKPlaybackBackendSelector_SelectionChanged;
+
+        _selectedPlaybackBackend = PlaybackBackendId.Flyleaf;
+        _autoBackendPolicyApplied = true;
         _flyleafPlaybackEnabled = true;
-
-        if (string.Equals(
-                Environment.GetEnvironmentVariable(
-                    FlyleafVerificationEnvironmentVariable),
-                "1",
-                StringComparison.Ordinal))
-        {
-            DispatcherQueue.TryEnqueue(SelectFlyleafVerificationBackend);
-        }
-    }
-
-    private void SelectFlyleafVerificationBackend()
-    {
-        if (_playbackBackendSelector is null)
-        {
-            return;
-        }
-
-        for (var index = 0;
-             index < _playbackBackendSelector.Items.Count;
-             index++)
-        {
-            if (_playbackBackendSelector.Items[index] is ComboBoxItem
-                {
-                    Tag: PlaybackBackendId.Flyleaf,
-                })
-            {
-                _playbackBackendSelector.SelectedIndex = index;
-                return;
-            }
-        }
+        ApplyFlyleafProfileSelectorVisibility();
+        UpdatePlaybackBackendStatus("Flyleaf DirectX · подготовка");
     }
 
     private async void RepairKPlaybackBackendSelector_SelectionChanged(
@@ -90,20 +69,13 @@ public sealed partial class LiveTvView
         if (_updatingPlaybackBackendSelectors ||
             _playbackBackendSelector?.SelectedItem is not ComboBoxItem
             {
-                Tag: PlaybackBackendId selected,
+                Tag: PlaybackBackendId.Flyleaf,
             })
         {
             return;
         }
 
-        if (selected != PlaybackBackendId.Flyleaf)
-        {
-            HideFlyleafSurface();
-            NativePlaybackBackendSelector_SelectionChanged(sender, e);
-            return;
-        }
-
-        _selectedPlaybackBackend = selected;
+        _selectedPlaybackBackend = PlaybackBackendId.Flyleaf;
         HideNativePlaybackHost();
         ApplyFlyleafProfileSelectorVisibility();
         await SwitchToFlyleafAsync(restartCurrentRequest: true);
