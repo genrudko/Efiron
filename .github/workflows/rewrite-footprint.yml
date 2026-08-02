@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   footprint:
-    name: Cold startup, mpv Auto footprint and graceful exit
+    name: Cold startup, Flyleaf footprint and graceful exit
     runs-on: windows-latest
     timeout-minutes: 25
 
@@ -51,18 +51,13 @@ jobs:
 
           $fixtureBase64 = Get-Content `
             "tests/fixtures/fullscreen-21x9-h264.mp4.b64" -Raw
-          $videoPath = Join-Path $fixture "footprint.mp4"
           [IO.File]::WriteAllBytes(
-            $videoPath,
+            (Join-Path $fixture "footprint.mp4"),
             [Convert]::FromBase64String($fixtureBase64.Trim()))
-          if ((Get-Item $videoPath).Length -lt 2500) {
-            throw "The footprint H264 fixture was not decoded."
-          }
 
           @'
           #EXTM3U
           #EXTINF:-1 tvg-id="footprint.one" group-title="Footprint",Footprint One
-          #EXTVLCOPT:input-repeat=-1
           http://127.0.0.1:18773/footprint.mp4
           '@ | Set-Content (Join-Path $fixture "playlist.m3u") -Encoding utf8
 
@@ -77,7 +72,7 @@ jobs:
           @{ version = 1; theme = 2; accent = 1 } | ConvertTo-Json |
             Set-Content (Join-Path $data "appearance.json") -Encoding utf8
 
-      - name: Verify startup, mpv Auto footprint and graceful exit
+      - name: Verify startup Flyleaf footprint and graceful exit
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -134,8 +129,7 @@ jobs:
                 [double]$startup.ProcessToShellMilliseconds -gt 8000) {
               throw "Process-to-shell startup exceeded 8000 ms: $($startup.ProcessToShellMilliseconds)."
             }
-            if ([bool]$startup.LiveViewCreated -or
-                [bool]$startup.ProgrammeGuideCreated) {
+            if ([bool]$startup.LiveViewCreated -or [bool]$startup.ProgrammeGuideCreated) {
               throw "Heavy Live/EPG workspaces were created before shell-ready."
             }
             if ([int64]$startup.WorkingSetBytes -gt 471859200) {
@@ -149,15 +143,15 @@ jobs:
               -Condition {
                 if (-not (Test-Path $playbackPath)) { return $false }
                 try {
-                  $candidate = Get-Content $playbackPath -Raw | ConvertFrom-Json
-                  return $candidate.BackendId -eq "Mpv" -and
-                    $candidate.SelectedProfile -eq "Auto" -and
-                    $candidate.PlaybackState -eq "Playing"
+                  $sample = Get-Content $playbackPath -Raw | ConvertFrom-Json
+                  return $sample.BackendId -eq "Flyleaf" -and
+                    $sample.PlaybackState -eq "Playing" -and
+                    [int64]$sample.DisplayedFrames -gt 0
                 }
                 catch { return $false }
               } `
               -TimeoutSeconds 45 `
-              -Description "mpv Auto H264 playback"
+              -Description "Flyleaf H264 playback"
 
             Start-Sleep -Seconds 8
             Wait-ForCondition `
@@ -173,6 +167,11 @@ jobs:
             $playback = Get-Content $playbackPath -Raw | ConvertFrom-Json
             $lastLine = Get-Content $footprintPath | Select-Object -Last 1
             $footprint = $lastLine | ConvertFrom-Json
+            if ($playback.BackendId -ne "Flyleaf" -or
+                $playback.VideoRenderer -ne "Flyleaf D3D11 / DirectComposition" -or
+                [int64]$playback.DisplayedFrames -le 0) {
+              throw "Unexpected Flyleaf footprint playback evidence."
+            }
             if ($process.WorkingSet64 -gt 786432000 -or
                 [int64]$footprint.WorkingSetBytes -gt 786432000) {
               throw "Playback working set exceeded 750 MiB."
@@ -206,6 +205,8 @@ jobs:
               ManagedHeapBytes = [int64]$footprint.ManagedHeapBytes
               ThreadCount = [int]$footprint.ThreadCount
               HandleCount = [int]$footprint.HandleCount
+              FramesDisplayed = [int64]$playback.DisplayedFrames
+              FramesDropped = [int64]$playback.DroppedFrames
               FullEpgStartedDuringLive = $false
             } | ConvertTo-Json |
               Set-Content footprint-artifacts/footprint-summary.json -Encoding utf8
