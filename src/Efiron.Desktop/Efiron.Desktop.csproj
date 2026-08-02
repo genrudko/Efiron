@@ -26,6 +26,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="FlyleafLib.Controls.WinUI" />
     <PackageReference Include="LibVLCSharp.WinUI" />
     <PackageReference Include="Microsoft.WindowsAppSDK" />
   </ItemGroup>
