@@ -6,6 +6,7 @@ public enum PlaybackBackendId
     LibVlc,
     Mpv,
     MpvHost,
+    Flyleaf,
     WindowsMedia,
 }
 
