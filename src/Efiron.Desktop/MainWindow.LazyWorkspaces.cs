@@ -44,6 +44,7 @@ public sealed partial class MainWindow
         workspace.AttachNativePlaybackParent(
             WinRT.Interop.WindowNative.GetWindowHandle(this));
         workspace.EnableFlyleafPlayback();
+        workspace.EnableWorkspaceLifecycle();
         workspace.BackRequested += LiveTvWorkspace_BackRequested;
         workspace.FullscreenToggleRequested +=
             LiveTvWorkspace_FullscreenToggleRequested;
