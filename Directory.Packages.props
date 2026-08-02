@@ -4,6 +4,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageVersion Include="Flyleaf.FFmpeg" Version="8.0.0" />
     <PackageVersion Include="Flyleaf.FFmpeg.Bindings" Version="8.0.0" />
     <PackageVersion Include="FlyleafLib" Version="3.10.4" />
     <PackageVersion Include="FlyleafLib.Controls.WinUI" Version="1.3.4" />
