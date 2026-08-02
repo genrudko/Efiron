@@ -87,7 +87,7 @@ jobs:
           @{ version = 1; theme = 2; accent = 0 } | ConvertTo-Json |
             Set-Content (Join-Path $data "appearance.json") -Encoding utf8
 
-      - name: Verify stripped candidate starts Flyleaf and closes
+      - name: Verify stripped candidate renders Flyleaf frames and closes
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -126,7 +126,9 @@ jobs:
                 try {
                   $sample = Get-Content $playbackPath -Raw | ConvertFrom-Json
                   if ($sample.BackendId -eq "Flyleaf" -and
-                      $sample.PlaybackState -eq "Playing") {
+                      $sample.PlaybackState -eq "Playing" -and
+                      [int64]$sample.DisplayedFrames -gt 0 -and
+                      [double]$sample.RenderedFramesPerSecond -gt 0) {
                     $ready = $true
                     break
                   }
@@ -137,7 +139,7 @@ jobs:
             }
             if (-not $ready) {
               $last = if (Test-Path $playbackPath) { Get-Content $playbackPath -Raw } else { "missing" }
-              throw "Stripped Repair K candidate did not reach Flyleaf Playing. Last evidence: $last"
+              throw "Stripped Repair K candidate did not render Flyleaf frames. Last evidence: $last"
             }
 
             Copy-Item $playbackPath (Join-Path $stage "repair-k-staged-smoke.json") -Force
