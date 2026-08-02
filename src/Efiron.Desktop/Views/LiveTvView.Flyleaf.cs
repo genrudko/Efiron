@@ -59,7 +59,27 @@ public sealed partial class LiveTvView
         _autoBackendPolicyApplied = true;
         _flyleafPlaybackEnabled = true;
         ApplyFlyleafProfileSelectorVisibility();
-        UpdatePlaybackBackendStatus("Flyleaf DirectX · подготовка");
+        InitializeFlyleafBackend();
+    }
+
+    private void InitializeFlyleafBackend()
+    {
+        if (_playbackBackend is not null || _flyleafSurface is null)
+        {
+            return;
+        }
+
+        var backend = new FlyleafPlaybackBackend();
+        _playbackBackend = backend;
+        _playbackSession = backend.Session;
+        _playbackSession.SetVolume(
+            Math.Clamp((int)Math.Round(VolumeSlider.Value), 0, 100));
+        _playbackSession.SetMuted(false);
+        _playbackSession.SnapshotChanged += PlaybackSession_SnapshotChanged;
+        BindFlyleafSurface(backend);
+        _playbackDiagnosticsWriter.Attach(backend);
+        UpdatePlaybackBackendStatus(
+            $"Flyleaf DirectX · {backend.SelectedProfile}");
     }
 
     private async void RepairKPlaybackBackendSelector_SelectionChanged(
