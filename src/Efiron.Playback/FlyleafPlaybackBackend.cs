@@ -151,6 +151,7 @@ internal sealed class FlyleafPlaybackSession : IPlaybackSession
     private TaskCompletionSource<bool>? _openCompletion;
     private Stopwatch? _startupClock;
     private PlaybackSnapshot _snapshot = PlaybackSnapshot.Idle;
+    private bool _requestedMuted;
     private bool _disposed;
 
     public FlyleafPlaybackSession()
@@ -209,7 +210,7 @@ internal sealed class FlyleafPlaybackSession : IPlaybackSession
                 request.ChannelStableId,
                 request.DisplayName,
                 Math.Clamp(_player.Audio.Volume, 0, 100),
-                _player.Audio.Mute,
+                _requestedMuted,
                 ErrorMessage: null));
         }
 
@@ -258,7 +259,12 @@ internal sealed class FlyleafPlaybackSession : IPlaybackSession
     public void SetMuted(bool isMuted)
     {
         ThrowIfDisposed();
-        _player.Audio.Mute = isMuted;
+        lock (_sync)
+        {
+            _requestedMuted = isMuted;
+        }
+
+        ApplyRequestedMuteToPlayer();
         UpdateAudioSnapshot();
     }
 
@@ -266,6 +272,7 @@ internal sealed class FlyleafPlaybackSession : IPlaybackSession
     {
         ThrowIfDisposed();
         _player.Audio.Volume = Math.Clamp(volume, 0, 100);
+        ApplyRequestedMuteToPlayer();
         UpdateAudioSnapshot();
     }
 
@@ -293,6 +300,11 @@ internal sealed class FlyleafPlaybackSession : IPlaybackSession
 
     private void CompleteOpen(bool success, string? error)
     {
+        if (success)
+        {
+            ApplyRequestedMuteToPlayer();
+        }
+
         TaskCompletionSource<bool>? completion;
         lock (_sync)
         {
@@ -304,6 +316,8 @@ internal sealed class FlyleafPlaybackSession : IPlaybackSession
                 SetSnapshotUnsafe(_snapshot with
                 {
                     State = MapStatus(_player.Status.ToString()),
+                    Volume = Math.Clamp(_player.Audio.Volume, 0, 100),
+                    IsMuted = _requestedMuted,
                     ErrorMessage = null,
                 });
             }
@@ -339,7 +353,26 @@ internal sealed class FlyleafPlaybackSession : IPlaybackSession
             return;
         }
 
+        ApplyRequestedMuteToPlayer();
         RefreshStateFromPlayer();
+    }
+
+    private void ApplyRequestedMuteToPlayer()
+    {
+        bool requestedMuted;
+        lock (_sync)
+        {
+            requestedMuted = _requestedMuted;
+        }
+
+        // Flyleaf ignores Audio.Mute assignments until its XAudio2 source
+        // voice exists. Preserve the application-level intent and apply it as
+        // soon as an audio stream/output becomes available. Video-only media
+        // still exposes the requested state consistently to the controls.
+        if (_player.Audio.IsOpened && _player.Audio.Mute != requestedMuted)
+        {
+            _player.Audio.Mute = requestedMuted;
+        }
     }
 
     private void RefreshStateFromPlayer()
@@ -355,7 +388,7 @@ internal sealed class FlyleafPlaybackSession : IPlaybackSession
             {
                 State = MapStatus(_player.Status.ToString()),
                 Volume = Math.Clamp(_player.Audio.Volume, 0, 100),
-                IsMuted = _player.Audio.Mute,
+                IsMuted = _requestedMuted,
                 ErrorMessage = string.IsNullOrWhiteSpace(_player.LastError)
                     ? null
                     : _player.LastError,
@@ -370,7 +403,7 @@ internal sealed class FlyleafPlaybackSession : IPlaybackSession
             SetSnapshotUnsafe(_snapshot with
             {
                 Volume = Math.Clamp(_player.Audio.Volume, 0, 100),
-                IsMuted = _player.Audio.Mute,
+                IsMuted = _requestedMuted,
             });
         }
     }
