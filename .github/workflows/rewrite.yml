@@ -1,0 +1,390 @@
+name: rewrite
+
+on:
+  pull_request:
+  push:
+    branches:
+      - rewrite/001-greenfield-desktop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  greenfield:
+    name: Greenfield architecture and tests
+    runs-on: windows-latest
+    timeout-minutes: 24
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.302
+
+      - name: Restore greenfield solution
+        run: dotnet restore Efiron.Greenfield.sln
+
+      - name: Build greenfield solution
+        run: dotnet build Efiron.Greenfield.sln -c Release --no-restore
+
+      - name: Run greenfield tests
+        id: greenfield_tests
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $result = 0
+
+          dotnet test tests/Efiron.Architecture.Tests/Efiron.Architecture.Tests.csproj `
+            -c Release `
+            --no-build `
+            --logger "trx;LogFileName=architecture-tests.trx" `
+            --verbosity normal *> architecture-test.log
+          if ($LASTEXITCODE -ne 0) {
+            $result = 1
+          }
+
+          dotnet test tests/Efiron.Application.Tests/Efiron.Application.Tests.csproj `
+            -c Release `
+            --no-build `
+            --logger "trx;LogFileName=application-tests.trx" `
+            --verbosity normal *> application-test.log
+          if ($LASTEXITCODE -ne 0) {
+            $result = 1
+          }
+
+          dotnet test tests/Efiron.Infrastructure.Tests/Efiron.Infrastructure.Tests.csproj `
+            -c Release `
+            --no-build `
+            --logger "trx;LogFileName=infrastructure-tests.trx" `
+            --verbosity normal *> infrastructure-test.log
+          if ($LASTEXITCODE -ne 0) {
+            $result = 1
+          }
+
+          exit $result
+
+      - name: Prepare deterministic Live fixture
+        if: steps.greenfield_tests.outcome == 'success'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $fixture = Join-Path $env:RUNNER_TEMP "efiron-live-fixture"
+          $playlist = Join-Path $fixture "playlist.m3u"
+          $guide = Join-Path $fixture "guide.xml"
+          $wave = Join-Path $fixture "ci.wav"
+          $localAppData = [Environment]::GetFolderPath(
+            [Environment+SpecialFolder]::LocalApplicationData)
+          $efironData = Join-Path $localAppData "Efiron"
+          $configuration = Join-Path $efironData "sources.json"
+
+          Remove-Item -LiteralPath $fixture -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath $efironData -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $fixture -Force | Out-Null
+          New-Item -ItemType Directory -Path $efironData -Force | Out-Null
+
+          $sampleRate = 8000
+          $channels = 1
+          $bitsPerSample = 16
+          $durationSeconds = 60
+          $blockAlign = [int]($channels * $bitsPerSample / 8)
+          $byteRate = $sampleRate * $blockAlign
+          $dataLength = $byteRate * $durationSeconds
+          $stream = [System.IO.File]::Create($wave)
+          $writer = [System.IO.BinaryWriter]::new($stream)
+          try {
+            $ascii = [System.Text.Encoding]::ASCII
+            $writer.Write($ascii.GetBytes("RIFF"))
+            $writer.Write([int](36 + $dataLength))
+            $writer.Write($ascii.GetBytes("WAVE"))
+            $writer.Write($ascii.GetBytes("fmt "))
+            $writer.Write([int]16)
+            $writer.Write([int16]1)
+            $writer.Write([int16]$channels)
+            $writer.Write([int]$sampleRate)
+            $writer.Write([int]$byteRate)
+            $writer.Write([int16]$blockAlign)
+            $writer.Write([int16]$bitsPerSample)
+            $writer.Write($ascii.GetBytes("data"))
+            $writer.Write([int]$dataLength)
+
+            $silence = [byte[]]::new(65536)
+            $remaining = $dataLength
+            while ($remaining -gt 0) {
+              $count = [Math]::Min($silence.Length, $remaining)
+              $writer.Write($silence, 0, $count)
+              $remaining -= $count
+            }
+          }
+          finally {
+            $writer.Dispose()
+            $stream.Dispose()
+          }
+
+          @'
+          #EXTM3U
+          #EXTINF:-1 tvg-id="ci.news" tvg-name="CI News" group-title="News",CI News
+          http://127.0.0.1:18765/ci.wav
+          #EXTINF:-1 tvg-name="CI Cinema" group-title="Cinema",CI Cinema
+          http://127.0.0.1:18765/ci.wav
+          '@ | Set-Content -LiteralPath $playlist -Encoding utf8
+
+          $now = [DateTimeOffset]::UtcNow
+          $currentStart = $now.AddMinutes(-20).ToString("yyyyMMddHHmmss +0000")
+          $currentStop = $now.AddMinutes(40).ToString("yyyyMMddHHmmss +0000")
+          $nextStop = $now.AddMinutes(100).ToString("yyyyMMddHHmmss +0000")
+          @"
+          <tv>
+            <channel id="ci.news"><display-name>CI News</display-name></channel>
+            <channel id="ci.cinema"><display-name>CI Cinema</display-name></channel>
+            <programme channel="ci.news" start="$currentStart" stop="$currentStop">
+              <title>CI News Now</title>
+            </programme>
+            <programme channel="ci.news" start="$currentStop" stop="$nextStop">
+              <title>CI News Next</title>
+            </programme>
+            <programme channel="ci.cinema" start="$currentStart" stop="$currentStop">
+              <title>CI Movie Now</title>
+            </programme>
+            <programme channel="ci.cinema" start="$currentStop" stop="$nextStop">
+              <title>CI Movie Next</title>
+            </programme>
+          </tv>
+          "@ | Set-Content -LiteralPath $guide -Encoding utf8
+
+          @{
+            playlist = @{
+              location = $playlist
+              isEnabled = $true
+            }
+            programmeGuide = @{
+              location = $guide
+              isEnabled = $true
+            }
+          } |
+            ConvertTo-Json -Depth 4 |
+            Set-Content -LiteralPath $configuration -Encoding utf8
+
+      - name: Verify desktop Live and playback vertical slice
+        id: desktop_startup
+        if: steps.greenfield_tests.outcome == 'success'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $output = "src/Efiron.Desktop/bin/x64/Release/net10.0-windows10.0.22000.0/win-x64"
+          $executable = Join-Path $output "Efiron.exe"
+          $fixture = Join-Path $env:RUNNER_TEMP "efiron-live-fixture"
+          $localAppData = [Environment]::GetFolderPath(
+            [Environment+SpecialFolder]::LocalApplicationData)
+          $diagnostics = Join-Path $localAppData "Efiron/diagnostics"
+          $firstPaintEvidence = Join-Path $diagnostics "first-useful-paint.json"
+          $liveEvidence = Join-Path $diagnostics "live-vertical-slice.json"
+          $playbackEvidence = Join-Path $diagnostics "playback-playing.json"
+          $crashEvidence = Join-Path $diagnostics "startup-crash.log"
+          $process = $null
+          $serverProcess = $null
+          $startedAt = [DateTime]::UtcNow
+
+          Remove-Item -LiteralPath $firstPaintEvidence -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath $liveEvidence -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath $playbackEvidence -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath $crashEvidence -Force -ErrorAction SilentlyContinue
+
+          try {
+            $python = (Get-Command python -ErrorAction Stop).Source
+            $serverProcess = Start-Process `
+              -FilePath $python `
+              -ArgumentList @(
+                "-m",
+                "http.server",
+                "18765",
+                "--bind",
+                "127.0.0.1",
+                "--directory",
+                $fixture) `
+              -WindowStyle Hidden `
+              -PassThru
+            Start-Sleep -Seconds 2
+            $serverProcess.Refresh()
+            if ($serverProcess.HasExited) {
+              throw "The local media server exited with code $($serverProcess.ExitCode)."
+            }
+
+            $process = Start-Process `
+              -FilePath $executable `
+              -WorkingDirectory $output `
+              -PassThru
+
+            $firstPaintDeadline = [DateTime]::UtcNow.AddSeconds(15)
+            while (-not (Test-Path -LiteralPath $firstPaintEvidence) -and
+                   [DateTime]::UtcNow -lt $firstPaintDeadline) {
+              Start-Sleep -Milliseconds 200
+              $process.Refresh()
+              if ($process.HasExited) {
+                throw "Efiron exited before first useful paint with code $($process.ExitCode)."
+              }
+            }
+
+            if (-not (Test-Path -LiteralPath $firstPaintEvidence)) {
+              throw "Efiron did not report first useful paint within 15 seconds."
+            }
+
+            $startup = Get-Content -LiteralPath $firstPaintEvidence -Raw | ConvertFrom-Json
+            $elapsed = [double]$startup.FirstUsefulPaintMilliseconds
+            if ($elapsed -le 0 -or $elapsed -gt 8000) {
+              throw "Invalid first useful paint measurement: $elapsed ms."
+            }
+
+            $liveDeadline = [DateTime]::UtcNow.AddSeconds(25)
+            while (-not (Test-Path -LiteralPath $liveEvidence) -and
+                   [DateTime]::UtcNow -lt $liveDeadline) {
+              Start-Sleep -Milliseconds 250
+              $process.Refresh()
+              if ($process.HasExited) {
+                throw "Efiron exited before the Live workspace became ready with code $($process.ExitCode)."
+              }
+            }
+
+            if (-not (Test-Path -LiteralPath $liveEvidence)) {
+              throw "Efiron did not report the Live vertical slice within 25 seconds."
+            }
+
+            $live = Get-Content -LiteralPath $liveEvidence -Raw | ConvertFrom-Json
+            if ([int]$live.ChannelCount -ne 2) {
+              throw "Expected two fixture channels, got $($live.ChannelCount)."
+            }
+            if ([int]$live.CategoryCount -ne 2) {
+              throw "Expected two fixture categories, got $($live.CategoryCount)."
+            }
+            if ([int]$live.ProgrammeGuideMatchCount -ne 2) {
+              throw "Expected two XMLTV matches, got $($live.ProgrammeGuideMatchCount)."
+            }
+            if (-not [bool]$live.LiveWorkspaceVisible) {
+              throw "Live workspace evidence did not confirm visibility."
+            }
+
+            $playbackDeadline = [DateTime]::UtcNow.AddSeconds(35)
+            while (-not (Test-Path -LiteralPath $playbackEvidence) -and
+                   [DateTime]::UtcNow -lt $playbackDeadline) {
+              Start-Sleep -Milliseconds 250
+              $process.Refresh()
+              if ($process.HasExited) {
+                throw "Efiron exited before playback reached Playing with code $($process.ExitCode)."
+              }
+            }
+
+            if (-not (Test-Path -LiteralPath $playbackEvidence)) {
+              throw "Efiron did not report LibVLC Playing within 35 seconds."
+            }
+
+            $playback = Get-Content -LiteralPath $playbackEvidence -Raw | ConvertFrom-Json
+            if ($playback.State -ne "Playing") {
+              throw "Expected Playing state, got '$($playback.State)'."
+            }
+            if ($playback.Source -ne "http://127.0.0.1:18765/ci.wav") {
+              throw "Unexpected playback source '$($playback.Source)'."
+            }
+            if ([string]::IsNullOrWhiteSpace($playback.ChannelStableId)) {
+              throw "Playback evidence did not retain the channel stable id."
+            }
+
+            Start-Sleep -Seconds 5
+            $process.Refresh()
+            if ($process.HasExited) {
+              throw "Efiron exited after playback reached Playing with code $($process.ExitCode)."
+            }
+
+            @(
+              "Desktop process remained alive with Live playback active."
+              "First useful paint: $elapsed ms"
+              "Fixture channels: $($live.ChannelCount)"
+              "Fixture categories: $($live.CategoryCount)"
+              "XMLTV matches: $($live.ProgrammeGuideMatchCount)"
+              "Playback state: $($playback.State)"
+              "Playback source: $($playback.Source)"
+              "Playback channel: $($playback.ChannelStableId)"
+              "First paint evidence: $firstPaintEvidence"
+              "Live evidence: $liveEvidence"
+              "Playback evidence: $playbackEvidence"
+            ) | Set-Content -LiteralPath rewrite-startup.log -Encoding utf8
+          }
+          catch {
+            $details = @($_ | Out-String)
+
+            if (Test-Path -LiteralPath $crashEvidence) {
+              $details += ""
+              $details += "===== APPLICATION CRASH EVIDENCE ====="
+              $details += Get-Content -LiteralPath $crashEvidence -Raw
+            }
+
+            $events = Get-WinEvent `
+              -FilterHashtable @{ LogName = "Application"; StartTime = $startedAt } `
+              -ErrorAction SilentlyContinue |
+              Where-Object {
+                $_.ProviderName -in @("Application Error", ".NET Runtime", "Windows Error Reporting") -or
+                $_.Message -match "Efiron"
+              } |
+              Select-Object -First 12 |
+              Format-List TimeCreated, ProviderName, Id, LevelDisplayName, Message |
+              Out-String
+
+            if (-not [string]::IsNullOrWhiteSpace($events)) {
+              $details += ""
+              $details += "===== WINDOWS APPLICATION EVENTS ====="
+              $details += $events
+            }
+
+            $details | Set-Content -LiteralPath rewrite-startup.log -Encoding utf8
+            throw
+          }
+          finally {
+            if ($null -ne $process) {
+              $process.Refresh()
+              if (-not $process.HasExited) {
+                Stop-Process -Id $process.Id -Force
+              }
+            }
+            if ($null -ne $serverProcess) {
+              $serverProcess.Refresh()
+              if (-not $serverProcess.HasExited) {
+                Stop-Process -Id $serverProcess.Id -Force
+              }
+            }
+          }
+
+      - name: Upload greenfield diagnostics
+        if: steps.greenfield_tests.outcome == 'failure' || steps.desktop_startup.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rewrite-test-diagnostics
+          path: |
+            architecture-test.log
+            application-test.log
+            infrastructure-test.log
+            rewrite-startup.log
+            tests/Efiron.Architecture.Tests/TestResults/architecture-tests.trx
+            tests/Efiron.Application.Tests/TestResults/application-tests.trx
+            tests/Efiron.Infrastructure.Tests/TestResults/infrastructure-tests.trx
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Enforce greenfield test result
+        if: steps.greenfield_tests.outcome == 'failure'
+        shell: pwsh
+        run: |
+          Write-Error "Greenfield tests failed. See rewrite-test-diagnostics."
+          exit 1
+
+      - name: Enforce desktop startup result
+        if: steps.desktop_startup.outcome == 'failure'
+        shell: pwsh
+        run: |
+          Write-Error "New desktop failed Live/playback vertical-slice validation. See rewrite-test-diagnostics."
+          exit 1

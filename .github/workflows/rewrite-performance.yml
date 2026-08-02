@@ -1,0 +1,381 @@
+name: rewrite performance
+
+on:
+  pull_request:
+  push:
+    branches:
+      - rewrite/001-greenfield-desktop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  performance:
+    name: Provider-scale Live startup without eager full EPG
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.302
+
+      - name: Restore and build exact head
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          dotnet restore Efiron.Greenfield.sln
+          dotnet build Efiron.Greenfield.sln -c Release --no-restore
+
+      - name: Prepare large saved-source fixture
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $fixture = Join-Path $env:RUNNER_TEMP "efiron-performance-fixture"
+          $localAppData = [Environment]::GetFolderPath(
+            [Environment+SpecialFolder]::LocalApplicationData)
+          $data = Join-Path $localAppData "Efiron"
+          Remove-Item $fixture,$data -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $fixture,$data -Force | Out-Null
+
+          $fixtureBase64 = Get-Content `
+            "tests/fixtures/fullscreen-21x9-h264.mp4.b64" `
+            -Raw
+          [IO.File]::WriteAllBytes(
+            (Join-Path $fixture "performance.mp4"),
+            [Convert]::FromBase64String($fixtureBase64.Trim()))
+
+          $channelCount = 1200
+          $playlist = [Text.StringBuilder]::new()
+          [void]$playlist.AppendLine("#EXTM3U")
+          for ($channel = 0; $channel -lt $channelCount; $channel++) {
+            $id = "performance.$channel"
+            [void]$playlist.AppendLine(
+              "#EXTINF:-1 tvg-id=`"$id`" group-title=`"Group $($channel % 24)`",Performance $channel")
+            [void]$playlist.AppendLine("#EXTVLCOPT:input-repeat=-1")
+            [void]$playlist.AppendLine("http://127.0.0.1:18779/performance.mp4")
+          }
+          [IO.File]::WriteAllText(
+            (Join-Path $fixture "playlist.m3u"),
+            $playlist.ToString(),
+            [Text.UTF8Encoding]::new($false))
+
+          # A deliberately large EPG source is configured. Repair H must not
+          # download or parse it merely to start Live playback.
+          $now = [DateTimeOffset]::UtcNow
+          $longDescription = (
+            "Detailed provider programme metadata with cast, episode, country, year, rating, " +
+            "age restriction, production notes and a realistic extended synopsis. ") * 5
+          $guidePath = Join-Path $fixture "guide.xml.gz"
+          $file = [IO.File]::Create($guidePath)
+          $gzip = [IO.Compression.GZipStream]::new(
+            $file,
+            [IO.Compression.CompressionLevel]::Fastest)
+          $writer = [IO.StreamWriter]::new(
+            $gzip,
+            [Text.UTF8Encoding]::new($false),
+            65536)
+          try {
+            $writer.WriteLine("<tv>")
+            for ($channel = 0; $channel -lt $channelCount; $channel++) {
+              $writer.WriteLine(
+                "<channel id=`"performance.$channel`"><display-name>Performance $channel</display-name></channel>")
+            }
+            for ($dayOffset = -15; $dayOffset -le 15; $dayOffset++) {
+              $day = $now.UtcDateTime.Date.AddDays($dayOffset)
+              for ($slot = 0; $slot -lt 3; $slot++) {
+                $start = $day.AddHours($slot * 8)
+                $stop = $start.AddHours(8)
+                $startText = $start.ToString("yyyyMMddHHmmss 'Z'")
+                $stopText = $stop.ToString("yyyyMMddHHmmss 'Z'")
+                for ($channel = 0; $channel -lt $channelCount; $channel++) {
+                  $writer.WriteLine(
+                    "<programme channel=`"performance.$channel`" start=`"$startText`" stop=`"$stopText`"><title>Day $dayOffset slot $slot channel $channel</title><desc>$longDescription Channel $channel day $dayOffset slot $slot.</desc></programme>")
+                }
+              }
+            }
+            $writer.WriteLine("</tv>")
+          }
+          finally {
+            $writer.Dispose()
+            $gzip.Dispose()
+            $file.Dispose()
+          }
+
+          @{
+            playlist = @{
+              location = "http://127.0.0.1:18779/playlist.m3u"
+              isEnabled = $true
+            }
+            programmeGuide = @{
+              location = "http://127.0.0.1:18779/guide.xml.gz"
+              isEnabled = $true
+            }
+          } | ConvertTo-Json -Depth 4 |
+            Set-Content (Join-Path $data "sources.json") -Encoding utf8
+          @{ version = 1; theme = 2; accent = 0 } | ConvertTo-Json |
+            Set-Content (Join-Path $data "appearance.json") -Encoding utf8
+
+          [ordered]@{
+            ChannelCount = $channelCount
+            DescriptionLength = $longDescription.Length
+            CompressedGuideBytes = (Get-Item $guidePath).Length
+          } | ConvertTo-Json |
+            Set-Content (Join-Path $fixture "fixture-summary.json") -Encoding utf8
+
+      - name: Verify cold and cached Live startup without eager full EPG
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          Add-Type -AssemblyName System.Drawing
+          Add-Type @'
+          using System;
+          using System.Runtime.InteropServices;
+          public static class EfironPerfNative {
+            [StructLayout(LayoutKind.Sequential)]
+            public struct RECT { public int Left, Top, Right, Bottom; }
+            [DllImport("user32.dll")]
+            public static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
+            [DllImport("user32.dll")]
+            public static extern bool SetForegroundWindow(IntPtr hwnd);
+          }
+          '@
+
+          $output = "src/Efiron.Desktop/bin/x64/Release/net10.0-windows10.0.22000.0/win-x64"
+          $exe = Join-Path $output "Efiron.exe"
+          $fixture = Join-Path $env:RUNNER_TEMP "efiron-performance-fixture"
+          $localAppData = [Environment]::GetFolderPath(
+            [Environment+SpecialFolder]::LocalApplicationData)
+          $data = Join-Path $localAppData "Efiron"
+          $diagnostics = Join-Path $data "diagnostics"
+          $livePath = Join-Path $diagnostics "live-vertical-slice.json"
+          $backgroundPath = Join-Path $diagnostics "background-catalog-ready.json"
+          $playlistReadyPath = Join-Path $diagnostics "playlist-background-ready.json"
+          $layoutActivityPath = Join-Path $diagnostics "layout-activity.json"
+          $playbackPath = Join-Path $diagnostics "playback-current.json"
+          $appearanceTransitionPath = Join-Path $diagnostics "appearance-transition-runtime.json"
+          $liveCachePath = Join-Path $data "live-catalog.json.gz"
+          $programmeCachePath = Join-Path $data "programme-catalog.json.gz"
+          $process = $null
+          $server = $null
+
+          function Wait-ForCondition {
+            param(
+              [Parameter(Mandatory = $true)][scriptblock]$Condition,
+              [Parameter(Mandatory = $true)][int]$TimeoutSeconds,
+              [Parameter(Mandatory = $true)][string]$Description)
+            $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+            while ([DateTime]::UtcNow -lt $deadline) {
+              if (& $Condition) { return }
+              Start-Sleep -Milliseconds 250
+              if ($process) {
+                $process.Refresh()
+                if ($process.HasExited) {
+                  throw "Efiron exited while waiting for $Description with code $($process.ExitCode)."
+                }
+              }
+            }
+            throw "Timed out waiting for $Description."
+          }
+
+          function Wait-ForPlaying {
+            param([int]$TimeoutSeconds)
+            Wait-ForCondition `
+              -Condition {
+                if (-not (Test-Path $playbackPath)) { return $false }
+                try {
+                  $sample = Get-Content $playbackPath -Raw | ConvertFrom-Json
+                  return $sample.PlaybackState -eq "Playing"
+                }
+                catch { return $false }
+              } `
+              -TimeoutSeconds $TimeoutSeconds `
+              -Description "Live playback"
+          }
+
+          function Close-Efiron {
+            if (-not $process) { return }
+            $process.Refresh()
+            if (-not $process.HasExited) {
+              if (-not $process.CloseMainWindow()) {
+                throw "Efiron did not accept CloseMainWindow."
+              }
+              if (-not $process.WaitForExit(10000)) {
+                throw "Efiron remained alive after CloseMainWindow."
+              }
+            }
+            $script:process = $null
+          }
+
+          try {
+            New-Item -ItemType Directory -Path performance-artifacts -Force | Out-Null
+            Copy-Item (Join-Path $fixture "fixture-summary.json") performance-artifacts/ -Force
+            $python = (Get-Command python -ErrorAction Stop).Source
+            $server = Start-Process $python -ArgumentList @(
+              "-m","http.server","18779","--bind","127.0.0.1","--directory",$fixture) `
+              -WindowStyle Hidden -PassThru
+            Start-Sleep -Seconds 2
+            if ($server.HasExited) { throw "Performance fixture server exited." }
+
+            $env:EFIRON_CI_LAYOUT_ACTIVITY_VERIFICATION = "1"
+            $env:EFIRON_CI_APPEARANCE_TRANSITION_VERIFICATION = "1"
+            $process = Start-Process $exe -WorkingDirectory $output -PassThru
+            Wait-ForCondition `
+              -Condition { Test-Path $livePath } `
+              -TimeoutSeconds 20 `
+              -Description "cold playlist-ready Live workspace"
+            Wait-ForPlaying -TimeoutSeconds 25
+            $cold = Get-Content $livePath -Raw | ConvertFrom-Json
+            $coldPlayback = Get-Content $playbackPath -Raw | ConvertFrom-Json
+            if ([int]$cold.ChannelCount -ne 1200 -or
+                [int]$cold.RetainedProgrammeCount -ne 0) {
+              throw "Cold Live catalogue is invalid."
+            }
+            if ([double]$cold.ProcessToLiveReadyMilliseconds -le 0 -or
+                [double]$cold.ProcessToLiveReadyMilliseconds -gt 10000) {
+              throw "Cold process-to-Live-ready is invalid: $($cold.ProcessToLiveReadyMilliseconds)."
+            }
+            if ([double]$coldPlayback.StartupLatency.TotalMilliseconds -gt 10000) {
+              throw "Cold playback startup exceeded 10 seconds: $($coldPlayback.StartupLatency)."
+            }
+            Start-Sleep -Seconds 10
+            if (Test-Path $backgroundPath) {
+              throw "Full EPG refresh ran during Live startup."
+            }
+            if (Test-Path $programmeCachePath) {
+              throw "Full programme cache was created during Live startup."
+            }
+            $process.Refresh()
+            if ($process.WorkingSet64 -gt 576716800) {
+              throw "Cold Live working set exceeded 550 MiB: $($process.WorkingSet64)."
+            }
+            Copy-Item $livePath performance-artifacts/cold-live-ready.json -Force
+            Copy-Item $playbackPath performance-artifacts/cold-playback.json -Force
+            Close-Efiron
+
+            Remove-Item $diagnostics -Recurse -Force -ErrorAction SilentlyContinue
+            New-Item -ItemType Directory -Path $diagnostics -Force | Out-Null
+            $process = Start-Process $exe -WorkingDirectory $output -PassThru
+            Wait-ForCondition `
+              -Condition { Test-Path $livePath } `
+              -TimeoutSeconds 15 `
+              -Description "cached Live readiness"
+            Wait-ForPlaying -TimeoutSeconds 20
+            $cached = Get-Content $livePath -Raw | ConvertFrom-Json
+            $cachedPlayback = Get-Content $playbackPath -Raw | ConvertFrom-Json
+            if (-not [bool]$cached.CatalogCacheHit -or
+                [int]$cached.ChannelCount -ne 1200 -or
+                [int]$cached.RetainedProgrammeCount -ne 0) {
+              throw "Cached lightweight Live restore is invalid."
+            }
+            if ([double]$cached.ProcessToLiveReadyMilliseconds -le 0 -or
+                [double]$cached.ProcessToLiveReadyMilliseconds -gt 6000) {
+              throw "Cached process-to-Live-ready is invalid: $($cached.ProcessToLiveReadyMilliseconds)."
+            }
+            if ([double]$cachedPlayback.StartupLatency.TotalMilliseconds -gt 8000) {
+              throw "Cached playback startup exceeded 8 seconds: $($cachedPlayback.StartupLatency)."
+            }
+
+            Wait-ForCondition `
+              -Condition { Test-Path $appearanceTransitionPath } `
+              -TimeoutSeconds 15 `
+              -Description "in-process Dark-to-Light evidence"
+            $appearance = Get-Content $appearanceTransitionPath -Raw | ConvertFrom-Json
+            if ($appearance.InitialTheme -ne "Dark" -or
+                $appearance.WindowActualTheme -ne "Light" -or
+                $appearance.Live.WorkspaceRequestedTheme -ne "Light" -or
+                $appearance.Live.WorkspaceActualTheme -ne "Light" -or
+                $appearance.Live.RootRequestedTheme -ne "Default" -or
+                $appearance.Live.RootActualTheme -ne "Light" -or
+                $appearance.Live.RootBackgroundColor -ne "#FFEEF2F7") {
+              throw "Runtime Dark-to-Light inheritance is invalid: $($appearance | ConvertTo-Json -Depth 5 -Compress)"
+            }
+
+            Wait-ForCondition `
+              -Condition { Test-Path $layoutActivityPath } `
+              -TimeoutSeconds 15 `
+              -Description "layout activity evidence"
+            $layout = Get-Content $layoutActivityPath -Raw | ConvertFrom-Json
+            if ([double]$layout.DurationMilliseconds -lt 4500 -or
+                [int64]$layout.LayoutUpdatedCount -gt 120) {
+              throw "Layout activity is invalid: $($layout | ConvertTo-Json -Compress)"
+            }
+
+            Start-Sleep -Seconds 10
+            if (Test-Path $backgroundPath) {
+              throw "Full EPG refresh ran during cached Live playback."
+            }
+            if (Test-Path $programmeCachePath) {
+              throw "Full programme cache appeared during cached Live playback."
+            }
+            Wait-ForCondition `
+              -Condition { Test-Path $playlistReadyPath } `
+              -TimeoutSeconds 15 `
+              -Description "delayed playlist-only refresh"
+            $playlistReady = Get-Content $playlistReadyPath -Raw | ConvertFrom-Json
+            if ([int]$playlistReady.ChannelCount -ne 1200 -or
+                [int]$playlistReady.RetainedProgrammeCount -ne 0) {
+              throw "Delayed playlist refresh retained EPG data."
+            }
+
+            $process.Refresh()
+            if ($process.WorkingSet64 -gt 576716800) {
+              throw "Cached playback working set exceeded 550 MiB: $($process.WorkingSet64)."
+            }
+
+            [ordered]@{
+              HeadSha = "${{ github.event.pull_request.head.sha || github.sha }}"
+              ColdProcessToLiveReadyMilliseconds = [double]$cold.ProcessToLiveReadyMilliseconds
+              ColdPlaybackStartup = [string]$coldPlayback.StartupLatency
+              CachedProcessToLiveReadyMilliseconds = [double]$cached.ProcessToLiveReadyMilliseconds
+              CachedPlaybackStartup = [string]$cachedPlayback.StartupLatency
+              CachedWorkingSetBytes = [int64]$process.WorkingSet64
+              FullEpgStartedDuringLive = $false
+              ProgrammeCacheCreatedDuringLive = $false
+              PlaylistRefreshProcessElapsedMilliseconds = [double]$playlistReady.ProcessElapsedMilliseconds
+              RuntimeTheme = [string]$appearance.WindowActualTheme
+              RuntimeLiveRootBackground = [string]$appearance.Live.RootBackgroundColor
+            } | ConvertTo-Json |
+              Set-Content performance-artifacts/repair-h-performance-summary.json -Encoding utf8
+            Copy-Item $livePath performance-artifacts/cached-live-ready.json -Force
+            Copy-Item $playbackPath performance-artifacts/cached-playback.json -Force
+            Copy-Item $playlistReadyPath performance-artifacts/playlist-background-ready.json -Force
+            Copy-Item $layoutActivityPath performance-artifacts/layout-activity.json -Force
+            Copy-Item $appearanceTransitionPath performance-artifacts/appearance-transition-runtime.json -Force
+            Close-Efiron
+          }
+          catch {
+            $_ | Out-String |
+              Set-Content performance-artifacts/performance-error.txt -Encoding utf8
+            throw
+          }
+          finally {
+            Remove-Item Env:EFIRON_CI_LAYOUT_ACTIVITY_VERIFICATION -ErrorAction SilentlyContinue
+            Remove-Item Env:EFIRON_CI_APPEARANCE_TRANSITION_VERIFICATION -ErrorAction SilentlyContinue
+            if ($process -and -not $process.HasExited) {
+              Stop-Process -Id $process.Id -Force
+            }
+            if ($server -and -not $server.HasExited) {
+              Stop-Process -Id $server.Id -Force
+            }
+          }
+
+      - name: Upload performance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rewrite-performance-evidence
+          path: performance-artifacts/
+          if-no-files-found: error
+          retention-days: 14

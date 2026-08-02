@@ -1,0 +1,284 @@
+name: rewrite epg scale
+
+on:
+  pull_request:
+  push:
+    branches:
+      - rewrite/001-greenfield-desktop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  epg-scale:
+    name: 1500-channel all-channel EPG responsiveness
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.302
+
+      - name: Restore and build exact head
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          dotnet restore Efiron.Greenfield.sln
+          dotnet build Efiron.Greenfield.sln -c Release --no-restore
+
+      - name: Prepare 1500-channel provider fixture
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $fixture = Join-Path $env:RUNNER_TEMP "efiron-epg-scale-fixture"
+          $localAppData = [Environment]::GetFolderPath(
+            [Environment+SpecialFolder]::LocalApplicationData)
+          $data = Join-Path $localAppData "Efiron"
+          Remove-Item $fixture,$data -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $fixture,$data -Force | Out-Null
+
+          # Auto resolves to mpv. Use a real H264 fixture so Live reaches a
+          # stable video state before the automatic EPG verification navigation.
+          $fixtureBase64 = Get-Content `
+            "tests/fixtures/fullscreen-21x9-h264.mp4.b64" -Raw
+          $video = Join-Path $fixture "channel.mp4"
+          [IO.File]::WriteAllBytes(
+            $video,
+            [Convert]::FromBase64String($fixtureBase64.Trim()))
+          if ((Get-Item $video).Length -lt 2500) {
+            throw "The scale H264 fixture was not decoded."
+          }
+
+          $utf8 = [Text.UTF8Encoding]::new($false)
+          $playlistWriter = [IO.StreamWriter]::new(
+            (Join-Path $fixture "playlist.m3u"),
+            $false,
+            $utf8)
+          try {
+            $playlistWriter.WriteLine("#EXTM3U")
+            for ($index = 1; $index -le 1500; $index++) {
+              $category = "Category $([int](($index - 1) % 12 + 1))"
+              $playlistWriter.WriteLine(
+                "#EXTINF:-1 tvg-id=`"scale.$index`" group-title=`"$category`",Scale Channel $index")
+              $playlistWriter.WriteLine("#EXTVLCOPT:input-repeat=-1")
+              $playlistWriter.WriteLine("http://127.0.0.1:18769/channel.mp4")
+            }
+          }
+          finally { $playlistWriter.Dispose() }
+
+          $now = [DateTimeOffset]::Now
+          $dayStart = [DateTimeOffset]::new(
+            $now.Year,$now.Month,$now.Day,0,0,0,$now.Offset)
+          $latestStart = $dayStart.AddDays(1).AddHours(-3)
+          $fixtureStart = $now.AddMinutes(-30)
+          if ($fixtureStart -lt $dayStart) { $fixtureStart = $dayStart }
+          if ($fixtureStart -gt $latestStart) { $fixtureStart = $latestStart }
+          $starts = @(
+            $fixtureStart,
+            $fixtureStart.AddHours(1),
+            $fixtureStart.AddHours(2))
+          $stops = @(
+            $fixtureStart.AddHours(1),
+            $fixtureStart.AddHours(2),
+            $fixtureStart.AddHours(3))
+          $guideWriter = [IO.StreamWriter]::new(
+            (Join-Path $fixture "guide.xml"),
+            $false,
+            $utf8)
+          try {
+            $guideWriter.WriteLine("<tv>")
+            for ($index = 1; $index -le 1500; $index++) {
+              $guideWriter.WriteLine(
+                "  <channel id=`"scale.$index`"><display-name>Scale Channel $index</display-name></channel>")
+            }
+            for ($index = 1; $index -le 1500; $index++) {
+              for ($slot = 0; $slot -lt 3; $slot++) {
+                $start = $starts[$slot].ToString("yyyyMMddHHmmss zzz").Replace(":", "")
+                $stop = $stops[$slot].ToString("yyyyMMddHHmmss zzz").Replace(":", "")
+                $guideWriter.WriteLine(
+                  "  <programme channel=`"scale.$index`" start=`"$start`" stop=`"$stop`"><title>Programme $index-$slot</title><desc>Provider scale fixture.</desc></programme>")
+              }
+            }
+            $guideWriter.WriteLine("</tv>")
+          }
+          finally { $guideWriter.Dispose() }
+
+          @{
+            playlist = @{ location = (Join-Path $fixture "playlist.m3u"); isEnabled = $true }
+            programmeGuide = @{ location = (Join-Path $fixture "guide.xml"); isEnabled = $true }
+          } | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $data "sources.json") -Encoding utf8
+          @{ version = 1; theme = 2; accent = 1 } |
+            ConvertTo-Json | Set-Content (Join-Path $data "appearance.json") -Encoding utf8
+
+      - name: Verify all-channel scrolling zoom and day switching
+        shell: pwsh
+        env:
+          EFIRON_CI_EPG_VERIFICATION: "1"
+        run: |
+          $ErrorActionPreference = "Stop"
+          $output = "src/Efiron.Desktop/bin/x64/Release/net10.0-windows10.0.22000.0/win-x64"
+          $exe = Join-Path $output "Efiron.exe"
+          if (-not (Test-Path $exe)) { throw "Efiron.exe not found: $exe" }
+
+          $fixture = Join-Path $env:RUNNER_TEMP "efiron-epg-scale-fixture"
+          $localAppData = [Environment]::GetFolderPath(
+            [Environment+SpecialFolder]::LocalApplicationData)
+          $data = Join-Path $localAppData "Efiron"
+          $diagnostics = Join-Path $data "diagnostics"
+          $projectionPath = Join-Path $diagnostics "epg-projection-runtime.json"
+          $interactionPath = Join-Path $diagnostics "epg-runtime.json"
+          $previewPath = Join-Path $diagnostics "epg-preview.png"
+          $crashPath = Join-Path $diagnostics "startup-crash.log"
+          $process = $null
+          $server = $null
+          $unresponsiveSamples = 0
+          $responsiveSamples = 0
+          $peakWorkingSet = 0L
+          $clock = [Diagnostics.Stopwatch]::StartNew()
+          New-Item -ItemType Directory -Path scale-artifacts -Force | Out-Null
+
+          try {
+            $python = (Get-Command python -ErrorAction Stop).Source
+            $server = Start-Process $python -ArgumentList @(
+              "-m","http.server","18769","--bind","127.0.0.1","--directory",$fixture) `
+              -WindowStyle Hidden -PassThru
+            Start-Sleep -Seconds 2
+            if ($server.HasExited) { throw "Scale media server exited." }
+
+            $process = Start-Process $exe -WorkingDirectory $output -PassThru
+            $deadline = [DateTime]::UtcNow.AddSeconds(180)
+            while ([DateTime]::UtcNow -lt $deadline -and
+                   (-not (Test-Path $projectionPath) -or -not (Test-Path $interactionPath))) {
+              Start-Sleep -Milliseconds 250
+              $process.Refresh()
+              if ($process.HasExited) {
+                $crash = if (Test-Path $crashPath) { Get-Content $crashPath -Raw } else { "no crash log" }
+                throw "Efiron exited before scale interaction evidence. $crash"
+              }
+
+              $current = Get-Process -Id $process.Id -ErrorAction Stop
+              $peakWorkingSet = [Math]::Max($peakWorkingSet, [long]$current.WorkingSet64)
+              if ($current.Responding) { $responsiveSamples++ } else { $unresponsiveSamples++ }
+            }
+
+            if (-not (Test-Path $projectionPath) -or -not (Test-Path $interactionPath)) {
+              throw "Provider-scale interaction evidence did not finish within 180 seconds."
+            }
+
+            Copy-Item $projectionPath scale-artifacts/ -Force
+            Copy-Item $interactionPath scale-artifacts/ -Force
+            if (Test-Path $previewPath) { Copy-Item $previewPath scale-artifacts/ -Force }
+
+            $projection = Get-Content $projectionPath -Raw | ConvertFrom-Json
+            $interaction = Get-Content $interactionPath -Raw | ConvertFrom-Json
+            if ([int]$projection.CatalogChannelCount -ne 1500 -or
+                [int]$projection.ProjectedRowCount -ne 1500 -or
+                [int]$interaction.CatalogChannelCount -ne 1500 -or
+                [int]$interaction.VisibleRowCount -ne 1500 -or
+                -not [bool]$interaction.AllChannelsMode) {
+              throw "Scale all-channel row count is invalid."
+            }
+            if ([int]$interaction.ExpectedCategoryCount -ne 1500 -or
+                [int]$interaction.ActualCategoryCount -ne 1500 -or
+                -not [bool]$interaction.StableCategoryContents) {
+              throw "All-channel mode did not remain stable."
+            }
+            if ([int]$projection.ProgrammeBlockCount -lt 4500 -or
+                [int]$interaction.ProgrammeBlockCount -lt 4500) {
+              throw "Scale programme projection is incomplete."
+            }
+            if ([double]$projection.ProjectionMilliseconds -gt 30000) {
+              throw "Scale projection exceeded 30 seconds: $($projection.ProjectionMilliseconds) ms."
+            }
+            if ($interaction.RenderingArchitecture -ne "manual-two-axis-virtualization" -or
+                [double]$interaction.VerticalScrollMaximum -le 0 -or
+                -not [bool]$interaction.VerticalScrollChanged -or
+                -not [bool]$interaction.RapidScrollCompleted -or
+                [int]$interaction.RapidScrollSamples -lt 7) {
+              throw "Provider-scale vertical virtualization/rapid scrolling is invalid."
+            }
+            if ([int]$interaction.MaxRealizedRowsDuringScroll -le 0 -or
+                [int]$interaction.MaxRealizedRowsDuringScroll -gt 40) {
+              throw "Rapid scrolling realized an unbounded row count."
+            }
+            if (-not [bool]$interaction.ZoomChanged -or
+                [double]$interaction.PixelsPerMinute -le 1.8) {
+              throw "Provider-scale timeline zoom did not change."
+            }
+            if (-not [bool]$interaction.DaySwitchCompleted -or
+                -not [bool]$interaction.ReturnedToOriginalDay -or
+                [double]$interaction.DaySwitchMilliseconds -gt 20000) {
+              throw "Provider-scale multi-day switching is invalid or too slow."
+            }
+            if ([int]$interaction.RealizedRowCount -le 0 -or
+                [int]$interaction.RealizedRowCount -ge [int]$interaction.VisibleRowCount -or
+                [int]$interaction.RealizedRowCount -gt 40) {
+              throw "Provider-scale row realization is not bounded."
+            }
+            if ($unresponsiveSamples -gt 2) {
+              throw "UI became unresponsive in $unresponsiveSamples samples."
+            }
+            if ($peakWorkingSet -gt 1610612736) {
+              throw "Working set exceeded 1.5 GiB: $peakWorkingSet bytes."
+            }
+
+            Start-Sleep -Seconds 3
+            $process.Refresh()
+            if ($process.HasExited) { throw "Efiron exited after scale interactions." }
+
+            $result = [ordered]@{
+              HeadSha = "${{ github.event.pull_request.head.sha || github.sha }}"
+              Channels = [int]$projection.CatalogChannelCount
+              VisibleChannels = [int]$interaction.VisibleRowCount
+              ProgrammeBlocks = [int]$projection.ProgrammeBlockCount
+              ProjectionMilliseconds = [double]$projection.ProjectionMilliseconds
+              DaySwitchMilliseconds = [double]$interaction.DaySwitchMilliseconds
+              VerticalScrollChanged = [bool]$interaction.VerticalScrollChanged
+              RapidScrollCompleted = [bool]$interaction.RapidScrollCompleted
+              RapidScrollSamples = [int]$interaction.RapidScrollSamples
+              ZoomChanged = [bool]$interaction.ZoomChanged
+              RealizedRows = [int]$interaction.RealizedRowCount
+              MaxRealizedRowsDuringScroll = [int]$interaction.MaxRealizedRowsDuringScroll
+              EndToEndMilliseconds = $clock.Elapsed.TotalMilliseconds
+              ResponsiveSamples = $responsiveSamples
+              UnresponsiveSamples = $unresponsiveSamples
+              PeakWorkingSetBytes = $peakWorkingSet
+            }
+            $result | ConvertTo-Json | Set-Content scale-artifacts/epg-scale-runtime.json -Encoding utf8
+            $result | ConvertTo-Json -Compress
+          }
+          catch {
+            $_ | Out-String | Set-Content scale-artifacts/epg-scale-error.txt -Encoding utf8
+            if (Test-Path $diagnostics) {
+              Copy-Item $diagnostics scale-artifacts/diagnostics -Recurse -Force
+            }
+            if (Test-Path (Join-Path $data "programme-catalog.json.gz")) {
+              Copy-Item (Join-Path $data "programme-catalog.json.gz") scale-artifacts/ -Force
+            }
+            throw
+          }
+          finally {
+            if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force }
+            if ($server -and -not $server.HasExited) { Stop-Process -Id $server.Id -Force }
+          }
+
+      - name: Upload scale evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rewrite-epg-scale-evidence
+          path: scale-artifacts/
+          if-no-files-found: error
+          retention-days: 14

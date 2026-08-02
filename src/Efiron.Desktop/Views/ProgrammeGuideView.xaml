@@ -1,0 +1,311 @@
+<UserControl
+    x:Class="Efiron.Desktop.Views.ProgrammeGuideView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+  <UserControl.Resources>
+    <Style x:Key="EpgProgrammeButtonStyle" TargetType="Button">
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="VerticalContentAlignment" Value="Stretch" />
+      <Setter Property="Padding" Value="10,7" />
+      <Setter Property="Background" Value="{ThemeResource EfironAccentQuietBrush}" />
+      <Setter Property="Foreground" Value="{ThemeResource EfironTextBrush}" />
+      <Setter Property="BorderBrush" Value="{ThemeResource EfironStrokeSubtleBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="UseSystemFocusVisuals" Value="True" />
+    </Style>
+  </UserControl.Resources>
+
+  <Grid
+      x:Name="ProgrammeRoot"
+      Padding="30,24,30,28"
+      RowSpacing="14"
+      Background="{ThemeResource EfironWindowBrush}"
+      KeyDown="ProgrammeRoot_KeyDown"
+      SizeChanged="ProgrammeRoot_TimeWindowSizeChanged"
+      Unloaded="ProgrammeRoot_SmoothUnloaded">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <Grid ColumnSpacing="20">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+
+      <StackPanel Spacing="4">
+        <TextBlock Text="ПРОГРАММА" Style="{StaticResource EfironEyebrowStyle}" />
+        <TextBlock Text="Телепрограмма" Style="{StaticResource EfironPageTitleStyle}" />
+        <TextBlock
+            x:Name="ProgrammeSummaryText"
+            Text="Расписание каналов на выбранный день"
+            Style="{StaticResource EfironBodyStyle}" />
+      </StackPanel>
+
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <Button x:Name="PreviousDayButton" Style="{StaticResource EfironIconButtonStyle}" Click="PreviousDayButton_Click" ToolTipService.ToolTip="Предыдущий день">
+          <FontIcon Glyph="&#xE76B;" FontSize="15" />
+        </Button>
+        <Border
+            MinWidth="154"
+            Padding="14,8"
+            Background="{ThemeResource EfironSurfaceRaisedBrush}"
+            CornerRadius="9">
+          <TextBlock
+              x:Name="SelectedDateText"
+              HorizontalAlignment="Center"
+              Style="{StaticResource EfironBodyStyle}"
+              FontWeight="SemiBold" />
+        </Border>
+        <Button x:Name="NextDayButton" Style="{StaticResource EfironIconButtonStyle}" Click="NextDayButton_Click" ToolTipService.ToolTip="Следующий день">
+          <FontIcon Glyph="&#xE76C;" FontSize="15" />
+        </Button>
+        <Button
+            x:Name="JumpNowButton"
+            Content="Сейчас"
+            Style="{StaticResource EfironPrimaryButtonStyle}"
+            Click="JumpNowButton_Click" />
+      </StackPanel>
+    </Grid>
+
+    <Grid Grid.Row="1" ColumnSpacing="10">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="230" />
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="320" />
+      </Grid.ColumnDefinitions>
+
+      <TextBox
+          x:Name="ProgrammeSearchTextBox"
+          PlaceholderText="Канал или передача"
+          TextChanged="ProgrammeSearchTextBox_TextChanged">
+        <TextBox.HeaderTemplate>
+          <DataTemplate><TextBlock Text="Поиск" /></DataTemplate>
+        </TextBox.HeaderTemplate>
+      </TextBox>
+
+      <ComboBox
+          x:Name="ProgrammeCategoryComboBox"
+          Grid.Column="1"
+          Header="Категория"
+          HorizontalAlignment="Stretch"
+          SelectionChanged="ProgrammeCategoryComboBox_SelectionChanged" />
+
+      <Border
+          Grid.Column="2"
+          Padding="12,8"
+          Background="{ThemeResource EfironSurfaceRaisedBrush}"
+          CornerRadius="9"
+          VerticalAlignment="Bottom">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <Ellipse Width="8" Height="8" Fill="{ThemeResource EfironSuccessBrush}" VerticalAlignment="Center" />
+          <TextBlock x:Name="VisibleChannelCountText" Style="{StaticResource EfironCaptionStyle}" FontWeight="SemiBold" />
+        </StackPanel>
+      </Border>
+
+      <StackPanel Grid.Column="3" Spacing="5" VerticalAlignment="Bottom">
+        <Grid ColumnSpacing="8">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <Button
+              x:Name="PreviousTimeWindowButton"
+              Style="{StaticResource EfironIconButtonStyle}"
+              Click="PreviousTimeWindowButton_Click"
+              ToolTipService.ToolTip="Назад по времени">
+            <FontIcon Glyph="&#xE76B;" FontSize="14" />
+          </Button>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="6" VerticalAlignment="Center">
+            <TextBlock Text="Окно" Style="{StaticResource EfironCaptionStyle}" />
+            <TextBlock x:Name="TimelineZoomText" Style="{StaticResource EfironCaptionStyle}" FontWeight="SemiBold" />
+          </StackPanel>
+          <Button
+              x:Name="NextTimeWindowButton"
+              Grid.Column="2"
+              Style="{StaticResource EfironIconButtonStyle}"
+              Click="NextTimeWindowButton_Click"
+              ToolTipService.ToolTip="Вперёд по времени">
+            <FontIcon Glyph="&#xE76C;" FontSize="14" />
+          </Button>
+        </Grid>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="6">
+          <ToggleButton x:Name="TimeWindow3HoursButton" Content="3 ч" Tag="3" MinWidth="52" Style="{StaticResource EfironPillToggleStyle}" Click="TimeWindowButton_Click" />
+          <ToggleButton x:Name="TimeWindow6HoursButton" Content="6 ч" Tag="6" MinWidth="52" Style="{StaticResource EfironPillToggleStyle}" IsChecked="True" Click="TimeWindowButton_Click" />
+          <ToggleButton x:Name="TimeWindow12HoursButton" Content="12 ч" Tag="12" MinWidth="58" Style="{StaticResource EfironPillToggleStyle}" Click="TimeWindowButton_Click" />
+          <ToggleButton x:Name="TimeWindow24HoursButton" Content="24 ч" Tag="24" MinWidth="58" Style="{StaticResource EfironPillToggleStyle}" Click="TimeWindowButton_Click" />
+        </StackPanel>
+        <Slider
+            x:Name="TimelineZoomSlider"
+            Minimum="0.7"
+            Maximum="4"
+            StepFrequency="0.1"
+            Value="1.35"
+            Visibility="Collapsed"
+            ValueChanged="TimelineZoomSlider_ValueChanged" />
+      </StackPanel>
+    </Grid>
+
+    <Border
+        Grid.Row="2"
+        Background="{ThemeResource EfironSurfaceBrush}"
+        BorderBrush="{ThemeResource EfironStrokeSubtleBrush}"
+        BorderThickness="1"
+        CornerRadius="14">
+      <Grid x:Name="EpgSurfaceGrid">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="52" />
+          <RowDefinition Height="*" />
+          <RowDefinition Height="18" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition x:Name="EpgChannelColumn" Width="252" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="16" />
+        </Grid.ColumnDefinitions>
+
+        <Border
+            Padding="16,0"
+            Background="{ThemeResource EfironNavigationBrush}"
+            BorderBrush="{ThemeResource EfironStrokeSubtleBrush}"
+            BorderThickness="0,0,0,1">
+          <Grid ColumnSpacing="10">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="34" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="#" Style="{StaticResource EfironCaptionStyle}" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Text="Канал" Style="{StaticResource EfironCaptionStyle}" FontWeight="SemiBold" VerticalAlignment="Center" />
+          </Grid>
+        </Border>
+
+        <Border
+            x:Name="TimelineHeaderViewport"
+            Grid.Column="1"
+            Background="{ThemeResource EfironNavigationBrush}"
+            BorderBrush="{ThemeResource EfironStrokeSubtleBrush}"
+            BorderThickness="0,0,0,1">
+          <Canvas x:Name="TimelineHeaderCanvas" Height="52" />
+        </Border>
+
+        <Grid
+            x:Name="EpgRowsViewport"
+            Grid.Row="1"
+            Grid.ColumnSpan="2"
+            Background="{ThemeResource EfironSurfaceBrush}"
+            PointerWheelChanged="EpgRowsViewport_SmoothPointerWheelChanged"
+            SizeChanged="EpgRowsViewport_SizeChanged">
+          <Canvas x:Name="EpgRowsCanvas" />
+          <Border
+              x:Name="CurrentTimeLine"
+              Width="2"
+              HorizontalAlignment="Left"
+              Background="{ThemeResource EfironDangerBrush}"
+              Visibility="Collapsed"
+              IsHitTestVisible="False" />
+
+          <Grid x:Name="ProgrammeLoadingOverlay" Background="#B810151D" Visibility="Collapsed">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
+              <ProgressRing IsActive="True" Width="38" Height="38" />
+              <TextBlock x:Name="ProgrammeLoadingText" Text="Подготовка программы…" Style="{StaticResource EfironBodyStyle}" />
+            </StackPanel>
+          </Grid>
+
+          <Grid x:Name="ProgrammeEmptyState" Visibility="Collapsed">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+              <FontIcon Glyph="&#xE787;" FontSize="30" Foreground="{ThemeResource EfironTextTertiaryBrush}" />
+              <TextBlock Text="Для выбранного фильтра нет каналов" Style="{StaticResource EfironSectionTitleStyle}" />
+              <TextBlock Text="Измените категорию или поисковый запрос" Style="{StaticResource EfironBodyStyle}" />
+            </StackPanel>
+          </Grid>
+
+          <Grid
+              x:Name="ProgrammeNoScheduleState"
+              Visibility="Collapsed"
+              IsHitTestVisible="False">
+            <Border
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                MaxWidth="520"
+                Padding="24,20"
+                Background="{ThemeResource EfironSurfaceRaisedBrush}"
+                BorderBrush="{ThemeResource EfironStrokeSubtleBrush}"
+                BorderThickness="1"
+                CornerRadius="14">
+              <StackPanel Spacing="8" HorizontalAlignment="Center">
+                <FontIcon
+                    Glyph="&#xE823;"
+                    FontSize="30"
+                    Foreground="{ThemeResource EfironTextTertiaryBrush}" />
+                <TextBlock
+                    Text="На выбранную дату программа отсутствует"
+                    Style="{StaticResource EfironSectionTitleStyle}"
+                    TextAlignment="Center" />
+                <TextBlock
+                    Text="Выберите другой день или вернитесь к текущей дате"
+                    Style="{StaticResource EfironBodyStyle}"
+                    TextAlignment="Center" />
+              </StackPanel>
+            </Border>
+          </Grid>
+        </Grid>
+
+        <ScrollBar
+            x:Name="EpgVerticalScrollBar"
+            Grid.Row="1"
+            Grid.Column="2"
+            Orientation="Vertical"
+            ValueChanged="EpgVerticalScrollBar_SmoothValueChanged" />
+
+        <ScrollBar
+            x:Name="EpgHorizontalScrollBar"
+            Grid.Row="2"
+            Grid.Column="1"
+            Orientation="Horizontal"
+            ValueChanged="EpgHorizontalScrollBar_TimeWindowValueChanged" />
+      </Grid>
+    </Border>
+
+    <Border
+        x:Name="ProgrammeDetailsCard"
+        Grid.Row="3"
+        Padding="16,14"
+        Background="{ThemeResource EfironSurfaceRaisedBrush}"
+        BorderBrush="{ThemeResource EfironStrokeSubtleBrush}"
+        BorderThickness="1"
+        CornerRadius="12"
+        Visibility="Collapsed">
+      <Grid ColumnSpacing="18">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <StackPanel Spacing="4">
+          <StackPanel Orientation="Horizontal" Spacing="9">
+            <TextBlock x:Name="DetailsTimeText" Style="{StaticResource EfironCaptionStyle}" FontWeight="SemiBold" />
+            <TextBlock x:Name="DetailsChannelText" Style="{StaticResource EfironCaptionStyle}" />
+          </StackPanel>
+          <TextBlock x:Name="DetailsTitleText" Style="{StaticResource EfironSectionTitleStyle}" />
+          <TextBlock x:Name="DetailsDescriptionText" MaxWidth="900" Style="{StaticResource EfironBodyStyle}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+        <Button
+            x:Name="PlayProgrammeChannelButton"
+            Grid.Column="1"
+            Content="Смотреть канал"
+            Style="{StaticResource EfironPrimaryButtonStyle}"
+            Click="PlayProgrammeChannelButton_Click"
+            VerticalAlignment="Center" />
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

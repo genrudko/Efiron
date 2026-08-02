@@ -1,0 +1,251 @@
+name: rewrite epg
+
+on:
+  pull_request:
+  push:
+    branches:
+      - rewrite/001-greenfield-desktop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  epg:
+    name: Full-width programme timeline
+    runs-on: windows-latest
+    timeout-minutes: 22
+
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.302
+
+      - name: Restore and build exact head
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          dotnet restore Efiron.Greenfield.sln
+          dotnet build Efiron.Greenfield.sln -c Release --no-restore
+
+      - name: Prepare deterministic EPG fixture
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $fixture = Join-Path $env:RUNNER_TEMP "efiron-epg-fixture"
+          $localAppData = [Environment]::GetFolderPath(
+            [Environment+SpecialFolder]::LocalApplicationData)
+          $data = Join-Path $localAppData "Efiron"
+          Remove-Item $fixture,$data -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $fixture,$data -Force | Out-Null
+
+          $wave = Join-Path $fixture "channel.wav"
+          $sampleRate = 8000
+          $dataLength = $sampleRate * 2 * 60
+          $stream = [IO.File]::Create($wave)
+          $writer = [IO.BinaryWriter]::new($stream)
+          try {
+            $ascii = [Text.Encoding]::ASCII
+            $writer.Write($ascii.GetBytes("RIFF")); $writer.Write([int](36 + $dataLength))
+            $writer.Write($ascii.GetBytes("WAVEfmt ")); $writer.Write([int]16)
+            $writer.Write([int16]1); $writer.Write([int16]1)
+            $writer.Write([int]$sampleRate); $writer.Write([int]($sampleRate * 2))
+            $writer.Write([int16]2); $writer.Write([int16]16)
+            $writer.Write($ascii.GetBytes("data")); $writer.Write([int]$dataLength)
+            $silence = [byte[]]::new(65536)
+            for ($remaining = $dataLength; $remaining -gt 0; $remaining -= $count) {
+              $count = [Math]::Min($silence.Length, $remaining)
+              $writer.Write($silence, 0, $count)
+            }
+          }
+          finally { $writer.Dispose(); $stream.Dispose() }
+
+          @'
+          #EXTM3U
+          #EXTINF:-1 tvg-id="news.one" group-title="News",News One
+          http://127.0.0.1:18768/channel.wav
+          #EXTINF:-1 tvg-id="news.two" group-title="News",News Two
+          http://127.0.0.1:18768/channel.wav
+          #EXTINF:-1 tvg-id="cinema.one" group-title="Cinema",Cinema One
+          http://127.0.0.1:18768/channel.wav
+          '@ | Set-Content (Join-Path $fixture "playlist.m3u") -Encoding utf8
+
+          $now = [DateTimeOffset]::Now
+          $dayStart = [DateTimeOffset]::new(
+            $now.Year,$now.Month,$now.Day,0,0,0,$now.Offset)
+          $latestStart = $dayStart.AddDays(1).AddHours(-3)
+          $fixtureStart = $now.AddMinutes(-30)
+          if ($fixtureStart -lt $dayStart) { $fixtureStart = $dayStart }
+          if ($fixtureStart -gt $latestStart) { $fixtureStart = $latestStart }
+          $start = $fixtureStart.ToString("yyyyMMddHHmmss zzz").Replace(":", "")
+          $middle = $fixtureStart.AddHours(1).ToString("yyyyMMddHHmmss zzz").Replace(":", "")
+          $next = $fixtureStart.AddHours(2).ToString("yyyyMMddHHmmss zzz").Replace(":", "")
+          $later = $fixtureStart.AddHours(3).ToString("yyyyMMddHHmmss zzz").Replace(":", "")
+          @"
+          <tv>
+            <channel id="news.one"><display-name>News One</display-name></channel>
+            <channel id="news.two"><display-name>News Two</display-name></channel>
+            <channel id="cinema.one"><display-name>Cinema One</display-name></channel>
+            <programme channel="news.one" start="$start" stop="$middle"><title>Morning headlines</title><desc>Current headlines and live reports.</desc></programme>
+            <programme channel="news.one" start="$middle" stop="$next"><title>World report</title><desc>International news.</desc></programme>
+            <programme channel="news.one" start="$next" stop="$later"><title>Business hour</title><desc>Markets and economy.</desc></programme>
+            <programme channel="news.two" start="$start" stop="$middle"><title>Regional news</title><desc>Local reporting.</desc></programme>
+            <programme channel="news.two" start="$middle" stop="$next"><title>Interview</title><desc>Studio interview.</desc></programme>
+            <programme channel="news.two" start="$next" stop="$later"><title>Evening update</title><desc>Latest stories.</desc></programme>
+            <programme channel="cinema.one" start="$start" stop="$middle"><title>Film one</title><desc>Feature film.</desc></programme>
+            <programme channel="cinema.one" start="$middle" stop="$next"><title>Film two</title><desc>Feature film.</desc></programme>
+            <programme channel="cinema.one" start="$next" stop="$later"><title>Film three</title><desc>Feature film.</desc></programme>
+          </tv>
+          "@ | Set-Content (Join-Path $fixture "guide.xml") -Encoding utf8
+
+          @{
+            playlist = @{ location = (Join-Path $fixture "playlist.m3u"); isEnabled = $true }
+            programmeGuide = @{ location = (Join-Path $fixture "guide.xml"); isEnabled = $true }
+          } | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $data "sources.json") -Encoding utf8
+          @{ version = 1; theme = 2; accent = 1 } |
+            ConvertTo-Json | Set-Content (Join-Path $data "appearance.json") -Encoding utf8
+
+      - name: Verify virtualized EPG runtime
+        shell: pwsh
+        env:
+          EFIRON_CI_EPG_VERIFICATION: "1"
+        run: |
+          $ErrorActionPreference = "Stop"
+          $output = "src/Efiron.Desktop/bin/x64/Release/net10.0-windows10.0.22000.0/win-x64"
+          $exe = Join-Path $output "Efiron.exe"
+          if (-not (Test-Path $exe)) { throw "Efiron.exe not found: $exe" }
+
+          $fixture = Join-Path $env:RUNNER_TEMP "efiron-epg-fixture"
+          $localAppData = [Environment]::GetFolderPath(
+            [Environment+SpecialFolder]::LocalApplicationData)
+          $diagnostics = Join-Path $localAppData "Efiron/diagnostics"
+          $evidencePath = Join-Path $diagnostics "epg-runtime.json"
+          $previewPath = Join-Path $diagnostics "epg-preview.png"
+          $errorPath = Join-Path $diagnostics "epg-preview-error.log"
+          $crashPath = Join-Path $diagnostics "startup-crash.log"
+          $process = $null
+          $server = $null
+
+          try {
+            $python = (Get-Command python -ErrorAction Stop).Source
+            $server = Start-Process $python -ArgumentList @(
+              "-m","http.server","18768","--bind","127.0.0.1","--directory",$fixture) `
+              -WindowStyle Hidden -PassThru
+            Start-Sleep -Seconds 2
+            if ($server.HasExited) { throw "EPG media server exited." }
+
+            $process = Start-Process $exe -WorkingDirectory $output -PassThru
+            $deadline = [DateTime]::UtcNow.AddSeconds(100)
+            while ([DateTime]::UtcNow -lt $deadline -and
+                   (-not (Test-Path $evidencePath) -or -not (Test-Path $previewPath))) {
+              Start-Sleep -Milliseconds 400
+              if ($process.HasExited) {
+                $crash = if (Test-Path $crashPath) { Get-Content $crashPath -Raw } else { "no crash log" }
+                throw "Efiron exited before EPG evidence. $crash"
+              }
+            }
+
+            if (Test-Path $errorPath) {
+              throw "EPG capture failed: $(Get-Content $errorPath -Raw)"
+            }
+            if (-not (Test-Path $evidencePath)) { throw "epg-runtime.json is missing." }
+            if (-not (Test-Path $previewPath)) { throw "epg-preview.png is missing." }
+
+            $evidence = Get-Content $evidencePath -Raw | ConvertFrom-Json
+            if ([int]$evidence.CatalogChannelCount -ne 3 -or
+                [int]$evidence.TotalRowCount -ne 3) {
+              throw "EPG catalog/row count is invalid."
+            }
+            if ([int]$evidence.RowsWithProgrammes -ne 3 -or
+                [int]$evidence.ProgrammeBlockCount -lt 9) {
+              throw "Full EPG schedules were not retained."
+            }
+            if ([int]$evidence.RealizedProgrammeButtonCount -le 0 -or
+                [int]$evidence.RealizedRowCount -le 0 -or
+                [int]$evidence.RealizedRowCount -gt [int]$evidence.VisibleRowCount + 2) {
+              throw "Virtualized EPG controls were not realized correctly."
+            }
+            $expectedWidth = 1440 * [double]$evidence.PixelsPerMinute
+            if ([int]$evidence.TimeSlotCount -ne 48 -or
+                [math]::Abs([double]$evidence.TimelineWidth - $expectedWidth) -gt 1 -or
+                [double]$evidence.PixelsPerMinute -lt 0.7 -or
+                [double]$evidence.PixelsPerMinute -gt 4) {
+              throw "Zoomable 24-hour timeline geometry is invalid."
+            }
+            if ($evidence.RenderingArchitecture -ne "manual-two-axis-virtualization") {
+              throw "Unexpected EPG rendering architecture."
+            }
+            if ([int]$evidence.ExpectedCategoryCount -le 0 -or
+                [int]$evidence.ExpectedCategoryCount -ge [int]$evidence.TotalRowCount -or
+                [int]$evidence.ActualCategoryCount -ne [int]$evidence.ExpectedCategoryCount -or
+                -not [bool]$evidence.StableCategoryContents) {
+              throw "EPG category filtering is not stable."
+            }
+            if (-not [bool]$evidence.ProgrammeGeometryValid -or
+                -not [bool]$evidence.HeaderScrollAligned -or
+                -not [bool]$evidence.DirectionalNavigationValid) {
+              throw "EPG programme/header/navigation geometry is invalid."
+            }
+            if (-not [bool]$evidence.CurrentTimeMarkerVisible -or
+                [double]$evidence.HorizontalOffset -lt 0) {
+              throw "Jump-to-now/current-time marker evidence is invalid."
+            }
+            if ([double]$evidence.ViewportWidth -lt 400 -or
+                [double]$evidence.ChannelColumnWidth -lt 190) {
+              throw "EPG viewport is unexpectedly small."
+            }
+
+            Add-Type -AssemblyName System.Drawing
+            $preview = Get-Item $previewPath
+            if ($preview.Length -lt 10000) {
+              throw "EPG preview is unexpectedly small: $($preview.Length)."
+            }
+            $image = [System.Drawing.Image]::FromFile($previewPath)
+            try {
+              if ($image.Width -lt 800 -or $image.Height -lt 500) {
+                throw "EPG preview dimensions are too small: $($image.Width)x$($image.Height)."
+              }
+            }
+            finally { $image.Dispose() }
+
+            Start-Sleep -Seconds 3
+            $process.Refresh()
+            if ($process.HasExited) { throw "Efiron exited after EPG evidence." }
+            Get-Content $evidencePath -Raw
+          }
+          finally {
+            if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force }
+            if ($server -and -not $server.HasExited) { Stop-Process -Id $server.Id -Force }
+          }
+
+      - name: Stage EPG artifacts
+        if: always()
+        shell: pwsh
+        run: |
+          $localAppData = [Environment]::GetFolderPath(
+            [Environment+SpecialFolder]::LocalApplicationData)
+          $diagnostics = Join-Path $localAppData "Efiron/diagnostics"
+          New-Item -ItemType Directory -Path epg-artifacts -Force | Out-Null
+          foreach ($name in @("epg-runtime.json","epg-preview.png","epg-preview-error.log","startup-crash.log")) {
+            $path = Join-Path $diagnostics $name
+            if (Test-Path $path) { Copy-Item $path epg-artifacts/ -Force }
+          }
+
+      - name: Upload EPG evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rewrite-epg-evidence
+          path: epg-artifacts/
+          if-no-files-found: ignore
+          retention-days: 14

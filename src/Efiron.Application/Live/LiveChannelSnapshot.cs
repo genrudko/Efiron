@@ -1,0 +1,14 @@
+using Efiron.Domain.Channels;
+using Efiron.Domain.ProgrammeGuide;
+
+namespace Efiron.Application.Live;
+
+public sealed record LiveChannelSnapshot(
+    ChannelDefinition Channel,
+    string? ProgrammeGuideChannelId,
+    Programme? CurrentProgramme,
+    Programme? NextProgramme)
+{
+    public IReadOnlyList<Programme> Schedule { get; init; } =
+        Array.Empty<Programme>();
+}

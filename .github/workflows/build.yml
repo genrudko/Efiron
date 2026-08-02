@@ -65,7 +65,8 @@ jobs:
           exit 1
 
   windows-app:
-    name: Windows application build
+    name: Legacy Windows application build
+    if: ${{ github.event_name != 'pull_request' || !startsWith(github.head_ref, 'rewrite/') }}
     runs-on: windows-latest
     timeout-minutes: 25
 

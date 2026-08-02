@@ -1,0 +1,213 @@
+name: rewrite interaction
+
+on:
+  pull_request:
+  push:
+    branches:
+      - rewrite/001-greenfield-desktop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  interaction:
+    name: Persisted Light theme, overlay and category interaction
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.302
+
+      - name: Restore and build exact head
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          dotnet restore Efiron.Greenfield.sln
+          if ($LASTEXITCODE -ne 0) { throw "dotnet restore failed: $LASTEXITCODE" }
+          dotnet build Efiron.Greenfield.sln -c Release --no-restore
+          if ($LASTEXITCODE -ne 0) { throw "dotnet build failed: $LASTEXITCODE" }
+
+      - name: Prepare deterministic light-theme fixture
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $fixture = Join-Path $env:RUNNER_TEMP "efiron-interaction-fixture"
+          $localAppData = [Environment]::GetFolderPath(
+            [Environment+SpecialFolder]::LocalApplicationData)
+          $data = Join-Path $localAppData "Efiron"
+          Remove-Item $fixture,$data -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $fixture,$data -Force | Out-Null
+
+          $wave = Join-Path $fixture "channel.wav"
+          $sampleRate = 8000
+          $dataLength = $sampleRate * 2 * 60
+          $stream = [IO.File]::Create($wave)
+          $writer = [IO.BinaryWriter]::new($stream)
+          try {
+            $ascii = [Text.Encoding]::ASCII
+            $writer.Write($ascii.GetBytes("RIFF")); $writer.Write([int](36 + $dataLength))
+            $writer.Write($ascii.GetBytes("WAVEfmt ")); $writer.Write([int]16)
+            $writer.Write([int16]1); $writer.Write([int16]1)
+            $writer.Write([int]$sampleRate); $writer.Write([int]($sampleRate * 2))
+            $writer.Write([int16]2); $writer.Write([int16]16)
+            $writer.Write($ascii.GetBytes("data")); $writer.Write([int]$dataLength)
+            $silence = [byte[]]::new(65536)
+            for ($remaining = $dataLength; $remaining -gt 0; $remaining -= $count) {
+              $count = [Math]::Min($silence.Length, $remaining)
+              $writer.Write($silence, 0, $count)
+            }
+          }
+          finally { $writer.Dispose(); $stream.Dispose() }
+
+          @'
+          #EXTM3U
+          #EXTINF:-1 tvg-id="news.one" group-title="News",News One
+          http://127.0.0.1:18767/channel.wav
+          #EXTINF:-1 tvg-id="news.two" group-title="News",News Two
+          http://127.0.0.1:18767/channel.wav
+          #EXTINF:-1 tvg-id="cinema.one" group-title="Cinema",Cinema One
+          http://127.0.0.1:18767/channel.wav
+          '@ | Set-Content (Join-Path $fixture "playlist.m3u") -Encoding utf8
+
+          $now = [DateTimeOffset]::UtcNow
+          $start = $now.AddMinutes(-20).ToString("yyyyMMddHHmmss +0000")
+          $stop = $now.AddMinutes(40).ToString("yyyyMMddHHmmss +0000")
+          @"
+          <tv>
+            <channel id="news.one"><display-name>News One</display-name></channel>
+            <channel id="news.two"><display-name>News Two</display-name></channel>
+            <channel id="cinema.one"><display-name>Cinema One</display-name></channel>
+            <programme channel="news.one" start="$start" stop="$stop"><title>News programme</title></programme>
+            <programme channel="news.two" start="$start" stop="$stop"><title>News programme</title></programme>
+            <programme channel="cinema.one" start="$start" stop="$stop"><title>Cinema programme</title></programme>
+          </tv>
+          "@ | Set-Content (Join-Path $fixture "guide.xml") -Encoding utf8
+
+          @{
+            playlist = @{ location = (Join-Path $fixture "playlist.m3u"); isEnabled = $true }
+            programmeGuide = @{ location = (Join-Path $fixture "guide.xml"); isEnabled = $true }
+          } | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $data "sources.json") -Encoding utf8
+
+          # AppearanceTheme.Light = 1. This is deliberately persisted before
+          # launch so the gate covers the lazy-workspace cold-start path.
+          @{ version = 1; theme = 1; accent = 1 } |
+            ConvertTo-Json | Set-Content (Join-Path $data "appearance.json") -Encoding utf8
+
+      - name: Verify persisted light surface, category filtering and overlay contrast
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $output = "src/Efiron.Desktop/bin/x64/Release/net10.0-windows10.0.22000.0/win-x64"
+          $exe = Join-Path $output "Efiron.exe"
+          if (-not (Test-Path $exe)) { throw "Efiron.exe not found: $exe" }
+
+          $fixture = Join-Path $env:RUNNER_TEMP "efiron-interaction-fixture"
+          $localAppData = [Environment]::GetFolderPath(
+            [Environment+SpecialFolder]::LocalApplicationData)
+          $diagnostics = Join-Path $localAppData "Efiron/diagnostics"
+          $evidencePath = Join-Path $diagnostics "interaction-runtime.json"
+          $themeEvidencePath = Join-Path $diagnostics "cold-start-theme-runtime.json"
+          $crashPath = Join-Path $diagnostics "startup-crash.log"
+          $process = $null
+          $server = $null
+
+          try {
+            $python = (Get-Command python -ErrorAction Stop).Source
+            $server = Start-Process $python -ArgumentList @(
+              "-m","http.server","18767","--bind","127.0.0.1","--directory",$fixture) `
+              -WindowStyle Hidden -PassThru
+            Start-Sleep -Seconds 2
+            if ($server.HasExited) { throw "Interaction media server exited." }
+
+            $env:EFIRON_CI_INTERACTION_VERIFICATION = "1"
+            $process = Start-Process $exe -WorkingDirectory $output -PassThru
+
+            $deadline = [DateTime]::UtcNow.AddSeconds(100)
+            while ([DateTime]::UtcNow -lt $deadline -and
+                   (-not (Test-Path $evidencePath) -or
+                    -not (Test-Path $themeEvidencePath))) {
+              Start-Sleep -Milliseconds 500
+              if ($process.HasExited) {
+                $crash = if (Test-Path $crashPath) { Get-Content $crashPath -Raw } else { "no crash log" }
+                throw "Efiron exited before interaction/theme evidence. $crash"
+              }
+            }
+
+            if (-not (Test-Path $evidencePath)) {
+              throw "Timed out waiting for interaction-runtime.json"
+            }
+            if (-not (Test-Path $themeEvidencePath)) {
+              throw "Timed out waiting for cold-start-theme-runtime.json"
+            }
+
+            $themeEvidence = Get-Content $themeEvidencePath -Raw | ConvertFrom-Json
+            if ([string]$themeEvidence.WorkspaceRequestedTheme -ne "Light") {
+              throw "Persisted Light preference was not applied to lazy Live workspace: requested=$($themeEvidence.WorkspaceRequestedTheme)."
+            }
+            if ([string]$themeEvidence.WorkspaceActualTheme -ne "Light" -or
+                [string]$themeEvidence.RootActualTheme -ne "Light") {
+              throw "Lazy Live workspace did not resolve Light on cold start: workspace=$($themeEvidence.WorkspaceActualTheme), root=$($themeEvidence.RootActualTheme)."
+            }
+            if ([string]$themeEvidence.RootBackgroundColor -ne "#FFEEF2F7") {
+              throw "Lazy Live root retained a stale non-Light background: $($themeEvidence.RootBackgroundColor)."
+            }
+
+            $evidence = Get-Content $evidencePath -Raw | ConvertFrom-Json
+            if ([int]$evidence.AllChannelCount -ne 3) {
+              throw "Expected 3 fixture channels, got $($evidence.AllChannelCount)."
+            }
+            if ([string]::IsNullOrWhiteSpace([string]$evidence.SelectedCategory)) {
+              throw "No category was selected by the runtime interaction gate."
+            }
+            if ([int]$evidence.ExpectedCategoryCount -le 0 -or
+                [int]$evidence.ExpectedCategoryCount -ge [int]$evidence.AllChannelCount) {
+              throw "Invalid category expectation: $($evidence.ExpectedCategoryCount)."
+            }
+            if ([int]$evidence.VisibleCategoryCount -ne [int]$evidence.ExpectedCategoryCount) {
+              throw "Category filter mismatch: expected $($evidence.ExpectedCategoryCount), visible $($evidence.VisibleCategoryCount)."
+            }
+            if (-not [bool]$evidence.StableSelection) {
+              throw "Category selection did not survive layout synchronization: rail=$($evidence.RailSelectedIndex), combo=$($evidence.ComboSelectedIndex)."
+            }
+            if (-not [bool]$evidence.StableContents) {
+              throw "Visible channel contents do not match the selected category after layout stabilization."
+            }
+            if (-not [bool]$evidence.AllOverlayGlyphsReadable) {
+              throw "Overlay glyph palette is not readable in Light theme: $($evidence.OverlayGlyphColors -join ', ')."
+            }
+            if ($process.HasExited) {
+              throw "Efiron exited after interaction evidence."
+            }
+
+            Write-Host "Persisted Light root, stable category filter and overlay contrast verified."
+            Get-Content $themeEvidencePath -Raw
+            Get-Content $evidencePath -Raw
+          }
+          finally {
+            Remove-Item Env:EFIRON_CI_INTERACTION_VERIFICATION -ErrorAction SilentlyContinue
+            if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force }
+            if ($server -and -not $server.HasExited) { Stop-Process -Id $server.Id -Force }
+          }
+
+      - name: Upload interaction diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rewrite-interaction-diagnostics
+          if-no-files-found: ignore
+          path: |
+            ~/AppData/Local/Efiron/diagnostics/interaction-runtime.json
+            ~/AppData/Local/Efiron/diagnostics/cold-start-theme-runtime.json
+            ~/AppData/Local/Efiron/diagnostics/startup-crash.log

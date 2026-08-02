@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata"><xsd:complexType><xsd:sequence><xsd:element name="value" type="xsd:string" minOccurs="0" /></xsd:sequence><xsd:attribute name="name" use="required" type="xsd:string" /><xsd:attribute name="type" type="xsd:string" /><xsd:attribute name="mimetype" type="xsd:string" /><xsd:attribute ref="xml:space" /></xsd:complexType></xsd:element>
+          <xsd:element name="assembly"><xsd:complexType><xsd:attribute name="alias" type="xsd:string" /><xsd:attribute name="name" type="xsd:string" /></xsd:complexType></xsd:element>
+          <xsd:element name="data"><xsd:complexType><xsd:sequence><xsd:element name="value" type="xsd:string" minOccurs="0" /><xsd:element name="comment" type="xsd:string" minOccurs="0" /></xsd:sequence><xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" /><xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" /><xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" /><xsd:attribute ref="xml:space" /></xsd:complexType></xsd:element>
+          <xsd:element name="resheader"><xsd:complexType><xsd:sequence><xsd:element name="value" type="xsd:string" minOccurs="0" /></xsd:sequence><xsd:attribute name="name" type="xsd:string" use="required" /></xsd:complexType></xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+
+  <data name="WindowTitle" xml:space="preserve"><value>Efiron</value></data>
+  <data name="WindowContextTitle.Text" xml:space="preserve"><value>Sources</value></data>
+  <data name="WindowContextSourcesMessage" xml:space="preserve"><value>Sources</value></data>
+  <data name="WindowContextLiveMessage" xml:space="preserve"><value>Live TV</value></data>
+  <data name="WindowContextProgrammeMessage" xml:space="preserve"><value>Programme</value></data>
+
+  <data name="SourcesTitle.Text" xml:space="preserve"><value>Television sources</value></data>
+  <data name="SourcesDescription.Text" xml:space="preserve"><value>Connect your channel playlist and TV guide. After saving, Efiron validates the sources and builds a working catalog immediately.</value></data>
+  <data name="ConfigurationStatusLoading.Text" xml:space="preserve"><value>Checking settings…</value></data>
+  <data name="PlaylistCardTitle.Text" xml:space="preserve"><value>Channel playlist</value></data>
+  <data name="PlaylistCardDescription.Text" xml:space="preserve"><value>M3U or M3U8 supplied by your IPTV provider</value></data>
+  <data name="PlaylistLocation.Header" xml:space="preserve"><value>Playlist location</value></data>
+  <data name="PlaylistLocation.PlaceholderText" xml:space="preserve"><value>https://provider.example/playlist.m3u</value></data>
+  <data name="PlaylistHelp.Text" xml:space="preserve"><value>HTTP/HTTPS URLs, file URIs and local paths are supported. Size and content are validated before a catalog is built.</value></data>
+  <data name="GuideCardTitle.Text" xml:space="preserve"><value>TV guide</value></data>
+  <data name="GuideCardDescription.Text" xml:space="preserve"><value>XMLTV or XMLTV.GZ programme data</value></data>
+  <data name="GuideLocation.Header" xml:space="preserve"><value>TV guide location</value></data>
+  <data name="GuideLocation.PlaceholderText" xml:space="preserve"><value>https://provider.example/guide.xml.gz</value></data>
+  <data name="GuideHelp.Text" xml:space="preserve"><value>The guide is optional. When present, Efiron matches channels and prepares current and next programmes.</value></data>
+  <data name="StorageTitle.Text" xml:space="preserve"><value>Local storage</value></data>
+  <data name="StorageDescription.Text" xml:space="preserve"><value>Sources and user preferences are written atomically to the Windows profile.</value></data>
+  <data name="SaveSourcesButton.Content" xml:space="preserve"><value>Save and validate</value></data>
+  <data name="OpenLiveButton.Content" xml:space="preserve"><value>Open Live TV</value></data>
+  <data name="AppearanceTitle.Text" xml:space="preserve"><value>Appearance</value></data>
+  <data name="AppearanceDescription.Text" xml:space="preserve"><value>Theme and accent are applied immediately across the interface and restored on future launches.</value></data>
+  <data name="AppearanceThemeLabel.Text" xml:space="preserve"><value>Theme</value></data>
+  <data name="AppearanceAccentLabel.Text" xml:space="preserve"><value>Accent</value></data>
+  <data name="AppearanceThemeSystemMessage" xml:space="preserve"><value>Use Windows setting</value></data>
+  <data name="AppearanceThemeLightMessage" xml:space="preserve"><value>Light</value></data>
+  <data name="AppearanceThemeDarkMessage" xml:space="preserve"><value>Dark</value></data>
+  <data name="AppearanceAccentBlueMessage" xml:space="preserve"><value>Blue</value></data>
+  <data name="AppearanceAccentVioletMessage" xml:space="preserve"><value>Violet</value></data>
+  <data name="AppearanceAccentTealMessage" xml:space="preserve"><value>Teal</value></data>
+  <data name="AppearanceAccentOrangeMessage" xml:space="preserve"><value>Orange</value></data>
+  <data name="AppearanceAccentRoseMessage" xml:space="preserve"><value>Rose</value></data>
+  <data name="AppearanceSaveErrorTitle" xml:space="preserve"><value>Appearance could not be saved</value></data>
+  <data name="AppearanceSaveErrorMessage" xml:space="preserve"><value>The previous appearance was restored. Check access to the Windows profile.</value></data>
+  <data name="NextStepCaption.Text" xml:space="preserve"><value>After validation, the new Live TV screen becomes available with categories, search, favorites, Now/Next and playback controls.</value></data>
+
+  <data name="StatusLoadingMessage" xml:space="preserve"><value>Checking settings…</value></data>
+  <data name="StatusRefreshingMessage" xml:space="preserve"><value>Loading sources…</value></data>
+  <data name="StatusConfiguredMessage" xml:space="preserve"><value>Saved; refresh required</value></data>
+  <data name="StatusMissingMessage" xml:space="preserve"><value>Playlist not configured</value></data>
+  <data name="StatusLoadedFormat" xml:space="preserve"><value>Channels loaded: {0}</value></data>
+  <data name="LoadErrorTitle" xml:space="preserve"><value>Settings could not be read</value></data>
+  <data name="LoadInvalidMessage" xml:space="preserve"><value>The source file is damaged. Enter the locations again and save them.</value></data>
+  <data name="LoadIoMessage" xml:space="preserve"><value>The source file is temporarily unavailable. Check access to your local Windows profile.</value></data>
+  <data name="ValidationTitle" xml:space="preserve"><value>A playlist is required</value></data>
+  <data name="PlaylistRequiredMessage" xml:space="preserve"><value>Enter a URL or local path to an M3U playlist.</value></data>
+  <data name="SaveErrorTitle" xml:space="preserve"><value>Sources could not be saved</value></data>
+  <data name="SaveAccessMessage" xml:space="preserve"><value>Windows denied access to the local data directory.</value></data>
+  <data name="SaveIoMessage" xml:space="preserve"><value>A write error occurred. The current configuration was not partially replaced.</value></data>
+  <data name="RefreshSuccessTitle" xml:space="preserve"><value>Sources are ready</value></data>
+  <data name="RefreshSuccessFormat" xml:space="preserve"><value>Channels: {0}; categories: {1}; XMLTV matches: {2}; warnings: {3}.</value></data>
+  <data name="RefreshErrorTitle" xml:space="preserve"><value>Sources were saved but could not be loaded</value></data>
+  <data name="RefreshTimeoutMessage" xml:space="preserve"><value>The provider did not respond in time. Configuration remains saved and will be retried on the next launch.</value></data>
+  <data name="RefreshNetworkMessage" xml:space="preserve"><value>Source data could not be retrieved. Check the address and network connection.</value></data>
+  <data name="RefreshFileMessage" xml:space="preserve"><value>The local source file was not found.</value></data>
+  <data name="RefreshAccessMessage" xml:space="preserve"><value>Access to the local source file was denied.</value></data>
+  <data name="RefreshInvalidMessage" xml:space="preserve"><value>The source is malformed, unsupported or exceeds the safe size limit.</value></data>
+  <data name="RefreshUnsupportedMessage" xml:space="preserve"><value>Only HTTP/HTTPS URLs, file URIs and local paths are supported.</value></data>
+  <data name="RefreshIoMessage" xml:space="preserve"><value>The source is temporarily unavailable because of a read error.</value></data>
+
+  <data name="LiveTitle.Text" xml:space="preserve"><value>Live TV</value></data>
+  <data name="LiveChannelSearch.PlaceholderText" xml:space="preserve"><value>Channel or programme</value></data>
+  <data name="LiveCategoryFilter.Header" xml:space="preserve"><value>Category</value></data>
+  <data name="LiveFavoritesOnly.Content" xml:space="preserve"><value>★ Favorites</value></data>
+  <data name="LiveChannelEmpty.Text" xml:space="preserve"><value>No channels match the selected filters.</value></data>
+  <data name="LivePlayerEmpty.Text" xml:space="preserve"><value>Select a channel on the left to start watching.</value></data>
+  <data name="LiveNoChannelSelected.Text" xml:space="preserve"><value>No channel selected</value></data>
+  <data name="LiveNowLabel.Text" xml:space="preserve"><value>NOW</value></data>
+  <data name="LiveNextLabel.Text" xml:space="preserve"><value>NEXT</value></data>
+  <data name="LiveProgrammeUnavailable.Text" xml:space="preserve"><value>No programme data</value></data>
+  <data name="PlaybackStatusReady.Text" xml:space="preserve"><value>Player ready</value></data>
+
+  <data name="LiveSummaryFormat" xml:space="preserve"><value>{0} channels · {1} categories · XMLTV: {2}</value></data>
+  <data name="LiveNoProgrammeMessage" xml:space="preserve"><value>No programme data</value></data>
+  <data name="LiveNextProgrammeFormat" xml:space="preserve"><value>Next {0} · {1}</value></data>
+  <data name="LiveAllCategoriesMessage" xml:space="preserve"><value>All categories</value></data>
+  <data name="LiveProgrammeUnavailableMessage" xml:space="preserve"><value>No programme data</value></data>
+
+  <data name="PlaybackStatusReadyMessage" xml:space="preserve"><value>Player ready</value></data>
+  <data name="PlaybackStatusPreparingMessage" xml:space="preserve"><value>Preparing player…</value></data>
+  <data name="PlaybackStatusOpeningMessage" xml:space="preserve"><value>Opening stream…</value></data>
+  <data name="PlaybackStatusPlayingMessage" xml:space="preserve"><value>Live</value></data>
+  <data name="PlaybackStatusPausedMessage" xml:space="preserve"><value>Paused</value></data>
+  <data name="PlaybackStatusStoppedMessage" xml:space="preserve"><value>Stopped</value></data>
+  <data name="PlaybackStatusEndedMessage" xml:space="preserve"><value>Stream ended</value></data>
+  <data name="PlaybackStatusFailedMessage" xml:space="preserve"><value>Playback error</value></data>
+  <data name="PlaybackStatusDisposedMessage" xml:space="preserve"><value>Player closed</value></data>
+</root>

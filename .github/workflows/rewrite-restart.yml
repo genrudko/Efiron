@@ -1,0 +1,80 @@
+name: rewrite restart state
+
+on:
+  pull_request:
+  push:
+    branches:
+      - rewrite/001-greenfield-desktop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  restart-state:
+    name: Greenfield two-launch restart state
+    runs-on: windows-latest
+    timeout-minutes: 18
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.302
+
+      - name: Restore greenfield solution
+        run: dotnet restore Efiron.Greenfield.sln
+
+      - name: Build greenfield solution
+        run: dotnet build Efiron.Greenfield.sln -c Release --no-restore
+
+      - name: Verify persisted playback restart state
+        id: restart_state
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          ./scripts/verify-greenfield-restart.ps1 `
+            -ApplicationOutput "src/Efiron.Desktop/bin/x64/Release/net10.0-windows10.0.22000.0/win-x64"
+
+      - name: Stage restart diagnostics
+        if: steps.restart_state.outcome == 'failure'
+        shell: pwsh
+        run: |
+          $stage = "restart-diagnostics"
+          New-Item -ItemType Directory -Path $stage -Force | Out-Null
+
+          if (Test-Path -LiteralPath "rewrite-restart.log") {
+            Copy-Item -LiteralPath "rewrite-restart.log" -Destination $stage -Force
+          }
+
+          $fixture = Join-Path $env:RUNNER_TEMP "efiron-restart-fixture"
+          if (Test-Path -LiteralPath $fixture) {
+            Copy-Item -LiteralPath $fixture -Destination (Join-Path $stage "fixture") -Recurse -Force
+          }
+
+          $efironData = Join-Path $env:LOCALAPPDATA "Efiron"
+          if (Test-Path -LiteralPath $efironData) {
+            Copy-Item -LiteralPath $efironData -Destination (Join-Path $stage "local-app-data") -Recurse -Force
+          }
+
+      - name: Upload restart diagnostics
+        if: steps.restart_state.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rewrite-restart-diagnostics
+          path: restart-diagnostics/
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Enforce restart-state result
+        if: steps.restart_state.outcome == 'failure'
+        shell: pwsh
+        run: |
+          Write-Error "Greenfield two-launch restart-state validation failed. See rewrite-restart-diagnostics."
+          exit 1

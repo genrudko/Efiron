@@ -1,0 +1,248 @@
+name: rewrite footprint
+
+on:
+  pull_request:
+  push:
+    branches:
+      - rewrite/001-greenfield-desktop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  footprint:
+    name: Cold startup, Flyleaf footprint and graceful exit
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.302
+
+      - name: Restore and build exact head
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          dotnet restore Efiron.Greenfield.sln
+          dotnet build Efiron.Greenfield.sln -c Release --no-restore
+
+      - name: Prepare saved-source H264 fixture
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $fixture = Join-Path $env:RUNNER_TEMP "efiron-footprint-fixture"
+          $localAppData = [Environment]::GetFolderPath(
+            [Environment+SpecialFolder]::LocalApplicationData)
+          $data = Join-Path $localAppData "Efiron"
+          Remove-Item $fixture,$data -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $fixture,$data -Force | Out-Null
+
+          $fixtureBase64 = Get-Content `
+            "tests/fixtures/fullscreen-21x9-h264.mp4.b64" -Raw
+          [IO.File]::WriteAllBytes(
+            (Join-Path $fixture "footprint.mp4"),
+            [Convert]::FromBase64String($fixtureBase64.Trim()))
+
+          @'
+          #EXTM3U
+          #EXTINF:-1 tvg-id="footprint.one" group-title="Footprint",Footprint One
+          http://127.0.0.1:18773/footprint.mp4
+          '@ | Set-Content (Join-Path $fixture "playlist.m3u") -Encoding utf8
+
+          @{
+            playlist = @{
+              location = "http://127.0.0.1:18773/playlist.m3u"
+              isEnabled = $true
+            }
+            programmeGuide = $null
+          } | ConvertTo-Json -Depth 4 |
+            Set-Content (Join-Path $data "sources.json") -Encoding utf8
+          @{ version = 1; theme = 2; accent = 1 } | ConvertTo-Json |
+            Set-Content (Join-Path $data "appearance.json") -Encoding utf8
+
+      - name: Verify startup Flyleaf footprint and graceful exit
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $output = "src/Efiron.Desktop/bin/x64/Release/net10.0-windows10.0.22000.0/win-x64"
+          $exe = Join-Path $output "Efiron.exe"
+          $fixture = Join-Path $env:RUNNER_TEMP "efiron-footprint-fixture"
+          $localAppData = [Environment]::GetFolderPath(
+            [Environment+SpecialFolder]::LocalApplicationData)
+          $data = Join-Path $localAppData "Efiron"
+          $diagnostics = Join-Path $data "diagnostics"
+          $startupPath = Join-Path $diagnostics "startup-process.json"
+          $playbackPath = Join-Path $diagnostics "playback-current.json"
+          $footprintPath = Join-Path $diagnostics "process-footprint.jsonl"
+          $programmeCachePath = Join-Path $data "programme-catalog.json.gz"
+          $process = $null
+          $server = $null
+
+          function Wait-ForCondition {
+            param(
+              [Parameter(Mandatory = $true)][scriptblock]$Condition,
+              [Parameter(Mandatory = $true)][int]$TimeoutSeconds,
+              [Parameter(Mandatory = $true)][string]$Description)
+            $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+            while ([DateTime]::UtcNow -lt $deadline) {
+              if (& $Condition) { return }
+              Start-Sleep -Milliseconds 250
+              if ($process) {
+                $process.Refresh()
+                if ($process.HasExited) {
+                  throw "Efiron exited while waiting for $Description with code $($process.ExitCode)."
+                }
+              }
+            }
+            throw "Timed out waiting for $Description."
+          }
+
+          try {
+            New-Item -ItemType Directory -Path footprint-artifacts -Force | Out-Null
+            $python = (Get-Command python -ErrorAction Stop).Source
+            $server = Start-Process $python -ArgumentList @(
+              "-m","http.server","18773","--bind","127.0.0.1","--directory",$fixture) `
+              -WindowStyle Hidden -PassThru
+            Start-Sleep -Seconds 2
+            if ($server.HasExited) { throw "The footprint fixture server exited." }
+
+            $process = Start-Process $exe -WorkingDirectory $output -PassThru
+            Wait-ForCondition `
+              -Condition { Test-Path $startupPath } `
+              -TimeoutSeconds 15 `
+              -Description "process startup evidence"
+
+            $startup = Get-Content $startupPath -Raw | ConvertFrom-Json
+            if ([double]$startup.ProcessToShellMilliseconds -le 0 -or
+                [double]$startup.ProcessToShellMilliseconds -gt 8000) {
+              throw "Process-to-shell startup exceeded 8000 ms: $($startup.ProcessToShellMilliseconds)."
+            }
+            if ([bool]$startup.LiveViewCreated -or [bool]$startup.ProgrammeGuideCreated) {
+              throw "Heavy Live/EPG workspaces were created before shell-ready."
+            }
+            if ([int64]$startup.WorkingSetBytes -gt 471859200) {
+              throw "Shell working set exceeded 450 MiB: $($startup.WorkingSetBytes)."
+            }
+            if ([int64]$startup.PrivateMemoryBytes -gt 576716800) {
+              throw "Shell private memory exceeded 550 MiB: $($startup.PrivateMemoryBytes)."
+            }
+
+            Wait-ForCondition `
+              -Condition {
+                if (-not (Test-Path $playbackPath)) { return $false }
+                try {
+                  $sample = Get-Content $playbackPath -Raw | ConvertFrom-Json
+                  return $sample.BackendId -eq "Flyleaf" -and
+                    $sample.PlaybackState -eq "Playing" -and
+                    [int64]$sample.DisplayedFrames -gt 0
+                }
+                catch { return $false }
+              } `
+              -TimeoutSeconds 45 `
+              -Description "Flyleaf H264 playback"
+
+            Start-Sleep -Seconds 8
+            Wait-ForCondition `
+              -Condition { Test-Path $footprintPath } `
+              -TimeoutSeconds 8 `
+              -Description "process footprint samples"
+
+            if (Test-Path $programmeCachePath) {
+              throw "Full programme cache was created during Live-only footprint validation."
+            }
+
+            $process.Refresh()
+            $playback = Get-Content $playbackPath -Raw | ConvertFrom-Json
+            $lastLine = Get-Content $footprintPath | Select-Object -Last 1
+            $footprint = $lastLine | ConvertFrom-Json
+            if ($playback.BackendId -ne "Flyleaf" -or
+                $playback.VideoRenderer -ne "Flyleaf D3D11 / DirectComposition" -or
+                [int64]$playback.DisplayedFrames -le 0) {
+              throw "Unexpected Flyleaf footprint playback evidence."
+            }
+            if ($process.WorkingSet64 -gt 786432000 -or
+                [int64]$footprint.WorkingSetBytes -gt 786432000) {
+              throw "Playback working set exceeded 750 MiB."
+            }
+            if ($process.PrivateMemorySize64 -gt 891289600 -or
+                [int64]$footprint.PrivateMemoryBytes -gt 891289600) {
+              throw "Playback private memory exceeded 850 MiB."
+            }
+            if ([int64]$footprint.ManagedHeapBytes -gt 209715200) {
+              throw "Managed heap exceeded 200 MiB: $($footprint.ManagedHeapBytes)."
+            }
+            if ([int]$footprint.ThreadCount -gt 140) {
+              throw "Thread count exceeded 140: $($footprint.ThreadCount)."
+            }
+            if ([int]$footprint.HandleCount -gt 2500) {
+              throw "Handle count exceeded 2500: $($footprint.HandleCount)."
+            }
+
+            Copy-Item $startupPath footprint-artifacts/startup-process.json -Force
+            Copy-Item $playbackPath footprint-artifacts/playback-current.json -Force
+            Copy-Item $footprintPath footprint-artifacts/process-footprint.jsonl -Force
+            [ordered]@{
+              HeadSha = "${{ github.event.pull_request.head.sha || github.sha }}"
+              BackendId = [string]$playback.BackendId
+              SelectedProfile = [string]$playback.SelectedProfile
+              ProcessToShellMilliseconds = [double]$startup.ProcessToShellMilliseconds
+              ShellWorkingSetBytes = [int64]$startup.WorkingSetBytes
+              ShellPrivateMemoryBytes = [int64]$startup.PrivateMemoryBytes
+              PlaybackWorkingSetBytes = [int64]$footprint.WorkingSetBytes
+              PlaybackPrivateMemoryBytes = [int64]$footprint.PrivateMemoryBytes
+              ManagedHeapBytes = [int64]$footprint.ManagedHeapBytes
+              ThreadCount = [int]$footprint.ThreadCount
+              HandleCount = [int]$footprint.HandleCount
+              FramesDisplayed = [int64]$playback.DisplayedFrames
+              FramesDropped = [int64]$playback.DroppedFrames
+              FullEpgStartedDuringLive = $false
+            } | ConvertTo-Json |
+              Set-Content footprint-artifacts/footprint-summary.json -Encoding utf8
+
+            if (-not $process.CloseMainWindow()) {
+              throw "Efiron did not accept a real main-window close request."
+            }
+            if (-not $process.WaitForExit(10000)) {
+              throw "Efiron remained alive more than 10 seconds after X-close."
+            }
+            $lengthAtExit = (Get-Item $footprintPath).Length
+            Start-Sleep -Seconds 2
+            if ((Get-Item $footprintPath).Length -ne $lengthAtExit) {
+              throw "Process footprint diagnostics changed after process exit."
+            }
+            $process = $null
+          }
+          catch {
+            $_ | Out-String |
+              Set-Content footprint-artifacts/footprint-error.txt -Encoding utf8
+            throw
+          }
+          finally {
+            if ($process -and -not $process.HasExited) {
+              Stop-Process -Id $process.Id -Force
+            }
+            if ($server -and -not $server.HasExited) {
+              Stop-Process -Id $server.Id -Force
+            }
+          }
+
+      - name: Upload footprint evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rewrite-footprint-evidence
+          path: footprint-artifacts/
+          if-no-files-found: error
+          retention-days: 14

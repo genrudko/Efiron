@@ -1,0 +1,117 @@
+name: rewrite fullscreen
+
+on:
+  pull_request:
+  push:
+    branches:
+      - rewrite/001-greenfield-desktop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  fullscreen:
+    name: Real-video fullscreen fill and edges
+    runs-on: windows-latest
+    timeout-minutes: 24
+
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.302
+
+      - name: Restore and build exact head
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          dotnet restore Efiron.Greenfield.sln
+          dotnet build Efiron.Greenfield.sln -c Release --no-restore
+
+      - name: Prepare canonical looping ultrawide H264 fixture
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $fixture = Join-Path $env:RUNNER_TEMP "efiron-fullscreen-fixture"
+          $localAppData = [Environment]::GetFolderPath(
+            [Environment+SpecialFolder]::LocalApplicationData)
+          $data = Join-Path $localAppData "Efiron"
+          Remove-Item $fixture,$data -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $fixture,$data -Force | Out-Null
+
+          $fixtureBase64 = Get-Content `
+            "tests/fixtures/fullscreen-21x9-h264.mp4.b64" `
+            -Raw
+          $videoPath = Join-Path $fixture "fullscreen.mp4"
+          [IO.File]::WriteAllBytes(
+            $videoPath,
+            [Convert]::FromBase64String($fixtureBase64.Trim()))
+          if (-not (Test-Path $videoPath) -or
+              (Get-Item $videoPath).Length -lt 2500) {
+            throw "Canonical fullscreen MP4 was not decoded."
+          }
+
+          @'
+          #EXTM3U
+          #EXTINF:-1 tvg-id="fullscreen.one" group-title="Fullscreen",Fullscreen One
+          #EXTVLCOPT:input-repeat=-1
+          http://127.0.0.1:18770/fullscreen.mp4
+          '@ | Set-Content (Join-Path $fixture "playlist.m3u") -Encoding utf8
+
+          $now = [DateTimeOffset]::UtcNow
+          $start = $now.AddMinutes(-30).ToString("yyyyMMddHHmmss +0000")
+          $stop = $now.AddMinutes(90).ToString("yyyyMMddHHmmss +0000")
+          @"
+          <tv>
+            <channel id="fullscreen.one"><display-name>Fullscreen One</display-name></channel>
+            <programme channel="fullscreen.one" start="$start" stop="$stop"><title>Fullscreen programme</title></programme>
+          </tv>
+          "@ | Set-Content (Join-Path $fixture "guide.xml") -Encoding utf8
+
+          @{
+            playlist = @{ location = (Join-Path $fixture "playlist.m3u"); isEnabled = $true }
+            programmeGuide = @{ location = (Join-Path $fixture "guide.xml"); isEnabled = $true }
+          } | ConvertTo-Json -Depth 4 |
+            Set-Content (Join-Path $data "sources.json") -Encoding utf8
+          @{ version = 1; theme = 1; accent = 0 } |
+            ConvertTo-Json |
+            Set-Content (Join-Path $data "appearance.json") -Encoding utf8
+
+      - name: Verify real-video fullscreen fill and edge pixels
+        shell: pwsh
+        env:
+          EFIRON_CI_FULLSCREEN_VERIFICATION: "1"
+        run: |
+          $ErrorActionPreference = "Stop"
+          $output = "src/Efiron.Desktop/bin/x64/Release/net10.0-windows10.0.22000.0/win-x64"
+          $fixture = Join-Path $env:RUNNER_TEMP "efiron-fullscreen-fixture"
+          $localAppData = [Environment]::GetFolderPath(
+            [Environment+SpecialFolder]::LocalApplicationData)
+          $diagnostics = Join-Path $localAppData "Efiron/diagnostics"
+
+          & ./scripts/verify-fullscreen-runtime.ps1 `
+            -OutputDirectory $output `
+            -FixtureDirectory $fixture `
+            -DiagnosticsDirectory $diagnostics `
+            -ArtifactDirectory "fullscreen-artifacts" `
+            -HeadSha "${{ github.event.pull_request.head.sha || github.sha }}" `
+            -Port 18770
+
+      - name: Upload fullscreen evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rewrite-fullscreen-evidence
+          path: fullscreen-artifacts/
+          if-no-files-found: error
+          retention-days: 14

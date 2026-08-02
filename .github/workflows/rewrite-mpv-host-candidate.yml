@@ -1,0 +1,170 @@
+# Historical filename retained to preserve the existing workflow identity and run history.
+name: rewrite flyleaf candidate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - rewrite/001-greenfield-desktop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  repair-k-candidate:
+    name: Exact-head Repair K Flyleaf Windows candidate
+    runs-on: windows-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.302
+
+      - name: Restore build and test exact head
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          dotnet restore Efiron.Greenfield.sln
+          dotnet build Efiron.Greenfield.sln -c Release --no-restore
+          dotnet test tests/Efiron.Architecture.Tests/Efiron.Architecture.Tests.csproj -c Release --no-build
+          dotnet test tests/Efiron.Application.Tests/Efiron.Application.Tests.csproj -c Release --no-build
+          dotnet test tests/Efiron.Infrastructure.Tests/Efiron.Infrastructure.Tests.csproj -c Release --no-build
+
+      - name: Prepare verified clean Repair K candidate
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $source = "src/Efiron.Desktop/bin/x64/Release/net10.0-windows10.0.22000.0/win-x64"
+          ./scripts/prepare-windows-candidate.ps1 `
+            -SourceDirectory $source `
+            -StageDirectory "repair-k-candidate-package" `
+            -HeadSha "${{ github.event.pull_request.head.sha || github.sha }}" `
+            -RunId "${{ github.run_id }}"
+
+      - name: Prepare staged Flyleaf smoke fixture
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $fixture = Join-Path $env:RUNNER_TEMP "efiron-repair-k-candidate-fixture"
+          $localAppData = [Environment]::GetFolderPath(
+            [Environment+SpecialFolder]::LocalApplicationData)
+          $data = Join-Path $localAppData "Efiron"
+          Remove-Item $fixture,$data -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $fixture,$data -Force | Out-Null
+
+          $fixtureBase64 = Get-Content `
+            "tests/fixtures/fullscreen-21x9-h264.mp4.b64" -Raw
+          [IO.File]::WriteAllBytes(
+            (Join-Path $fixture "candidate.mp4"),
+            [Convert]::FromBase64String($fixtureBase64.Trim()))
+
+          @'
+          #EXTM3U
+          #EXTINF:-1 tvg-id="repair-k.candidate" group-title="Repair K",Repair K Candidate
+          http://127.0.0.1:18782/candidate.mp4
+          '@ | Set-Content (Join-Path $fixture "playlist.m3u") -Encoding utf8
+
+          @{
+            playlist = @{
+              location = "http://127.0.0.1:18782/playlist.m3u"
+              isEnabled = $true
+            }
+            programmeGuide = $null
+          } | ConvertTo-Json -Depth 4 |
+            Set-Content (Join-Path $data "sources.json") -Encoding utf8
+          @{ version = 1; theme = 2; accent = 0 } | ConvertTo-Json |
+            Set-Content (Join-Path $data "appearance.json") -Encoding utf8
+
+      - name: Verify stripped candidate renders Flyleaf frames and closes
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $stage = (Resolve-Path "repair-k-candidate-package").Path
+          $exe = Join-Path $stage "Efiron.exe"
+          $fixture = Join-Path $env:RUNNER_TEMP "efiron-repair-k-candidate-fixture"
+          $localAppData = [Environment]::GetFolderPath(
+            [Environment+SpecialFolder]::LocalApplicationData)
+          $diagnostics = Join-Path $localAppData "Efiron/diagnostics"
+          $playbackPath = Join-Path $diagnostics "playback-current.json"
+          $crashPath = Join-Path $diagnostics "startup-crash.log"
+          $process = $null
+          $server = $null
+
+          try {
+            $python = (Get-Command python -ErrorAction Stop).Source
+            $server = Start-Process $python -ArgumentList @(
+              "-m","http.server","18782","--bind","127.0.0.1","--directory",$fixture) `
+              -WindowStyle Hidden -PassThru
+            Start-Sleep -Seconds 2
+            if ($server.HasExited) { throw "Repair K candidate fixture server exited." }
+
+            $env:EFIRON_CI_FLYLEAF_VERIFICATION = "1"
+            $process = Start-Process $exe -WorkingDirectory $stage -PassThru
+            $deadline = [DateTime]::UtcNow.AddSeconds(45)
+            $ready = $false
+            while ([DateTime]::UtcNow -lt $deadline) {
+              Start-Sleep -Milliseconds 300
+              $process.Refresh()
+              if ($process.HasExited) {
+                $crash = if (Test-Path $crashPath) { Get-Content $crashPath -Raw } else { "no crash log" }
+                throw "Stripped Repair K candidate exited before playback. $crash"
+              }
+
+              if (Test-Path $playbackPath) {
+                try {
+                  $sample = Get-Content $playbackPath -Raw | ConvertFrom-Json
+                  if ($sample.BackendId -eq "Flyleaf" -and
+                      $sample.PlaybackState -eq "Playing" -and
+                      [int64]$sample.DisplayedFrames -gt 0 -and
+                      [double]$sample.RenderedFramesPerSecond -gt 0) {
+                    $ready = $true
+                    break
+                  }
+                }
+                catch {
+                }
+              }
+            }
+            if (-not $ready) {
+              $last = if (Test-Path $playbackPath) { Get-Content $playbackPath -Raw } else { "missing" }
+              throw "Stripped Repair K candidate did not render Flyleaf frames. Last evidence: $last"
+            }
+
+            Copy-Item $playbackPath (Join-Path $stage "repair-k-staged-smoke.json") -Force
+            if (-not $process.CloseMainWindow()) {
+              throw "Stripped Repair K candidate did not accept CloseMainWindow."
+            }
+            if (-not $process.WaitForExit(15000)) {
+              throw "Stripped Repair K candidate remained alive after close."
+            }
+            $process = $null
+          }
+          finally {
+            Remove-Item Env:EFIRON_CI_FLYLEAF_VERIFICATION -ErrorAction SilentlyContinue
+            if ($process -and -not $process.HasExited) {
+              Stop-Process -Id $process.Id -Force
+            }
+            if ($server -and -not $server.HasExited) {
+              Stop-Process -Id $server.Id -Force
+            }
+          }
+
+      - name: Upload Repair K Windows candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: efiron-repair-k-flyleaf-win-x64
+          path: repair-k-candidate-package/
+          if-no-files-found: error
+          retention-days: 90
