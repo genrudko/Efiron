@@ -1,0 +1,271 @@
+name: rewrite flyleaf
+
+on:
+  pull_request:
+  push:
+    branches:
+      - rewrite/001-greenfield-desktop
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  flyleaf:
+    name: Flyleaf FFmpeg DirectX playback and lifecycle
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.302
+
+      - name: Restore and build exact head
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          dotnet restore Efiron.Greenfield.sln
+          dotnet build Efiron.Greenfield.sln -c Release --no-restore
+
+      - name: Verify packaged Flyleaf and FFmpeg runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $output = "src/Efiron.Desktop/bin/x64/Release/net10.0-windows10.0.22000.0/win-x64"
+          $requiredManaged = @(
+            "FlyleafLib.dll",
+            "FlyleafLib.Controls.WinUI.dll",
+            "Flyleaf.FFmpeg.Bindings.dll")
+          foreach ($name in $requiredManaged) {
+            if (-not (Test-Path (Join-Path $output $name))) {
+              throw "Missing Flyleaf managed runtime: $name"
+            }
+          }
+
+          $ffmpeg = Join-Path $output "FFmpeg"
+          if (-not (Test-Path $ffmpeg)) {
+            throw "Flyleaf.FFmpeg did not package the FFmpeg directory."
+          }
+          $dlls = @(Get-ChildItem $ffmpeg -File -Filter "*.dll")
+          if ($dlls.Count -lt 6) {
+            throw "Flyleaf FFmpeg runtime is incomplete: $($dlls.Count) DLLs."
+          }
+          foreach ($pattern in @("avcodec-*.dll","avformat-*.dll","avutil-*.dll","swscale-*.dll","swresample-*.dll")) {
+            if (-not (Get-ChildItem $ffmpeg -File -Filter $pattern | Select-Object -First 1)) {
+              throw "Missing Flyleaf FFmpeg component: $pattern"
+            }
+          }
+
+          New-Item -ItemType Directory -Path flyleaf-artifacts -Force | Out-Null
+          [ordered]@{
+            HeadSha = "${{ github.event.pull_request.head.sha || github.sha }}"
+            ManagedRuntime = $requiredManaged
+            FfmpegDllCount = $dlls.Count
+            FfmpegFiles = @($dlls | Sort-Object Name | ForEach-Object {
+              [ordered]@{
+                Name = $_.Name
+                Length = $_.Length
+                Sha256 = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+              }
+            })
+          } | ConvertTo-Json -Depth 5 |
+            Set-Content flyleaf-artifacts/flyleaf-runtime-inventory.json -Encoding utf8
+
+      - name: Prepare deterministic Flyleaf fixture
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $fixture = Join-Path $env:RUNNER_TEMP "efiron-flyleaf-fixture"
+          $localAppData = [Environment]::GetFolderPath(
+            [Environment+SpecialFolder]::LocalApplicationData)
+          $data = Join-Path $localAppData "Efiron"
+          Remove-Item $fixture,$data -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $fixture,$data -Force | Out-Null
+
+          $fixtureBase64 = Get-Content `
+            "tests/fixtures/fullscreen-21x9-h264.mp4.b64" -Raw
+          [IO.File]::WriteAllBytes(
+            (Join-Path $fixture "flyleaf.mp4"),
+            [Convert]::FromBase64String($fixtureBase64.Trim()))
+
+          @'
+          #EXTM3U
+          #EXTINF:-1 tvg-id="flyleaf.one" group-title="Repair K",Flyleaf One
+          #EXTVLCOPT:input-repeat=-1
+          http://127.0.0.1:18781/flyleaf.mp4
+          #EXTINF:-1 tvg-id="flyleaf.two" group-title="Repair K",Flyleaf Two
+          #EXTVLCOPT:input-repeat=-1
+          http://127.0.0.1:18781/flyleaf.mp4
+          '@ | Set-Content (Join-Path $fixture "playlist.m3u") -Encoding utf8
+
+          @{
+            playlist = @{
+              location = "http://127.0.0.1:18781/playlist.m3u"
+              isEnabled = $true
+            }
+            programmeGuide = $null
+          } | ConvertTo-Json -Depth 4 |
+            Set-Content (Join-Path $data "sources.json") -Encoding utf8
+          @{ version = 1; theme = 2; accent = 0 } | ConvertTo-Json |
+            Set-Content (Join-Path $data "appearance.json") -Encoding utf8
+
+      - name: Verify Flyleaf playback controls diagnostics and close
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $output = "src/Efiron.Desktop/bin/x64/Release/net10.0-windows10.0.22000.0/win-x64"
+          $exe = Join-Path $output "Efiron.exe"
+          $fixture = Join-Path $env:RUNNER_TEMP "efiron-flyleaf-fixture"
+          $localAppData = [Environment]::GetFolderPath(
+            [Environment+SpecialFolder]::LocalApplicationData)
+          $diagnostics = Join-Path $localAppData "Efiron/diagnostics"
+          $playbackPath = Join-Path $diagnostics "playback-current.json"
+          $controlsPath = Join-Path $diagnostics "playback-controls.json"
+          $crashPath = Join-Path $diagnostics "startup-crash.log"
+          $process = $null
+          $server = $null
+
+          function Wait-ForCondition {
+            param(
+              [Parameter(Mandatory = $true)][scriptblock]$Condition,
+              [Parameter(Mandatory = $true)][int]$TimeoutSeconds,
+              [Parameter(Mandatory = $true)][string]$Description)
+            $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+            while ([DateTime]::UtcNow -lt $deadline) {
+              if (& $Condition) { return }
+              Start-Sleep -Milliseconds 300
+              if ($process) {
+                $process.Refresh()
+                if ($process.HasExited) {
+                  $crash = if (Test-Path $crashPath) {
+                    Get-Content $crashPath -Raw
+                  } else { "no crash log" }
+                  throw "Efiron exited while waiting for $Description. $crash"
+                }
+              }
+            }
+            throw "Timed out waiting for $Description."
+          }
+
+          try {
+            $python = (Get-Command python -ErrorAction Stop).Source
+            $server = Start-Process $python -ArgumentList @(
+              "-m","http.server","18781","--bind","127.0.0.1","--directory",$fixture) `
+              -WindowStyle Hidden -PassThru
+            Start-Sleep -Seconds 2
+            if ($server.HasExited) { throw "Flyleaf fixture server exited." }
+
+            $env:EFIRON_CI_FLYLEAF_VERIFICATION = "1"
+            $env:EFIRON_CI_PLAYBACK_SEQUENCE = "1"
+            $process = Start-Process $exe -WorkingDirectory $output -PassThru
+
+            Wait-ForCondition `
+              -Condition {
+                if (-not (Test-Path $playbackPath)) { return $false }
+                try {
+                  $sample = Get-Content $playbackPath -Raw | ConvertFrom-Json
+                  return $sample.BackendId -eq "Flyleaf" -and
+                    $sample.PlaybackState -eq "Playing" -and
+                    [int64]$sample.DisplayedFrames -gt 0
+                } catch { return $false }
+              } `
+              -TimeoutSeconds 45 `
+              -Description "Flyleaf D3D11 playback"
+
+            Wait-ForCondition `
+              -Condition { Test-Path $controlsPath } `
+              -TimeoutSeconds 45 `
+              -Description "Flyleaf control sequence"
+
+            $playback = Get-Content $playbackPath -Raw | ConvertFrom-Json
+            $controls = Get-Content $controlsPath -Raw | ConvertFrom-Json
+            if ($playback.BackendId -ne "Flyleaf" -or
+                $playback.PlaybackState -ne "Playing" -or
+                [int]$playback.VideoWidth -le 0 -or
+                [int]$playback.VideoHeight -le 0 -or
+                [double]$playback.RenderedFramesPerSecond -le 0 -or
+                [int64]$playback.DisplayedFrames -le 0 -or
+                $playback.VideoRenderer -ne "Flyleaf D3D11 / DirectComposition" -or
+                $playback.PresentationMode -ne "Flyleaf D3D11 swap chain with VSync") {
+              throw "Flyleaf playback diagnostics are invalid: $($playback | ConvertTo-Json -Compress)"
+            }
+            if (-not [bool]$controls.Paused -or
+                -not [bool]$controls.Resumed -or
+                -not [bool]$controls.VolumeSetTo37 -or
+                -not [bool]$controls.Muted -or
+                -not [bool]$controls.Unmuted -or
+                -not [bool]$controls.Stopped -or
+                -not [bool]$controls.SwitchedToSecondChannel -or
+                -not [string]::IsNullOrWhiteSpace([string]$controls.Error)) {
+              throw "Flyleaf control sequence is incomplete: $($controls | ConvertTo-Json -Compress)"
+            }
+
+            $process.Refresh()
+            if ($process.WorkingSet64 -gt 1073741824) {
+              throw "Flyleaf fixture working set exceeded 1 GiB: $($process.WorkingSet64)."
+            }
+
+            Copy-Item $playbackPath flyleaf-artifacts/flyleaf-playback.json -Force
+            Copy-Item $controlsPath flyleaf-artifacts/flyleaf-controls.json -Force
+            [ordered]@{
+              HeadSha = "${{ github.event.pull_request.head.sha || github.sha }}"
+              ProcessId = $process.Id
+              WorkingSetBytes = $process.WorkingSet64
+              PrivateMemoryBytes = $process.PrivateMemorySize64
+              HandleCount = $process.HandleCount
+              Backend = [string]$playback.BackendId
+              Renderer = [string]$playback.VideoRenderer
+              Presentation = [string]$playback.PresentationMode
+              FramesDisplayed = [int64]$playback.DisplayedFrames
+              FramesDropped = [int64]$playback.DroppedFrames
+              RenderedFps = [double]$playback.RenderedFramesPerSecond
+              HardwareDecodingActive = $playback.HardwareDecodingActive
+            } | ConvertTo-Json |
+              Set-Content flyleaf-artifacts/flyleaf-runtime-summary.json -Encoding utf8
+
+            if (-not $process.CloseMainWindow()) {
+              throw "Efiron did not accept CloseMainWindow."
+            }
+            if (-not $process.WaitForExit(15000)) {
+              throw "Efiron remained alive after CloseMainWindow."
+            }
+            $process = $null
+          }
+          catch {
+            $_ | Out-String |
+              Set-Content flyleaf-artifacts/flyleaf-error.txt -Encoding utf8
+            if (Test-Path $diagnostics) {
+              Copy-Item $diagnostics flyleaf-artifacts/diagnostics -Recurse -Force
+            }
+            throw
+          }
+          finally {
+            Remove-Item Env:EFIRON_CI_FLYLEAF_VERIFICATION -ErrorAction SilentlyContinue
+            Remove-Item Env:EFIRON_CI_PLAYBACK_SEQUENCE -ErrorAction SilentlyContinue
+            if ($process -and -not $process.HasExited) {
+              Stop-Process -Id $process.Id -Force
+            }
+            if ($server -and -not $server.HasExited) {
+              Stop-Process -Id $server.Id -Force
+            }
+          }
+
+      - name: Upload Flyleaf evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rewrite-flyleaf-evidence
+          path: flyleaf-artifacts/
+          if-no-files-found: error
+          retention-days: 14
