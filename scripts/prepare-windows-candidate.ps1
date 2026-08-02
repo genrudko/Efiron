@@ -7,6 +7,19 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Get-Sha256([string]$Path) {
+    $stream = [IO.File]::OpenRead($Path)
+    $algorithm = [Security.Cryptography.SHA256]::Create()
+    try {
+        $hash = $algorithm.ComputeHash($stream)
+        return ([BitConverter]::ToString($hash) -replace "-", "").ToLowerInvariant()
+    }
+    finally {
+        $algorithm.Dispose()
+        $stream.Dispose()
+    }
+}
+
 $source = [IO.Path]::GetFullPath($SourceDirectory)
 $stage = [IO.Path]::GetFullPath($StageDirectory)
 if (-not (Test-Path $source)) {
@@ -19,21 +32,33 @@ Copy-Item $source $stage -Recurse
 $sourceFiles = @(Get-ChildItem $source -Recurse -File)
 $sourceBytes = ($sourceFiles | Measure-Object Length -Sum).Sum
 
-# Project-reference propagation duplicates the entire LibVLC tree below
-# Efiron.Playback. Runtime lookup uses the root libvlc tree.
-$duplicateLibVlc = Join-Path $stage "Efiron.Playback/libvlc"
-if (Test-Path $duplicateLibVlc) {
-    Remove-Item $duplicateLibVlc -Recurse -Force
-}
+# Repair K is a single-engine physical experiment. The rejected native mpv,
+# mpv-host and LibVLC payloads are intentionally absent from the candidate;
+# their source code stays in the branch only as historical/control evidence.
+Get-ChildItem $stage -Recurse -Directory -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -ieq "libvlc" } |
+    Sort-Object FullName -Descending |
+    Remove-Item -Recurse -Force
+Remove-Item (Join-Path $stage "mpv-host") -Recurse -Force -ErrorAction SilentlyContinue
+Get-ChildItem $stage -Recurse -File -ErrorAction SilentlyContinue |
+    Where-Object {
+        $_.Name -ieq "mpv.exe" -or
+        $_.Name -like "libmpv*.dll" -or
+        $_.Name -ieq "libmpv-runtime-manifest.json" -or
+        $_.Name -ieq "libvlc.dll" -or
+        $_.Name -ieq "libvlccore.dll"
+    } |
+    Remove-Item -Force
+
 $playbackOutputDirectory = Join-Path $stage "Efiron.Playback"
 if ((Test-Path $playbackOutputDirectory) -and
     @(Get-ChildItem $playbackOutputDirectory -Force).Count -eq 0) {
     Remove-Item $playbackOutputDirectory -Force
 }
 
-# Keep only the two supported satellite-resource languages. A folder is
+# Keep only the two supported satellite-resource languages. A directory is
 # classified as a locale only when every contained file is *.mui or
-# *.resources.dll, so native folders such as mpv-host cannot be misclassified.
+# *.resources.dll.
 $allowedLocales = @("en-us", "ru-ru")
 Get-ChildItem $stage -Directory -ErrorAction SilentlyContinue |
     ForEach-Object {
@@ -62,13 +87,6 @@ Get-ChildItem $stage -Recurse -File -Filter "*.lib" -ErrorAction SilentlyContinu
 
 $requiredEntries = @(
     "Efiron.exe",
-    "mpv-host/mpv.exe",
-    "mpv-host/runtime-manifest.json",
-    "mpv-host/NOTICE.txt",
-    "libmpv-2.dll",
-    "libvlc/win-x64/libvlc.dll",
-    "libvlc/win-x64/libvlccore.dll",
-    "libvlc/win-x64/plugins",
     "FFmpeg/avcodec-62.dll",
     "FFmpeg/avdevice-62.dll",
     "FFmpeg/avfilter-11.dll",
@@ -86,12 +104,8 @@ $requiredEntries = @(
 )
 foreach ($entry in $requiredEntries) {
     if (-not (Test-Path (Join-Path $stage $entry))) {
-        throw "Clean candidate is missing required entry: $entry"
+        throw "Clean Flyleaf candidate is missing required entry: $entry"
     }
-}
-
-if (Test-Path $duplicateLibVlc) {
-    throw "Clean candidate still contains nested duplicate Efiron.Playback/libvlc."
 }
 
 $remainingLocaleDirectories = @(Get-ChildItem $stage -Directory |
@@ -113,16 +127,6 @@ if ($unexpectedLocales.Count -gt 0) {
     throw "Unexpected packaged locale directories: $($unexpectedLocales.Name -join ', ')."
 }
 
-$mpvManifestPath = Join-Path $stage "mpv-host/runtime-manifest.json"
-$mpvManifest = Get-Content $mpvManifestPath -Raw | ConvertFrom-Json
-$mpvExe = Join-Path $stage "mpv-host/mpv.exe"
-$mpvHash = (Get-FileHash $mpvExe -Algorithm SHA256).Hash.ToLowerInvariant()
-$mpvLength = (Get-Item $mpvExe).Length
-if ($mpvHash -ne [string]$mpvManifest.exeSha256 -or
-    $mpvLength -ne [int64]$mpvManifest.executableLength) {
-    throw "Packaged mpv.exe does not match its pinned runtime manifest."
-}
-
 $ffmpegDirectory = Join-Path $stage "FFmpeg"
 $ffmpegManifestPath = Join-Path $ffmpegDirectory "runtime-manifest.json"
 $ffmpegManifest = Get-Content $ffmpegManifestPath -Raw | ConvertFrom-Json
@@ -139,41 +143,43 @@ foreach ($entry in @($ffmpegManifest.files)) {
     $path = Join-Path $ffmpegDirectory ([string]$entry.name)
     if (-not (Test-Path $path) -or
         (Get-Item $path).Length -ne [int64]$entry.length -or
-        (Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant() -ne [string]$entry.sha256) {
+        (Get-Sha256 $path) -ne [string]$entry.sha256) {
         throw "Flyleaf FFmpeg manifest mismatch for $($entry.name)."
     }
 }
 
 $efironExeCount = @(Get-ChildItem $stage -Recurse -File -Filter "Efiron.exe").Count
 $mpvExeCount = @(Get-ChildItem $stage -Recurse -File -Filter "mpv.exe").Count
-$libVlcDllCount = @(Get-ChildItem $stage -Recurse -File -Filter "libvlc.dll").Count
+$libMpvCount = @(Get-ChildItem $stage -Recurse -File -Filter "libmpv*.dll").Count
+$libVlcCount = @(Get-ChildItem $stage -Recurse -File -Filter "libvlc.dll").Count
+$libVlcCoreCount = @(Get-ChildItem $stage -Recurse -File -Filter "libvlccore.dll").Count
 $pdbCount = @(Get-ChildItem $stage -Recurse -File -Filter "*.pdb").Count
 $importLibraryCount = @(Get-ChildItem $stage -Recurse -File -Filter "*.lib").Count
-$pluginCount = @(Get-ChildItem (Join-Path $stage "libvlc/win-x64/plugins") -Recurse -File).Count
-if ($efironExeCount -ne 1 -or $mpvExeCount -ne 1 -or $libVlcDllCount -ne 1) {
-    throw "Candidate runtime multiplicity is invalid: Efiron=$efironExeCount mpv=$mpvExeCount LibVLC=$libVlcDllCount."
+if ($efironExeCount -ne 1) {
+    throw "Expected exactly one Efiron.exe, got $efironExeCount."
+}
+if ($mpvExeCount -ne 0 -or $libMpvCount -ne 0 -or
+    $libVlcCount -ne 0 -or $libVlcCoreCount -ne 0) {
+    throw "Rejected native engines remain in candidate: mpv=$mpvExeCount libmpv=$libMpvCount libvlc=$libVlcCount core=$libVlcCoreCount."
 }
 if ($pdbCount -ne 0 -or $importLibraryCount -ne 0) {
     throw "Candidate contains build-only files: PDB=$pdbCount LIB=$importLibraryCount."
 }
-if ($pluginCount -le 0) {
-    throw "Candidate contains no LibVLC fallback plugins."
-}
 
 $packageFiles = @(Get-ChildItem $stage -Recurse -File)
 $packageBytes = ($packageFiles | Measure-Object Length -Sum).Sum
-if ($packageFiles.Count -ge 950) {
-    throw "Candidate cleanup regressed: expected fewer than 950 files, got $($packageFiles.Count)."
+if ($packageFiles.Count -ge 600) {
+    throw "Candidate cleanup regressed: expected fewer than 600 files, got $($packageFiles.Count)."
 }
-if ($packageBytes -ge 700MB) {
-    throw "Candidate cleanup regressed: expected less than 700 MiB unpacked, got $packageBytes bytes."
+if ($packageBytes -ge 550MB) {
+    throw "Candidate cleanup regressed: expected less than 550 MiB unpacked, got $packageBytes bytes."
 }
 
 [ordered]@{
     product = "Efiron"
     platform = "Windows 11 x64"
     architecture = "greenfield"
-    repair = "Repair K Flyleaf FFmpeg DirectX cadence experiment"
+    repair = "Repair K single-engine Flyleaf FFmpeg DirectX cadence experiment"
     status = "physical playback validation candidate"
     headSha = $HeadSha
     runId = $RunId
@@ -184,8 +190,9 @@ if ($packageBytes -ge 700MB) {
         ffmpegVersion = [string]$ffmpegManifest.ffmpegVersion
         ffmpegSourceCommit = [string]$ffmpegManifest.sourceCommit
         ffmpegDllCount = $ffmpegDlls.Count
+        exposedEngineCount = 1
     }
-    retainedControls = @("Mpv", "MpvHost", "LibVlc")
+    removedNativeControls = @("Mpv", "MpvHost", "LibVlc")
     packageChecks = [ordered]@{
         sourceFileCount = $sourceFiles.Count
         sourceBytes = $sourceBytes
@@ -193,12 +200,11 @@ if ($packageBytes -ge 700MB) {
         packagedBytes = $packageBytes
         efironExeCount = $efironExeCount
         mpvExeCount = $mpvExeCount
-        libVlcRuntimeCount = $libVlcDllCount
+        libMpvRuntimeCount = $libMpvCount
+        libVlcRuntimeCount = $libVlcCount
         flyleafFfmpegDllCount = $ffmpegDlls.Count
-        duplicatePlaybackLibVlcPresent = $false
         pdbCount = $pdbCount
         importLibraryCount = $importLibraryCount
-        libVlcPluginCount = $pluginCount
         locales = @("en-US", "ru-RU")
     }
     builtAtUtc = [DateTimeOffset]::UtcNow.ToString("O")
