@@ -50,7 +50,7 @@ public sealed class FlyleafPlaybackBackend : IPlaybackBackend
             Id,
             Version,
             SelectedProfile,
-            Capabilities,
+            BackendCapabilities,
             snapshot.Source?.Scheme,
             Container: null,
             VideoCodec: NullIfWhiteSpace(player.Video.Codec),
@@ -195,6 +195,10 @@ internal sealed class FlyleafPlaybackSession : IPlaybackSession
         ArgumentNullException.ThrowIfNull(request);
         ThrowIfDisposed();
 
+        // Flyleaf has a native loop facility. Map the existing M3U repeat
+        // directive to it rather than relying on a VLC-only option parser.
+        _player.LoopPlayback = ShouldLoop(request.Directives);
+
         TaskCompletionSource<bool> completion;
         lock (_sync)
         {
@@ -243,6 +247,7 @@ internal sealed class FlyleafPlaybackSession : IPlaybackSession
             return;
         }
 
+        _player.LoopPlayback = false;
         _player.Stop();
         lock (_sync)
         {
@@ -412,6 +417,18 @@ internal sealed class FlyleafPlaybackSession : IPlaybackSession
     {
         _snapshot = snapshot;
         SnapshotChanged?.Invoke(this, new PlaybackSnapshotChangedEventArgs(snapshot));
+    }
+
+    private static bool ShouldLoop(IReadOnlyDictionary<string, string> directives)
+    {
+        if (!directives.TryGetValue("extvlcopt:input-repeat", out var value))
+        {
+            return false;
+        }
+
+        return !string.IsNullOrWhiteSpace(value) &&
+            !string.Equals(value.Trim(), "0", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(value.Trim(), "false", StringComparison.OrdinalIgnoreCase);
     }
 
     private static PlaybackState MapStatus(string status) => status switch
