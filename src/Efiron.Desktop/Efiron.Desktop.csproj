@@ -23,10 +23,12 @@
     <MpvHostRuntimeExe>$(MpvHostRuntimeDirectory)\mpv.exe</MpvHostRuntimeExe>
     <MpvHostRuntimeManifest>$(MpvHostRuntimeDirectory)\runtime-manifest.json</MpvHostRuntimeManifest>
     <MpvHostRuntimeNotice>$(MpvHostRuntimeDirectory)\NOTICE.txt</MpvHostRuntimeNotice>
+    <FlyleafFfmpegRuntimeDirectory>$(MSBuildThisFileDirectory)..\..\artifacts\flyleaf-ffmpeg\win-x64</FlyleafFfmpegRuntimeDirectory>
+    <FlyleafFfmpegRuntimeManifest>$(FlyleafFfmpegRuntimeDirectory)\runtime-manifest.json</FlyleafFfmpegRuntimeManifest>
+    <FlyleafFfmpegRuntimeNotice>$(FlyleafFfmpegRuntimeDirectory)\NOTICE.txt</FlyleafFfmpegRuntimeNotice>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Flyleaf.FFmpeg" />
     <PackageReference Include="FlyleafLib.Controls.WinUI" />
     <PackageReference Include="LibVLCSharp.WinUI" />
     <PackageReference Include="Microsoft.WindowsAppSDK" />
@@ -98,6 +100,20 @@
         Text="Pinned mpv host provenance notice was not prepared: $(MpvHostRuntimeNotice)" />
   </Target>
 
+  <Target Name="PrepareDesktopFlyleafFfmpegRuntime" BeforeTargets="PrepareForBuild">
+    <Exec
+        Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\..\scripts\prepare-flyleaf-ffmpeg-runtime.ps1&quot; -OutputDirectory &quot;$(FlyleafFfmpegRuntimeDirectory)&quot;" />
+    <Error
+        Condition="!Exists('$(FlyleafFfmpegRuntimeDirectory)\avcodec-62.dll')"
+        Text="Pinned Flyleaf FFmpeg runtime was not prepared." />
+    <Error
+        Condition="!Exists('$(FlyleafFfmpegRuntimeManifest)')"
+        Text="Pinned Flyleaf FFmpeg runtime manifest was not prepared." />
+    <Error
+        Condition="!Exists('$(FlyleafFfmpegRuntimeNotice)')"
+        Text="Pinned Flyleaf FFmpeg runtime notice was not prepared." />
+  </Target>
+
   <Target
       Name="VerifyDesktopMpvHostRuntimeOutput"
       AfterTargets="CopyFilesToOutputDirectory">
@@ -118,6 +134,33 @@
   </Target>
 
   <Target
+      Name="VerifyDesktopFlyleafFfmpegRuntimeOutput"
+      AfterTargets="CopyFilesToOutputDirectory"
+      DependsOnTargets="PrepareDesktopFlyleafFfmpegRuntime">
+    <ItemGroup>
+      <FlyleafFfmpegRuntimeDlls Include="$(FlyleafFfmpegRuntimeDirectory)\*.dll" />
+    </ItemGroup>
+    <MakeDir Directories="$(TargetDir)FFmpeg" />
+    <Copy
+        SourceFiles="@(FlyleafFfmpegRuntimeDlls)"
+        DestinationFolder="$(TargetDir)FFmpeg"
+        SkipUnchangedFiles="true" />
+    <Copy
+        SourceFiles="$(FlyleafFfmpegRuntimeManifest);$(FlyleafFfmpegRuntimeNotice)"
+        DestinationFiles="$(TargetDir)FFmpeg\runtime-manifest.json;$(TargetDir)FFmpeg\NOTICE.txt"
+        SkipUnchangedFiles="true" />
+    <Error
+        Condition="'@(FlyleafFfmpegRuntimeDlls)' == ''"
+        Text="Desktop output has no Flyleaf FFmpeg runtime DLLs." />
+    <Error
+        Condition="!Exists('$(TargetDir)FFmpeg\avcodec-62.dll') or !Exists('$(TargetDir)FFmpeg\avformat-62.dll') or !Exists('$(TargetDir)FFmpeg\avutil-60.dll')"
+        Text="Desktop output is missing required Flyleaf FFmpeg components." />
+    <Error
+        Condition="!Exists('$(TargetDir)FFmpeg\runtime-manifest.json') or !Exists('$(TargetDir)FFmpeg\NOTICE.txt')"
+        Text="Desktop output is missing Flyleaf FFmpeg provenance files." />
+  </Target>
+
+  <Target
       Name="VerifyDesktopMpvHostRuntimePublish"
       AfterTargets="Publish"
       Condition="'$(PublishDir)' != ''">
@@ -129,5 +172,27 @@
     <Error
         Condition="!Exists('$(PublishDir)mpv-host\mpv.exe')"
         Text="Desktop publish output is missing the mpv host executable." />
+  </Target>
+
+  <Target
+      Name="VerifyDesktopFlyleafFfmpegRuntimePublish"
+      AfterTargets="Publish"
+      Condition="'$(PublishDir)' != ''"
+      DependsOnTargets="PrepareDesktopFlyleafFfmpegRuntime">
+    <ItemGroup>
+      <FlyleafFfmpegPublishDlls Include="$(FlyleafFfmpegRuntimeDirectory)\*.dll" />
+    </ItemGroup>
+    <MakeDir Directories="$(PublishDir)FFmpeg" />
+    <Copy
+        SourceFiles="@(FlyleafFfmpegPublishDlls)"
+        DestinationFolder="$(PublishDir)FFmpeg"
+        SkipUnchangedFiles="true" />
+    <Copy
+        SourceFiles="$(FlyleafFfmpegRuntimeManifest);$(FlyleafFfmpegRuntimeNotice)"
+        DestinationFiles="$(PublishDir)FFmpeg\runtime-manifest.json;$(PublishDir)FFmpeg\NOTICE.txt"
+        SkipUnchangedFiles="true" />
+    <Error
+        Condition="!Exists('$(PublishDir)FFmpeg\avcodec-62.dll')"
+        Text="Desktop publish output is missing the Flyleaf FFmpeg runtime." />
   </Target>
 </Project>
