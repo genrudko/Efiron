@@ -25,6 +25,7 @@ public sealed partial class MainWindow
         SourcesWorkspace.Visibility = Visibility.Collapsed;
         if (_liveTvWorkspace is not null)
         {
+            await _liveTvWorkspace.SuspendForProgrammeGuideAsync();
             _liveTvWorkspace.Visibility = Visibility.Collapsed;
         }
 
